@@ -20,6 +20,8 @@ export function GenerationStep() {
     closeWizard,
     reset,
     prompt,
+    polishedPrompt,
+    usePolishedPrompt,
     title,
     classDetails,
     selectedInspiration,
@@ -28,6 +30,9 @@ export function GenerationStep() {
     ollamaModel,
     regeneratingProjectId,
   } = useWizardStore();
+
+  // Use the polished prompt if available and user chose to use it
+  const finalPrompt = usePolishedPrompt && polishedPrompt ? polishedPrompt : prompt;
   const { createProject, updateProject } = useProjectStore();
   const { session } = useAuthStore();
   const startedRef = useRef(false);
@@ -89,11 +94,11 @@ export function GenerationStep() {
 
       setGenerationState({ progress: 10, message: "Starting AI generation..." });
 
-      // Call the Generation API
+      // Call the Generation API with the final (possibly polished) prompt
       const result = await generateTeacherPack(
         {
           projectId,
-          prompt,
+          prompt: finalPrompt,
           grade: classDetails.grade,
           subject: classDetails.subject,
           options: {
@@ -106,6 +111,7 @@ export function GenerationStep() {
           inspiration: selectedInspiration,
           aiProvider,
           aiModel: ollamaModel || undefined,
+          prePolished: usePolishedPrompt && polishedPrompt !== null,
         },
         session.access_token,
         handleProgress

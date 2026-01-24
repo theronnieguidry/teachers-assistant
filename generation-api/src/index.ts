@@ -6,6 +6,7 @@ import healthRouter from "./routes/health.js";
 import generateRouter from "./routes/generate.js";
 import creditsRouter from "./routes/credits.js";
 import pdfRouter from "./routes/pdf.js";
+import polishRouter from "./routes/polish.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,6 +22,7 @@ app.use("/health", healthRouter);
 app.use("/generate", authMiddleware, generateRouter);
 app.use("/credits", authMiddleware, creditsRouter);
 app.use("/pdf", authMiddleware, pdfRouter);
+app.use("/polish", authMiddleware, polishRouter);
 
 // Error handling
 app.use(

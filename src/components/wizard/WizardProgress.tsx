@@ -5,8 +5,10 @@ import { Check } from "lucide-react";
 const steps = [
   { number: 1, label: "Details" },
   { number: 2, label: "Inspiration" },
-  { number: 3, label: "Output" },
-  { number: 4, label: "Generate" },
+  { number: 3, label: "AI" },
+  { number: 4, label: "Output" },
+  { number: 5, label: "Review" },
+  { number: 6, label: "Generate" },
 ];
 
 export function WizardProgress() {

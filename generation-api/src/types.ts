@@ -27,6 +27,7 @@ export interface GenerationRequest {
   options: ProjectOptions;
   inspiration: InspirationItem[];
   aiProvider?: AIProvider;
+  prePolished?: boolean; // Skip prompt polishing if already done client-side
 }
 
 export interface GenerationProgress {

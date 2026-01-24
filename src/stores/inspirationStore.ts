@@ -12,6 +12,7 @@ interface InspirationState {
   updateItem: (id: string, data: Partial<InspirationItem>) => void;
   reorderItems: (startIndex: number, endIndex: number) => void;
   clearItems: () => void;
+  setItems: (items: InspirationItem[]) => void;
   setError: (error: string | null) => void;
 }
 
@@ -61,6 +62,10 @@ export const useInspirationStore = create<InspirationState>((set) => ({
 
   clearItems: () => {
     set({ items: [], error: null });
+  },
+
+  setItems: (items) => {
+    set({ items, error: null });
   },
 
   setError: (error) => {

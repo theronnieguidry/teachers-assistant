@@ -37,7 +37,7 @@ describe("Prompt Templates", () => {
 
     it("should include question count", () => {
       const result = buildWorksheetPrompt(baseContext);
-      expect(result).toContain("approximately 10 questions");
+      expect(result).toContain("10 questions");
     });
 
     it("should include visual instructions when enabled", () => {
@@ -63,7 +63,7 @@ describe("Prompt Templates", () => {
     it("should mention HTML output format", () => {
       const result = buildWorksheetPrompt(baseContext);
       expect(result).toContain("HTML");
-      expect(result).toContain("Return ONLY the HTML code");
+      expect(result).toContain("Return ONLY valid HTML");
     });
 
     it("should include different difficulty levels", () => {

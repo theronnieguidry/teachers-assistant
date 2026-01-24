@@ -61,6 +61,7 @@ export interface GenerationRequest {
   inspiration: InspirationItem[];
   aiProvider?: "claude" | "openai" | "ollama";
   aiModel?: string;
+  prePolished?: boolean; // Skip prompt polishing if already done client-side
 }
 
 export interface GenerationProgress {

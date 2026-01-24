@@ -1,73 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OutputStep } from "@/components/wizard/OutputStep";
 import { useWizardStore } from "@/stores/wizardStore";
-
-// Mock the tauri-bridge module
-const mockCheckOllamaStatus = vi.fn();
-
-vi.mock("@/services/tauri-bridge", () => ({
-  checkOllamaStatus: () => mockCheckOllamaStatus(),
-}));
 
 describe("OutputStep", () => {
   const mockNextStep = vi.fn();
   const mockPrevStep = vi.fn();
   const mockSetOutputPath = vi.fn();
-  const mockSetAiProvider = vi.fn();
-  const mockSetOllamaModel = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCheckOllamaStatus.mockResolvedValue({
-      installed: true,
-      running: true,
-      version: "0.1.0",
-      models: ["llama3.2", "mistral"],
-    });
     useWizardStore.setState({
       outputPath: null,
       title: "Test Project",
-      aiProvider: "claude",
-      ollamaModel: null,
       nextStep: mockNextStep,
       prevStep: mockPrevStep,
       setOutputPath: mockSetOutputPath,
-      setAiProvider: mockSetAiProvider,
-      setOllamaModel: mockSetOllamaModel,
-    });
-  });
-
-  describe("AI Provider selection", () => {
-    it("renders AI Provider label", () => {
-      render(<OutputStep />);
-
-      expect(screen.getByText("AI Provider")).toBeInTheDocument();
-    });
-
-    it("renders all three provider options", () => {
-      render(<OutputStep />);
-
-      expect(screen.getByText("Claude")).toBeInTheDocument();
-      expect(screen.getByText("OpenAI")).toBeInTheDocument();
-      expect(screen.getByText("Ollama")).toBeInTheDocument();
-    });
-
-    it("Claude is selected by default", () => {
-      render(<OutputStep />);
-
-      const claudeCard = screen.getByText("Claude").closest("[role='button']");
-      expect(claudeCard).toHaveAttribute("aria-pressed", "true");
-    });
-
-    it("calls setAiProvider when a provider is clicked", async () => {
-      const user = userEvent.setup();
-      render(<OutputStep />);
-
-      await user.click(screen.getByText("OpenAI").closest("[role='button']")!);
-
-      expect(mockSetAiProvider).toHaveBeenCalledWith("openai");
     });
   });
 
@@ -130,11 +79,11 @@ describe("OutputStep", () => {
   });
 
   describe("navigation buttons", () => {
-    it("renders Back and Generate buttons", () => {
+    it("renders Back and Next buttons", () => {
       render(<OutputStep />);
 
       expect(screen.getByRole("button", { name: /back/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /generate/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
     });
 
     it("calls prevStep when Back is clicked", async () => {
@@ -146,69 +95,34 @@ describe("OutputStep", () => {
       expect(mockPrevStep).toHaveBeenCalled();
     });
 
-    it("calls nextStep when Generate is clicked with valid path", async () => {
+    it("calls nextStep when Next is clicked with valid path", async () => {
       const user = userEvent.setup();
       render(<OutputStep />);
 
       const input = screen.getByPlaceholderText(/select or enter a folder path/i);
       await user.type(input, "C:\\Output");
 
-      await user.click(screen.getByRole("button", { name: /generate/i }));
+      await user.click(screen.getByRole("button", { name: /next/i }));
 
       expect(mockNextStep).toHaveBeenCalled();
     });
   });
 
-  describe("Generate button validation", () => {
-    it("Generate button is disabled when no path", () => {
+  describe("Next button validation", () => {
+    it("Next button is disabled when no path", () => {
       render(<OutputStep />);
 
-      expect(screen.getByRole("button", { name: /generate/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
     });
 
-    it("Generate button is enabled when path is entered with Claude provider", async () => {
+    it("Next button is enabled when path is entered", async () => {
       const user = userEvent.setup();
       render(<OutputStep />);
 
       const input = screen.getByPlaceholderText(/select or enter a folder path/i);
       await user.type(input, "C:\\Documents\\Output");
 
-      expect(screen.getByRole("button", { name: /generate/i })).not.toBeDisabled();
-    });
-
-    it("Generate button is disabled when Ollama is selected but no model chosen", async () => {
-      useWizardStore.setState({
-        aiProvider: "ollama",
-        ollamaModel: null,
-      });
-
-      const user = userEvent.setup();
-      render(<OutputStep />);
-
-      const input = screen.getByPlaceholderText(/select or enter a folder path/i);
-      await user.type(input, "C:\\Documents\\Output");
-
-      // Wait for Ollama status check
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: /generate/i })).toBeDisabled();
-      });
-    });
-
-    it("Generate button is enabled when Ollama is selected with a model", async () => {
-      useWizardStore.setState({
-        aiProvider: "ollama",
-        ollamaModel: "llama3.2",
-      });
-
-      const user = userEvent.setup();
-      render(<OutputStep />);
-
-      const input = screen.getByPlaceholderText(/select or enter a folder path/i);
-      await user.type(input, "C:\\Documents\\Output");
-
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: /generate/i })).not.toBeDisabled();
-      });
+      expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled();
     });
   });
 

@@ -12,8 +12,16 @@ vi.mock("@/components/wizard/InspirationStep", () => ({
   InspirationStep: () => <div data-testid="inspiration-step">Inspiration Step</div>,
 }));
 
+vi.mock("@/components/wizard/AIProviderStep", () => ({
+  AIProviderStep: () => <div data-testid="ai-provider-step">AI Provider Step</div>,
+}));
+
 vi.mock("@/components/wizard/OutputStep", () => ({
   OutputStep: () => <div data-testid="output-step">Output Step</div>,
+}));
+
+vi.mock("@/components/wizard/PromptReviewStep", () => ({
+  PromptReviewStep: () => <div data-testid="prompt-review-step">Prompt Review Step</div>,
 }));
 
 vi.mock("@/components/wizard/GenerationStep", () => ({
@@ -43,16 +51,32 @@ describe("WizardSteps", () => {
     expect(screen.getByTestId("inspiration-step")).toBeInTheDocument();
   });
 
-  it("renders OutputStep for step 3", () => {
+  it("renders AIProviderStep for step 3", () => {
     useWizardStore.setState({ currentStep: 3 });
+
+    render(<WizardSteps />);
+
+    expect(screen.getByTestId("ai-provider-step")).toBeInTheDocument();
+  });
+
+  it("renders OutputStep for step 4", () => {
+    useWizardStore.setState({ currentStep: 4 });
 
     render(<WizardSteps />);
 
     expect(screen.getByTestId("output-step")).toBeInTheDocument();
   });
 
-  it("renders GenerationStep for step 4", () => {
-    useWizardStore.setState({ currentStep: 4 });
+  it("renders PromptReviewStep for step 5", () => {
+    useWizardStore.setState({ currentStep: 5 });
+
+    render(<WizardSteps />);
+
+    expect(screen.getByTestId("prompt-review-step")).toBeInTheDocument();
+  });
+
+  it("renders GenerationStep for step 6", () => {
+    useWizardStore.setState({ currentStep: 6 });
 
     render(<WizardSteps />);
 
@@ -60,7 +84,7 @@ describe("WizardSteps", () => {
   });
 
   it("renders nothing for invalid step", () => {
-    useWizardStore.setState({ currentStep: 5 });
+    useWizardStore.setState({ currentStep: 7 });
 
     const { container } = render(<WizardSteps />);
 
@@ -82,7 +106,9 @@ describe("WizardSteps", () => {
 
     expect(screen.queryByTestId("class-details-step")).not.toBeInTheDocument();
     expect(screen.getByTestId("inspiration-step")).toBeInTheDocument();
+    expect(screen.queryByTestId("ai-provider-step")).not.toBeInTheDocument();
     expect(screen.queryByTestId("output-step")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("prompt-review-step")).not.toBeInTheDocument();
     expect(screen.queryByTestId("generation-step")).not.toBeInTheDocument();
   });
 });

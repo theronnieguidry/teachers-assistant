@@ -18,14 +18,14 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 
 ## Test Summary
 
-### Latest Run: 2026-01-24
+### Latest Run: 2026-01-24 (Updated)
 
 | Metric | Value |
 |--------|-------|
-| Unit Tests (Frontend) | 341 ✅ |
-| Unit Tests (API) | 98 ✅ |
-| E2E Tests | 156 ✅ (52 × 3 browsers) |
-| **Total** | **595** |
+| Unit Tests (Frontend) | 388 ✅ |
+| Unit Tests (API) | 106 ✅ |
+| E2E Tests | 177 ✅ (59 × 3 browsers) |
+| **Total** | **671** |
 | **Pass Rate** | **100%** |
 
 ---
@@ -76,10 +76,10 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | WIZ-008 | Back returns to step 1 | ✅ | ✅ | ✅ | |
 | WIZ-009 | Close wizard via close button | ✅ | ✅ | ✅ | |
 | WIZ-010 | Step 2 shows Skip button | ✅ | ✅ | ✅ | |
-| WIZ-011 | Step 3 shows AI provider selection | ⏳ | ⏳ | ⏳ | Issue #8 |
-| WIZ-012 | Claude is selected by default | ⏳ | ⏳ | ⏳ | Issue #8 |
-| WIZ-013 | Can select different provider | ⏳ | ⏳ | ⏳ | Issue #8 |
-| WIZ-014 | Recommended badge on Claude | ⏳ | ⏳ | ⏳ | Issue #8 |
+| WIZ-011 | Step 3 shows AI provider selection | ✅ | ✅ | ✅ | |
+| WIZ-012 | Claude is selected by default | ✅ | ✅ | ✅ | |
+| WIZ-013 | Can select different provider | ✅ | ✅ | ✅ | |
+| WIZ-014 | Recommended badge on Claude | ✅ | ✅ | ✅ | |
 
 ### 4. Inspiration Panel Tests (`e2e/inspiration.spec.ts`)
 
@@ -104,11 +104,11 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | PROJ-002 | Refresh button with icon | ✅ | ✅ | ✅ | |
 | PROJ-003 | Empty state when no projects | ✅ | ✅ | ✅ | 15s timeout for Firefox |
 | PROJ-004 | Refresh button clickable | ✅ | ✅ | ✅ | |
-| PROJ-005 | Regenerate button opens wizard with pre-filled data | ⏳ | ⏳ | ⏳ | New |
+| PROJ-005 | Regenerate button opens wizard with pre-filled data | ✅ | ✅ | ✅ | |
 | PROJ-006 | Open folder button opens output folder | ⏳ | ⏳ | ⏳ | Tauri only |
-| PROJ-007 | Duplicate button creates project copy | ⏳ | ⏳ | ⏳ | New |
+| PROJ-007 | Duplicate button creates project copy | ✅ | ✅ | ✅ | |
 | PROJ-008 | Delete button removes project | ⏳ | ⏳ | ⏳ | Existing |
-| PROJ-009 | Project action buttons show on hover | ⏳ | ⏳ | ⏳ | New |
+| PROJ-009 | Project action buttons show on hover | ✅ | ✅ | ✅ | |
 
 ### 6. Accessibility Tests (`e2e/accessibility.spec.ts`)
 
@@ -162,6 +162,8 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | QA-003 | 2026-01-23 | WIZ-002 | "Inspiration" text matches multiple elements | Low | ✅ Fixed | Added `{ exact: true }` to text assertions |
 | QA-004 | 2026-01-23 | PROJ-003 | Firefox slow Supabase connection | Low | ✅ Fixed | Increased timeout to 15s |
 | QA-005 | 2026-01-24 | AUTH-009/010 | OAuth providers (Google/Apple) not enabled in Supabase | Medium | ✅ Fixed | Configured Google OAuth in Supabase dashboard, updated .env to use hosted Supabase |
+| QA-006 | 2026-01-24 | A11Y-005/006/007/008 | Accessibility authenticated tests failing - mock auth not intercepting Supabase session endpoint | Medium | ✅ Fixed | Added `/auth/v1/session` and `/rest/v1/profiles` route mocks to beforeEach |
+| QA-007 | 2026-01-24 | AUTH-003 | Auth form submit test flaky due to loading state timeout | Low | ✅ Fixed | Updated test to wait for loading or error states, then verify form returns |
 
 ---
 
@@ -213,8 +215,8 @@ npx playwright show-report
 
 | Gate | Requirement | Current |
 |------|-------------|---------|
-| Unit Tests | 100% passing | ✅ 439/439 |
-| E2E Tests | ≥95% passing | ✅ 100% |
+| Unit Tests | 100% passing | ✅ 494/494 |
+| E2E Tests | ≥95% passing | ✅ 100% (177/177) |
 | Critical Issues | 0 open | ✅ 0 |
 | High Issues | 0 open | ✅ 0 |
 | Medium Issues | 0 open | ✅ 0 |
@@ -248,6 +250,7 @@ The current E2E tests verify **UI element visibility and basic interactions**, n
 
 | Date | Tests | Pass Rate | Notes |
 |------|-------|-----------|-------|
+| 2026-01-24 | 671 | 100% | QA run: Fixed A11Y authenticated tests (mock session endpoint), AUTH-003 timing |
 | 2026-01-24 | 595 | 100% | Full QA run, documented untested flows |
 | 2026-01-23 | 575 | 100% | Initial full pass after E2E fixes |
 | 2026-01-23 | 563 | 67% | E2E tests created, selectors fixed |

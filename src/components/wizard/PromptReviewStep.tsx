@@ -1,0 +1,222 @@
+import { useEffect, useState } from "react";
+import { Loader2, Sparkles, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useWizardStore } from "@/stores/wizardStore";
+import { useAuthStore } from "@/stores/authStore";
+import { polishPrompt } from "@/services/generation-api";
+
+type PromptChoice = "polished" | "original" | "edited";
+
+export function PromptReviewStep() {
+  const {
+    prompt,
+    classDetails,
+    selectedInspiration,
+    polishedPrompt,
+    setPolishedPrompt,
+    usePolishedPrompt,
+    setUsePolishedPrompt,
+    nextStep,
+    prevStep,
+  } = useWizardStore();
+  const { session } = useAuthStore();
+
+  const [isPolishing, setIsPolishing] = useState(false);
+  const [polishError, setPolishError] = useState<string | null>(null);
+  const [promptChoice, setPromptChoice] = useState<PromptChoice>("polished");
+  const [editedPrompt, setEditedPrompt] = useState("");
+  const [wasPolished, setWasPolished] = useState(true);
+
+  // Polish the prompt when the step loads
+  useEffect(() => {
+    if (!polishedPrompt && classDetails && session?.access_token) {
+      polishUserPrompt();
+    } else if (polishedPrompt) {
+      setEditedPrompt(polishedPrompt);
+    }
+  }, []);
+
+  const polishUserPrompt = async () => {
+    if (!classDetails || !session?.access_token) return;
+
+    setIsPolishing(true);
+    setPolishError(null);
+
+    try {
+      const result = await polishPrompt(
+        {
+          prompt,
+          grade: classDetails.grade,
+          subject: classDetails.subject,
+          format: classDetails.format,
+          questionCount: classDetails.questionCount,
+          difficulty: classDetails.difficulty,
+          includeVisuals: classDetails.includeVisuals,
+          inspirationTitles: selectedInspiration.map((i) => i.title || i.id),
+        },
+        session.access_token
+      );
+
+      setPolishedPrompt(result.polished);
+      setEditedPrompt(result.polished);
+      setWasPolished(result.wasPolished);
+
+      // If polishing was skipped (prompt already detailed), default to original
+      if (!result.wasPolished) {
+        setPromptChoice("original");
+        setUsePolishedPrompt(false);
+      }
+    } catch (error) {
+      console.error("Failed to polish prompt:", error);
+      setPolishError("Could not enhance your prompt. You can continue with your original request.");
+      setPromptChoice("original");
+      setUsePolishedPrompt(false);
+    } finally {
+      setIsPolishing(false);
+    }
+  };
+
+  const handleChoiceChange = (value: PromptChoice) => {
+    setPromptChoice(value);
+    if (value === "original") {
+      setUsePolishedPrompt(false);
+      setPolishedPrompt(prompt);
+    } else if (value === "polished") {
+      setUsePolishedPrompt(true);
+      // Reset to original polished prompt
+      polishUserPrompt();
+    } else {
+      setUsePolishedPrompt(true);
+    }
+  };
+
+  const handleEditedPromptChange = (value: string) => {
+    setEditedPrompt(value);
+    setPolishedPrompt(value);
+  };
+
+  const handleNext = () => {
+    // Save the final prompt choice
+    if (promptChoice === "original") {
+      setPolishedPrompt(prompt);
+      setUsePolishedPrompt(false);
+    } else {
+      setPolishedPrompt(editedPrompt);
+      setUsePolishedPrompt(true);
+    }
+    nextStep();
+  };
+
+  // Loading state
+  if (isPolishing) {
+    return (
+      <div className="space-y-6 py-8">
+        <div className="flex flex-col items-center">
+          <div className="relative mb-4">
+            <Sparkles className="h-12 w-12 text-primary" />
+            <Loader2 className="absolute inset-0 h-12 w-12 animate-spin text-primary opacity-50" />
+          </div>
+          <h3 className="text-lg font-medium">Refining your request...</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Just a moment while we enhance your prompt
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header message */}
+      <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+        <div className="flex items-start gap-3">
+          <Sparkles className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+          <p className="text-sm">
+            I cleaned up your request a bit before we send it off to AI to generate your teaching materials.
+            Is there anything you'd like to change first?
+          </p>
+        </div>
+      </div>
+
+      {/* Error state */}
+      {polishError && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-950 rounded-lg flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-amber-700 dark:text-amber-300">{polishError}</p>
+        </div>
+      )}
+
+      {/* Original prompt (always shown) */}
+      <div className="space-y-2">
+        <Label className="text-muted-foreground">Your original request:</Label>
+        <div className="p-3 bg-muted/50 rounded-md text-sm">
+          {prompt}
+        </div>
+      </div>
+
+      {/* Prompt choice */}
+      {wasPolished && !polishError && (
+        <RadioGroup
+          value={promptChoice}
+          onValueChange={(v) => handleChoiceChange(v as PromptChoice)}
+          className="space-y-3"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="polished" id="polished" />
+            <Label htmlFor="polished" className="cursor-pointer">
+              Use enhanced version
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="original" id="original" />
+            <Label htmlFor="original" className="cursor-pointer">
+              Use my original request
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="edited" id="edited" />
+            <Label htmlFor="edited" className="cursor-pointer">
+              Edit the enhanced version
+            </Label>
+          </div>
+        </RadioGroup>
+      )}
+
+      {/* Polished/edited prompt */}
+      {promptChoice !== "original" && wasPolished && (
+        <div className="space-y-2">
+          <Label className={promptChoice === "edited" ? "" : "text-muted-foreground"}>
+            {promptChoice === "edited" ? "Edit your prompt:" : "Enhanced version:"}
+          </Label>
+          {promptChoice === "edited" ? (
+            <Textarea
+              value={editedPrompt}
+              onChange={(e) => handleEditedPromptChange(e.target.value)}
+              className="min-h-[120px] resize-none"
+              placeholder="Edit your prompt here..."
+            />
+          ) : (
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-md text-sm">
+              {polishedPrompt || editedPrompt}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div className="flex justify-between pt-4">
+        <Button variant="outline" onClick={prevStep}>
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Back
+        </Button>
+        <Button onClick={handleNext}>
+          Continue
+          <ChevronRight className="h-4 w-4 ml-1" />
+        </Button>
+      </div>
+    </div>
+  );
+}

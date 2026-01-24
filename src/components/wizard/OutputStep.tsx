@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Folder, FolderOpen } from "lucide-react";
+import { Folder, FolderOpen, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWizardStore } from "@/stores/wizardStore";
-import { ProviderSelector } from "./ProviderSelector";
 
 export function OutputStep() {
   const {
@@ -13,10 +12,6 @@ export function OutputStep() {
     nextStep,
     prevStep,
     title,
-    aiProvider,
-    setAiProvider,
-    ollamaModel,
-    setOllamaModel,
   } = useWizardStore();
   const [customPath, setCustomPath] = useState(outputPath || "");
 
@@ -44,45 +39,28 @@ export function OutputStep() {
     nextStep();
   };
 
-  // Disable generate if Ollama is selected but no model is chosen
-  const canGenerate =
-    customPath &&
-    (aiProvider !== "ollama" || (aiProvider === "ollama" && ollamaModel));
-
   return (
     <div className="space-y-4">
-      <div className="space-y-3">
-        <Label>AI Provider</Label>
-        <ProviderSelector
-          value={aiProvider}
-          onChange={setAiProvider}
-          ollamaModel={ollamaModel}
-          onOllamaModelChange={setOllamaModel}
-        />
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Choose where to save your generated materials.
+      </p>
 
-      <div className="border-t pt-4">
-        <p className="text-sm text-muted-foreground mb-3">
-          Choose where to save your generated materials.
-        </p>
-
-        <div className="space-y-2">
-          <Label>Output Folder</Label>
-          <div className="flex gap-2">
-            <Input
-              value={customPath}
-              onChange={(e) => {
-                setCustomPath(e.target.value);
-                setOutputPath(e.target.value);
-              }}
-              placeholder="Select or enter a folder path..."
-              className="flex-1"
-            />
-            <Button variant="outline" onClick={handleSelectFolder}>
-              <FolderOpen className="h-4 w-4 mr-2" />
-              Browse
-            </Button>
-          </div>
+      <div className="space-y-2">
+        <Label>Output Folder</Label>
+        <div className="flex gap-2">
+          <Input
+            value={customPath}
+            onChange={(e) => {
+              setCustomPath(e.target.value);
+              setOutputPath(e.target.value);
+            }}
+            placeholder="Select or enter a folder path..."
+            className="flex-1"
+          />
+          <Button variant="outline" onClick={handleSelectFolder}>
+            <FolderOpen className="h-4 w-4 mr-2" />
+            Browse
+          </Button>
         </div>
       </div>
 
@@ -109,10 +87,12 @@ export function OutputStep() {
 
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={prevStep}>
+          <ChevronLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
-        <Button onClick={handleContinue} disabled={!canGenerate}>
-          Generate
+        <Button onClick={handleContinue} disabled={!customPath}>
+          Next
+          <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
     </div>

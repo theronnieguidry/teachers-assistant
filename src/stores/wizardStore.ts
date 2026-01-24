@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Grade, InspirationItem, ProjectOptions, Project } from "@/types";
 
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 interface ClassDetails {
   grade: Grade;
@@ -28,6 +28,10 @@ interface WizardState {
   aiProvider: AiProvider;
   ollamaModel: string | null;
 
+  // Polished prompt state
+  polishedPrompt: string | null;
+  usePolishedPrompt: boolean;
+
   // Regeneration state
   regeneratingProjectId: string | null;
 
@@ -51,6 +55,8 @@ interface WizardState {
   setOutputPath: (path: string) => void;
   setAiProvider: (provider: AiProvider) => void;
   setOllamaModel: (model: string | null) => void;
+  setPolishedPrompt: (prompt: string | null) => void;
+  setUsePolishedPrompt: (use: boolean) => void;
   setGenerationState: (state: {
     isGenerating?: boolean;
     progress?: number;
@@ -80,6 +86,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   outputPath: null,
   aiProvider: "claude",
   ollamaModel: null,
+  polishedPrompt: null,
+  usePolishedPrompt: true,
   regeneratingProjectId: null,
   isGenerating: false,
   generationProgress: 0,
@@ -100,6 +108,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       outputPath: null,
       aiProvider: "claude",
       ollamaModel: null,
+      polishedPrompt: null,
+      usePolishedPrompt: true,
       regeneratingProjectId: null,
       isGenerating: false,
       generationProgress: 0,
@@ -129,6 +139,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       outputPath: project.outputPath || null,
       aiProvider: "claude",
       ollamaModel: null,
+      polishedPrompt: null,
+      usePolishedPrompt: true,
       regeneratingProjectId: project.id,
       isGenerating: false,
       generationProgress: 0,
@@ -147,7 +159,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
 
   nextStep: () => {
     const { currentStep } = get();
-    if (currentStep < 4) {
+    if (currentStep < 6) {
       set({ currentStep: (currentStep + 1) as WizardStep });
     }
   },
@@ -187,6 +199,14 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     set({ ollamaModel: model });
   },
 
+  setPolishedPrompt: (prompt) => {
+    set({ polishedPrompt: prompt });
+  },
+
+  setUsePolishedPrompt: (use) => {
+    set({ usePolishedPrompt: use });
+  },
+
   setGenerationState: (state) => {
     set((current) => ({
       isGenerating: state.isGenerating ?? current.isGenerating,
@@ -207,6 +227,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       outputPath: null,
       aiProvider: "claude",
       ollamaModel: null,
+      polishedPrompt: null,
+      usePolishedPrompt: true,
       regeneratingProjectId: null,
       isGenerating: false,
       generationProgress: 0,

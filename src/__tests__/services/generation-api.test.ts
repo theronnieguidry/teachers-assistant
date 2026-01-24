@@ -4,6 +4,8 @@ import {
   getCredits,
   generatePdf,
   checkHealth,
+  polishPrompt,
+  parseInspiration,
   GenerationApiError,
 } from "@/services/generation-api";
 
@@ -197,6 +199,262 @@ describe("Generation API Service", () => {
       const result = await checkHealth();
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe("polishPrompt", () => {
+    const mockContext = {
+      prompt: "Math fractions",
+      grade: "3" as const,
+      subject: "Math",
+      format: "worksheet" as const,
+      questionCount: 10,
+      difficulty: "medium" as const,
+      includeVisuals: true,
+    };
+
+    it("should send correct request body and return polished result", async () => {
+      const mockResult = {
+        original: "Math fractions",
+        polished: "Create a comprehensive 3rd grade math worksheet...",
+        wasPolished: true,
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResult),
+      });
+
+      const result = await polishPrompt(mockContext, "test-token");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/polish"),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+          body: JSON.stringify(mockContext),
+        })
+      );
+
+      expect(result).toEqual(mockResult);
+    });
+
+    it("should return graceful fallback on error", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: "Server error" }),
+      });
+
+      const result = await polishPrompt(mockContext, "test-token");
+
+      // Should return original prompt as fallback
+      expect(result).toEqual({
+        original: "Math fractions",
+        polished: "Math fractions",
+        wasPolished: false,
+      });
+    });
+
+    it("should include inspirationTitles when provided", async () => {
+      const contextWithInspiration = {
+        ...mockContext,
+        inspirationTitles: ["Math Article", "PDF Guide"],
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          original: "Math fractions",
+          polished: "Enhanced prompt",
+          wasPolished: true,
+        }),
+      });
+
+      await polishPrompt(contextWithInspiration, "test-token");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          body: expect.stringContaining("inspirationTitles"),
+        })
+      );
+    });
+
+    it("should handle wasPolished: false response", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          original: "Already detailed prompt",
+          polished: "Already detailed prompt",
+          wasPolished: false,
+        }),
+      });
+
+      const result = await polishPrompt(
+        { ...mockContext, prompt: "Already detailed prompt" },
+        "test-token"
+      );
+
+      expect(result.wasPolished).toBe(false);
+      expect(result.original).toBe(result.polished);
+    });
+  });
+
+  describe("parseInspiration", () => {
+    const mockItems = [
+      { id: "item-1", type: "url", sourceUrl: "https://example.com" },
+      { id: "item-2", type: "text", content: "Some text content" },
+    ];
+
+    it("should send items and return parsed results", async () => {
+      const mockResults = [
+        { id: "item-1", extractedContent: "Extracted from URL" },
+        { id: "item-2", extractedContent: "Summarized text content" },
+      ];
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ results: mockResults }),
+      });
+
+      const result = await parseInspiration(mockItems, "test-token");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/inspiration/parse"),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ items: mockItems }),
+        })
+      );
+
+      expect(result).toEqual(mockResults);
+    });
+
+    it("should throw on error response", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: "Parse failed" }),
+      });
+
+      await expect(parseInspiration(mockItems, "test-token")).rejects.toThrow(
+        GenerationApiError
+      );
+    });
+
+    it("should handle empty items array", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ results: [] }),
+      });
+
+      const result = await parseInspiration([], "test-token");
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("SSE streaming", () => {
+    const mockRequest = {
+      projectId: "project-123",
+      prompt: "Create a math worksheet",
+      grade: "2" as const,
+      subject: "Math",
+      options: {},
+      inspiration: [],
+    };
+
+    it("should parse SSE progress events", async () => {
+      const progressEvents: Array<{ step: string; progress: number; message: string }> = [];
+
+      // Create a mock ReadableStream
+      const sseData = [
+        'data: {"type":"progress","step":"worksheet","progress":25,"message":"Generating worksheet..."}',
+        'data: {"type":"progress","step":"worksheet","progress":50,"message":"Almost done..."}',
+        'data: {"type":"complete","result":{"projectId":"project-123","versionId":"v-1","worksheetHtml":"<p>Done</p>","lessonPlanHtml":"","answerKeyHtml":"","creditsUsed":5}}',
+      ].join("\n");
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(sseData));
+          controller.close();
+        },
+      });
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: () => "text/event-stream",
+        },
+        body: stream,
+      });
+
+      const result = await generateTeacherPack(
+        mockRequest,
+        "test-token",
+        (progress) => progressEvents.push(progress)
+      );
+
+      expect(progressEvents).toHaveLength(2);
+      expect(progressEvents[0]).toEqual({
+        step: "worksheet",
+        progress: 25,
+        message: "Generating worksheet...",
+      });
+      expect(result.projectId).toBe("project-123");
+      expect(result.creditsUsed).toBe(5);
+    });
+
+    it("should throw on SSE error event", async () => {
+      const sseData = 'data: {"type":"error","message":"Generation failed due to API error"}';
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(sseData));
+          controller.close();
+        },
+      });
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: () => "text/event-stream",
+        },
+        body: stream,
+      });
+
+      await expect(
+        generateTeacherPack(mockRequest, "test-token")
+      ).rejects.toThrow("Generation failed due to API error");
+    });
+
+    it("should throw when no result received from stream", async () => {
+      const sseData = 'data: {"type":"progress","step":"worksheet","progress":25,"message":"Working..."}';
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(sseData));
+          controller.close();
+        },
+      });
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: () => "text/event-stream",
+        },
+        body: stream,
+      });
+
+      await expect(
+        generateTeacherPack(mockRequest, "test-token")
+      ).rejects.toThrow("No result received");
     });
   });
 });

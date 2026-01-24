@@ -3,7 +3,25 @@ import type {
   GenerationResult,
   GenerationProgress,
   UserCredits,
+  Grade,
 } from "@/types";
+
+export interface PolishContext {
+  prompt: string;
+  grade: Grade;
+  subject: string;
+  format: "worksheet" | "lesson_plan" | "both";
+  questionCount: number;
+  difficulty: "easy" | "medium" | "hard";
+  includeVisuals: boolean;
+  inspirationTitles?: string[];
+}
+
+export interface PolishResult {
+  original: string;
+  polished: string;
+  wasPolished: boolean;
+}
 
 const API_BASE_URL = import.meta.env.VITE_GENERATION_API_URL || "http://localhost:3001";
 
@@ -53,6 +71,7 @@ export async function generateTeacherPack(
         inspiration: request.inspiration,
         aiProvider: request.aiProvider || "claude",
         aiModel: request.aiModel,
+        prePolished: request.prePolished,
       }),
     },
     accessToken
@@ -198,6 +217,33 @@ export async function parseInspiration(
 
   const data = await response.json();
   return data.results;
+}
+
+export async function polishPrompt(
+  context: PolishContext,
+  accessToken: string
+): Promise<PolishResult> {
+  const response = await fetchWithAuth(
+    "/polish",
+    {
+      method: "POST",
+      body: JSON.stringify(context),
+    },
+    accessToken
+  );
+
+  if (!response.ok) {
+    // If polish fails, return original prompt (graceful degradation)
+    console.warn("Prompt polishing failed, using original");
+    return {
+      original: context.prompt,
+      polished: context.prompt,
+      wasPolished: false,
+    };
+  }
+
+  const data = await response.json();
+  return data;
 }
 
 export async function checkHealth(): Promise<boolean> {

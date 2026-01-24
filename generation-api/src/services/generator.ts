@@ -18,6 +18,7 @@ import {
 import { parseAllInspiration } from "./inspiration-parser.js";
 import { getSupabaseClient, reserveCredits, refundCredits } from "./credits.js";
 import { processVisualPlaceholders } from "./image-service.js";
+import { polishPrompt } from "./prompt-polisher.js";
 
 const ESTIMATED_CREDITS = 5; // Conservative estimate for reservation
 
@@ -74,8 +75,30 @@ export async function generateTeacherPack(
       parsedInspiration = await parseAllInspiration(request.inspiration, aiConfig);
     }
 
+    // Polish the user's prompt using Ollama (free, runs locally)
+    // Skip if already polished client-side
+    let polishedPrompt = request.prompt;
+    if (!request.prePolished) {
+      onProgress?.({
+        step: "worksheet",
+        progress: 10,
+        message: "Refining your request...",
+      });
+
+      polishedPrompt = await polishPrompt({
+        prompt: request.prompt,
+        grade: request.grade,
+        subject: request.subject,
+        format: request.options.format || "both",
+        questionCount: request.options.questionCount || 10,
+        difficulty: request.options.difficulty || "medium",
+        includeVisuals: request.options.includeVisuals ?? true,
+        inspirationTitles: parsedInspiration.map((i) => i.title),
+      });
+    }
+
     const promptContext = {
-      prompt: request.prompt,
+      prompt: polishedPrompt,
       grade: request.grade,
       subject: request.subject,
       options: request.options,

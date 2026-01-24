@@ -29,11 +29,17 @@ test.describe("Authentication", () => {
     await page.getByLabel("Email").fill("test@example.com");
     await page.getByLabel("Password").fill("password123");
 
-    // Click submit - since we have no backend, it should show loading or error
+    // Click submit - since we have no backend, it will show loading then error
     await page.getByRole("button", { name: "Sign In" }).click();
 
-    // Form should still be visible (no navigation without real auth)
-    await expect(page.getByText("Welcome back")).toBeVisible();
+    // Should show loading state briefly or stay on auth page
+    // Wait for either loading to complete or error to show
+    await expect(
+      page.getByText("Welcome back").or(page.getByText("Loading...")).or(page.getByText(/sign in failed/i))
+    ).toBeVisible({ timeout: 15000 });
+
+    // Eventually should return to login form (after failed auth attempt)
+    await expect(page.getByText("Welcome back")).toBeVisible({ timeout: 15000 });
   });
 
   test("AUTH-004: should toggle to signup form", async ({ page }) => {

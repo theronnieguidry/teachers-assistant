@@ -52,8 +52,8 @@ describe("WizardDialog", () => {
     expect(screen.getByText(/Create: My Math Worksheet/)).toBeInTheDocument();
   });
 
-  it("displays 'Generating...' title on step 4", () => {
-    useWizardStore.setState({ isOpen: true, currentStep: 4 });
+  it("displays 'Generating...' title on step 6", () => {
+    useWizardStore.setState({ isOpen: true, currentStep: 6 });
 
     render(<WizardDialog />);
 

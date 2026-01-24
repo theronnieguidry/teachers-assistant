@@ -116,13 +116,13 @@ describe("wizardStore", () => {
         expect(useWizardStore.getState().currentStep).toBe(2);
       });
 
-      it("should not go beyond step 4", () => {
-        useWizardStore.setState({ currentStep: 4 });
+      it("should not go beyond step 6", () => {
+        useWizardStore.setState({ currentStep: 6 });
         const { nextStep } = useWizardStore.getState();
 
         nextStep();
 
-        expect(useWizardStore.getState().currentStep).toBe(4);
+        expect(useWizardStore.getState().currentStep).toBe(6);
       });
     });
 

@@ -18,6 +18,63 @@ interface PixabayResponse {
 }
 
 /**
+ * Extract simplified search terms from a complex description.
+ * Returns fallback terms to try if the original search fails.
+ */
+function simplifySearchTerm(description: string): string[] {
+  // Common stop words to remove
+  const stopWords = ['a', 'an', 'the', 'or', 'and', 'of', 'for', 'with', 'to', 'in', 'on'];
+
+  const words = description.toLowerCase()
+    .replace(/[^a-z\s-]/g, ' ')  // Keep hyphens for compound words
+    .split(/[\s-]+/)              // Split on spaces and hyphens
+    .filter(w => w.length > 2 && !stopWords.includes(w));
+
+  const fallbacks: string[] = [];
+
+  // Try pairs of words (more specific)
+  if (words.length >= 2) {
+    fallbacks.push(words.slice(0, 2).join(' '));
+  }
+
+  // Try individual words (most generic)
+  for (const word of words) {
+    if (word.length > 3) {
+      fallbacks.push(word);
+    }
+  }
+
+  return fallbacks;
+}
+
+/**
+ * Fetch an image URL from Pixabay API
+ */
+async function fetchFromPixabay(
+  query: string,
+  apiKey: string,
+  useIllustration: boolean
+): Promise<string | null> {
+  const params = new URLSearchParams({
+    key: apiKey,
+    q: query,
+    safesearch: "true",
+    per_page: "3",
+    lang: "en",
+    ...(useIllustration && { image_type: "illustration" }),
+  });
+
+  const response = await fetch(`https://pixabay.com/api/?${params}`, {
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (!response.ok) return null;
+
+  const data: PixabayResponse = await response.json();
+  return data.hits?.[0]?.webformatURL || null;
+}
+
+/**
  * Search Pixabay for an image matching the description
  * Returns the image URL or null if no match found
  */
@@ -46,53 +103,28 @@ export async function searchImage(description: string): Promise<string | null> {
   }
 
   try {
-    const params = new URLSearchParams({
-      key: apiKey,
-      q: query,
-      image_type: "illustration", // Child-friendly clipart style
-      safesearch: "true",
-      per_page: "3",
-      lang: "en",
-    });
-
-    const response = await fetch(`https://pixabay.com/api/?${params}`, {
-      signal: AbortSignal.timeout(5000), // 5 second timeout
-    });
-
-    if (!response.ok) {
-      console.error(`Pixabay API error: ${response.status}`);
-      return null;
-    }
-
-    const data: PixabayResponse = await response.json();
-
-    if (data.hits && data.hits.length > 0) {
-      // Use webformatURL for good quality, reasonable size
-      const imageUrl = data.hits[0].webformatURL;
-
-      // Cache the result
+    // Try 1: Illustration-type images (child-friendly clipart)
+    let imageUrl = await fetchFromPixabay(query, apiKey, true);
+    if (imageUrl) {
       imageCache.set(query, { url: imageUrl, timestamp: Date.now() });
-
       return imageUrl;
     }
 
-    // No results - try a broader search without "illustration" filter
-    const fallbackParams = new URLSearchParams({
-      key: apiKey,
-      q: query,
-      safesearch: "true",
-      per_page: "3",
-      lang: "en",
-    });
+    // Try 2: Any image type (broader search)
+    imageUrl = await fetchFromPixabay(query, apiKey, false);
+    if (imageUrl) {
+      imageCache.set(query, { url: imageUrl, timestamp: Date.now() });
+      return imageUrl;
+    }
 
-    const fallbackResponse = await fetch(`https://pixabay.com/api/?${fallbackParams}`, {
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (fallbackResponse.ok) {
-      const fallbackData: PixabayResponse = await fallbackResponse.json();
-      if (fallbackData.hits && fallbackData.hits.length > 0) {
-        const imageUrl = fallbackData.hits[0].webformatURL;
+    // Try 3: Simplified search terms (word pairs, then individual words)
+    const simplifiedTerms = simplifySearchTerm(description);
+    for (const term of simplifiedTerms) {
+      const normalizedTerm = term.split(/\s+/).join("+");
+      console.log(`    Trying simplified search: "${term}"`);
+      imageUrl = await fetchFromPixabay(normalizedTerm, apiKey, false);
+      if (imageUrl) {
+        console.log(`    Found image using simplified term: "${term}"`);
         imageCache.set(query, { url: imageUrl, timestamp: Date.now() });
         return imageUrl;
       }

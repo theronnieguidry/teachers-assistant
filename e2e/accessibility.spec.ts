@@ -72,12 +72,35 @@ test.describe("Accessibility - Authenticated", () => {
       });
     });
 
+    // Mock session endpoint (used by getSession())
+    await page.route("**/auth/v1/session**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSession),
+      });
+    });
+
     // Mock credits endpoint
     await page.route("**/rest/v1/credits**", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([{ balance: 50, lifetime_granted: 50, lifetime_used: 0 }]),
+      });
+    });
+
+    // Mock profiles endpoint
+    await page.route("**/rest/v1/profiles**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{
+          id: mockUser.id,
+          email: mockUser.email,
+          display_name: null,
+          avatar_url: null,
+        }]),
       });
     });
 

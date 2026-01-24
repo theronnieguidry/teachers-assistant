@@ -197,6 +197,27 @@ export function ClassDetailsStep() {
         />
       </div>
 
+      {/* Options */}
+      <div className="grid grid-cols-2 gap-4 pt-2">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            {...register("includeVisuals")}
+            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span className="text-sm">Include images/illustrations</span>
+        </label>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            {...register("includeAnswerKey")}
+            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span className="text-sm">Generate answer key</span>
+        </label>
+      </div>
+
       <div className="flex justify-end pt-4">
         <Button type="submit">Next</Button>
       </div>
