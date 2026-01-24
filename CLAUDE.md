@@ -212,6 +212,23 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 OPENAI_API_KEY=your-openai-api-key
 ```
 
+## Custom Skills
+
+### `/qa` - Senior QA Engineer
+Invokes a comprehensive QA review that:
+1. Runs all unit tests (frontend + API)
+2. Runs all E2E tests across 3 browsers
+3. Analyzes failures and identifies root causes
+4. Fixes failing tests (selectors, timing, code bugs)
+5. Updates `QA-TESTING-PLAN.md` with results
+6. Reports summary of issues found/fixed
+
+**Usage**: Simply type `/qa` to start a full QA review.
+
+**When adding new features**: The `/qa` skill expects new E2E tests to be added to `e2e/*.spec.ts` and documented in `QA-TESTING-PLAN.md`.
+
+---
+
 ## Development Workflow
 
 This project uses **issue-driven development**:
