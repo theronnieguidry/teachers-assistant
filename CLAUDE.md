@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **TA (Teacher's Assistant)** - A Tauri v2 desktop application that generates print-ready K-6 teaching materials (worksheets, lesson plans, answer keys) using AI. Target users are homeschooling parents and elementary teachers.
 
+**Repository**: https://github.com/theronnieguidry/teachers-assistant
+
 ## Commands
 
 ```bash
@@ -14,19 +16,28 @@ npm install                    # Install dependencies
 npm run dev                    # Start Vite dev server (frontend only)
 npm run tauri dev              # Start Tauri dev mode (full app)
 npm run tauri build            # Build production installer (Windows MSI/NSIS)
-npm run test                   # Run unit tests in watch mode
-npm run test:run               # Run unit tests once
+
+# Testing
+npm test                       # Run unit tests in watch mode
+npm run test:run               # Run unit tests once (333 tests)
+npx playwright test            # Run E2E tests (144 tests across 3 browsers)
+npx playwright test --project=chromium  # Run E2E in Chromium only
 
 # Generation API (in generation-api/ directory)
 cd generation-api
 npm install
 npm run dev                    # Start API server on localhost:3001
 npm run test                   # Run API tests in watch mode
-npm run test:run               # Run API tests once
+npm run test:run               # Run API tests once (98 tests)
 
 # Database
 npx supabase start             # Start local Supabase (requires Docker)
 npx supabase db push           # Apply migrations
+
+# GitHub workflow
+gh issue list                  # View open issues
+gh issue view <number>         # Read issue details
+gh pr create                   # Create pull request
 ```
 
 ## Architecture
@@ -117,6 +128,58 @@ generation-api/
 - **PDF** converted via browser print or server-side Playwright
 - **Local files** saved to user-selected folder via Tauri file system commands
 
+## Testing
+
+### Test Suite Summary
+
+| Suite | Tests | Location |
+|-------|-------|----------|
+| Frontend Unit | 333 | `src/__tests__/` |
+| Generation API | 98 | `generation-api/src/__tests__/` |
+| E2E (Playwright) | 144 | `e2e/` |
+| **Total** | **575** | |
+
+### Running Tests
+
+```bash
+# All unit tests
+npm run test:run
+
+# Generation API tests
+cd generation-api && npm run test:run
+
+# E2E tests (requires dev server on port 1420)
+npx playwright test
+
+# E2E single browser (faster)
+npx playwright test --project=chromium
+
+# E2E specific test file
+npx playwright test e2e/wizard.spec.ts
+
+# E2E with UI mode (debugging)
+npx playwright test --ui
+```
+
+### E2E Test Structure
+
+```
+e2e/
+├── auth.spec.ts           # Login/signup form tests (8 tests)
+├── dashboard.spec.ts      # Main layout tests (8 tests)
+├── wizard.spec.ts         # Creation wizard flow (10 tests)
+├── inspiration.spec.ts    # Inspiration panel (10 tests)
+├── projects.spec.ts       # Projects panel (4 tests)
+└── accessibility.spec.ts  # A11Y tests (8 tests)
+```
+
+**E2E patterns:**
+- Mock auth via `localStorage.setItem("sb-localhost-auth-token", ...)`
+- Use `page.waitForSelector()` before assertions
+- Radix Select: Click trigger, then `getByRole("option")`
+- Dialog close: `getByRole("button", { name: "Close" })` (sr-only text)
+- Use `{ exact: true }` for text that appears in multiple places
+
 ## Key Files
 
 | File | Purpose |
@@ -128,23 +191,7 @@ generation-api/
 | `generation-api/src/services/ai-provider.ts` | Claude/OpenAI abstraction |
 | `generation-api/src/prompts/templates.ts` | AI prompt templates |
 | `src-tauri/tauri.conf.json` | Tauri bundling configuration |
-
-## Testing
-
-**Test files location:** `src/__tests__/` and `generation-api/src/__tests__/`
-
-**Coverage:**
-- Frontend: 200 tests (stores, validators, components)
-- Generation API: 82 tests (routes, services, middleware)
-
-**Run tests:**
-```bash
-# Frontend
-npm run test:run
-
-# Generation API
-cd generation-api && npm run test:run
-```
+| `playwright.config.ts` | E2E test configuration |
 
 ## Environment Variables
 
@@ -165,6 +212,23 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 OPENAI_API_KEY=your-openai-api-key
 ```
 
+## Development Workflow
+
+This project uses **issue-driven development**:
+
+1. **Check for issues**: `gh issue list`
+2. **Read issue details**: `gh issue view <number>`
+3. **Implement** with appropriate unit and E2E tests
+4. **Run full test suite**: `npm run test:run && npx playwright test`
+5. **Commit** with descriptive message referencing issue
+6. **Create PR**: `gh pr create`
+
+### Issue Templates
+
+- `.github/ISSUE_TEMPLATE/feature_request.md` - New features
+- `.github/ISSUE_TEMPLATE/bug_report.md` - Bug reports
+- `.github/ISSUE_TEMPLATE/task.md` - General tasks
+
 ## Design Constraints
 
 - **Offline access**: Past projects viewable without internet (HTML stored locally)
@@ -183,6 +247,20 @@ npm run tauri build
 #   - msi/TA Teachers Assistant_0.1.0_x64_en-US.msi
 #   - nsis/TA Teachers Assistant_0.1.0_x64-setup.exe
 ```
+
+## Known Issues & Fixes
+
+### Radix UI Select in Tests
+- JSDOM doesn't support `hasPointerCapture` - avoid testing Select interactions in unit tests
+- E2E tests work fine with `page.locator('[role="combobox"]').click()`
+
+### Firefox E2E Timing
+- Firefox has slower Supabase connection handling
+- Use longer timeouts for API-dependent assertions: `toBeVisible({ timeout: 15000 })`
+
+### CardTitle Accessibility
+- shadcn/ui `CardTitle` renders as `<div>`, not a heading
+- Use `getByText()` instead of `getByRole("heading")` in tests
 
 ## Archived Files
 
