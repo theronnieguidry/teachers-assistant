@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Compress-Archive -Path ''styles.css'', ''lesson-plan.html'', ''worksheet-fahrenheit.html'', ''worksheet-celsius.html'', ''worksheet-comparison.html'' -DestinationPath ''temperature-lesson.zip'' -Force\")",
+      "Bash(Remove-Item -Path \"temperature-lesson.zip\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(Compress-Archive -Path \"lesson-plan.html\", \"worksheet-fahrenheit.html\", \"worksheet-celsius.html\", \"worksheet-comparison.html\", \"styles.css\" -DestinationPath \"temperature-lesson.zip\" -Force)",
+      "Bash(powershell -Command:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx playwright install:*)",
+      "Bash(node screenshot.js:*)",
+      "Bash(node:*)",
+      "Bash(dir /b \"C:\\\\Projects\\\\Homeschooling\")",
+      "WebFetch(domain:chatgpt.com)",
+      "Bash(npm create tauri-app@latest -- . --template react-ts --manager npm)",
+      "Bash(npm run build)",
+      "Bash(npm run test:run:*)",
+      "Bash(npm test:*)",
+      "Bash(npx playwright test:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

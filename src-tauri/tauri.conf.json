@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TA Teachers Assistant",
+  "version": "0.1.0",
+  "identifier": "com.ta.teachers-assistant",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TA - Teacher's Assistant",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.openai.com http://localhost:*"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "shortDescription": "AI-powered teaching materials generator for K-6 educators",
+    "longDescription": "TA (Teacher's Assistant) is a desktop application that helps homeschool parents and K-6 educators generate customized worksheets, lesson plans, and answer keys using AI. Features include grade-appropriate content, multiple difficulty levels, and support for various subjects.",
+    "copyright": "Copyright 2024",
+    "category": "Education",
+    "publisher": "TA Teachers Assistant"
+  },
+  "plugins": {
+    "dialog": {},
+    "fs": {
+      "scope": ["**"]
+    },
+    "shell": {
+      "open": true
+    }
+  }
+}
