@@ -17,6 +17,10 @@ vi.mock("../../services/credits.js", () => ({
   refundCredits: vi.fn(),
 }));
 
+vi.mock("../../services/image-service.js", () => ({
+  processVisualPlaceholders: vi.fn((html: string) => Promise.resolve(html)),
+}));
+
 import { generateContent, calculateCredits } from "../../services/ai-provider.js";
 import { parseAllInspiration } from "../../services/inspiration-parser.js";
 import { getSupabaseClient, reserveCredits, refundCredits } from "../../services/credits.js";
@@ -28,6 +32,8 @@ describe("Generator Service", () => {
     insert: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     single: vi.fn(),
   };
 
@@ -61,6 +67,8 @@ describe("Generator Service", () => {
     mockSupabase.insert.mockReturnThis();
     mockSupabase.select.mockReturnThis();
     mockSupabase.eq.mockReturnThis();
+    mockSupabase.order.mockReturnThis();
+    mockSupabase.limit.mockResolvedValue({ data: [], error: null });
     mockSupabase.single.mockResolvedValue({
       data: { id: "version-456" },
       error: null,

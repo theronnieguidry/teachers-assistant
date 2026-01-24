@@ -1,18 +1,63 @@
 import { test, expect } from "@playwright/test";
 
+const mockUser = {
+  id: "test-user-id",
+  email: "test@example.com",
+  aud: "authenticated",
+  role: "authenticated",
+  created_at: new Date().toISOString(),
+};
+
+const mockSession = {
+  access_token: "test-access-token",
+  refresh_token: "test-refresh-token",
+  expires_in: 3600,
+  expires_at: Math.floor(Date.now() / 1000) + 3600,
+  token_type: "bearer",
+  user: mockUser,
+};
+
 test.describe("Creation Wizard", () => {
   test.beforeEach(async ({ page }) => {
-    // Set up mock auth state
+    // Intercept Supabase auth API calls
+    await page.route("**/auth/v1/token**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSession),
+      });
+    });
+
+    await page.route("**/auth/v1/user", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockUser),
+      });
+    });
+
+    // Mock credits endpoint
+    await page.route("**/rest/v1/credits**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{ balance: 50, lifetime_granted: 50, lifetime_used: 0 }]),
+      });
+    });
+
+    // Set up mock auth state in localStorage
     await page.addInitScript(() => {
       localStorage.setItem(
-        "sb-localhost-auth-token",
+        "sb-ugvrangptgrojipazqxh-auth-token",
         JSON.stringify({
-          access_token: "test-token",
-          refresh_token: "test-refresh",
+          access_token: "test-access-token",
+          refresh_token: "test-refresh-token",
           expires_at: Date.now() + 3600000,
           user: {
             id: "test-user-id",
             email: "test@example.com",
+            aud: "authenticated",
+            role: "authenticated",
           },
         })
       );
@@ -199,5 +244,127 @@ test.describe("Creation Wizard", () => {
 
     // Should see Skip button (since no inspiration items)
     await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
+  });
+
+  test("WIZ-011: Step 3 shows AI provider selection", async ({ page }) => {
+    const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
+    const createButton = page.getByRole("button", { name: /create/i });
+
+    await promptArea.fill("Create a math worksheet about addition");
+    await createButton.click();
+
+    // Wait for dialog
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    // Select subject and advance to step 2
+    const subjectTrigger = page.locator('[role="combobox"]').nth(1);
+    await subjectTrigger.click();
+    await page.getByRole("option", { name: "Math" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Wait for step 2 and skip
+    await expect(page.getByText(/select inspiration items/i)).toBeVisible();
+    await page.getByRole("button", { name: "Skip" }).click();
+
+    // Wait for step 3 (Output)
+    await expect(page.getByText("AI Provider")).toBeVisible();
+
+    // Should see all three provider options
+    await expect(page.getByText("Claude")).toBeVisible();
+    await expect(page.getByText("OpenAI")).toBeVisible();
+    await expect(page.getByText("Ollama")).toBeVisible();
+  });
+
+  test("WIZ-012: Claude is selected by default", async ({ page }) => {
+    const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
+    const createButton = page.getByRole("button", { name: /create/i });
+
+    await promptArea.fill("Create a math worksheet about addition");
+    await createButton.click();
+
+    // Wait for dialog
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    // Select subject and advance to step 2
+    const subjectTrigger = page.locator('[role="combobox"]').nth(1);
+    await subjectTrigger.click();
+    await page.getByRole("option", { name: "Math" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Wait for step 2 and skip
+    await expect(page.getByText(/select inspiration items/i)).toBeVisible();
+    await page.getByRole("button", { name: "Skip" }).click();
+
+    // Wait for step 3 (Output)
+    await expect(page.getByText("AI Provider")).toBeVisible();
+
+    // Claude should be selected (has aria-pressed="true")
+    const claudeCard = page.getByText("Claude").locator("xpath=ancestor::*[@role='button']");
+    await expect(claudeCard).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("WIZ-013: Can select different provider", async ({ page }) => {
+    const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
+    const createButton = page.getByRole("button", { name: /create/i });
+
+    await promptArea.fill("Create a math worksheet about addition");
+    await createButton.click();
+
+    // Wait for dialog
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    // Select subject and advance to step 2
+    const subjectTrigger = page.locator('[role="combobox"]').nth(1);
+    await subjectTrigger.click();
+    await page.getByRole("option", { name: "Math" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Wait for step 2 and skip
+    await expect(page.getByText(/select inspiration items/i)).toBeVisible();
+    await page.getByRole("button", { name: "Skip" }).click();
+
+    // Wait for step 3 (Output)
+    await expect(page.getByText("AI Provider")).toBeVisible();
+
+    // Click OpenAI provider card
+    const openaiCard = page.getByText("OpenAI").locator("xpath=ancestor::*[@role='button']");
+    await openaiCard.click();
+
+    // OpenAI should now be selected
+    await expect(openaiCard).toHaveAttribute("aria-pressed", "true");
+
+    // Claude should no longer be selected
+    const claudeCard = page.getByText("Claude").locator("xpath=ancestor::*[@role='button']");
+    await expect(claudeCard).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("WIZ-014: Recommended badge on Claude", async ({ page }) => {
+    const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
+    const createButton = page.getByRole("button", { name: /create/i });
+
+    await promptArea.fill("Create a math worksheet about addition");
+    await createButton.click();
+
+    // Wait for dialog
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    // Select subject and advance to step 2
+    const subjectTrigger = page.locator('[role="combobox"]').nth(1);
+    await subjectTrigger.click();
+    await page.getByRole("option", { name: "Math" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Wait for step 2 and skip
+    await expect(page.getByText(/select inspiration items/i)).toBeVisible();
+    await page.getByRole("button", { name: "Skip" }).click();
+
+    // Wait for step 3 (Output)
+    await expect(page.getByText("AI Provider")).toBeVisible();
+
+    // Should see Recommended badge (exact match to avoid matching description text)
+    await expect(page.getByText("Recommended", { exact: true })).toBeVisible();
+
+    // Should see Free badge on Ollama
+    await expect(page.getByText("Free", { exact: true })).toBeVisible();
   });
 });

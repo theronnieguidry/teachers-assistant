@@ -17,6 +17,7 @@ import {
 } from "../prompts/templates.js";
 import { parseAllInspiration } from "./inspiration-parser.js";
 import { getSupabaseClient, reserveCredits, refundCredits } from "./credits.js";
+import { processVisualPlaceholders } from "./image-service.js";
 
 const ESTIMATED_CREDITS = 5; // Conservative estimate for reservation
 
@@ -39,10 +40,15 @@ export async function generateTeacherPack(
     maxTokens: 8192,
   };
 
-  // Reserve credits first
-  const reserved = await reserveCredits(userId, ESTIMATED_CREDITS, request.projectId);
-  if (!reserved) {
-    throw new Error("Insufficient credits");
+  // Ollama is free - skip credit reservation for local AI
+  const isOllama = config.aiProvider === "ollama";
+
+  // Reserve credits first (skip for Ollama)
+  if (!isOllama) {
+    const reserved = await reserveCredits(userId, ESTIMATED_CREDITS, request.projectId);
+    if (!reserved) {
+      throw new Error("Insufficient credits");
+    }
   }
 
   let totalInputTokens = 0;
@@ -85,7 +91,14 @@ export async function generateTeacherPack(
 
     const worksheetPrompt = buildWorksheetPrompt(promptContext);
     const worksheetResponse = await generateContent(worksheetPrompt, aiConfig);
-    const worksheetHtml = extractHtml(worksheetResponse.content);
+    const worksheetRawHtml = extractHtml(worksheetResponse.content);
+
+    onProgress?.({
+      step: "worksheet",
+      progress: 35,
+      message: "Adding images to worksheet...",
+    });
+    const worksheetHtml = await processVisualPlaceholders(worksheetRawHtml);
 
     totalInputTokens += worksheetResponse.inputTokens;
     totalOutputTokens += worksheetResponse.outputTokens;
@@ -104,7 +117,14 @@ export async function generateTeacherPack(
 
       const lessonPlanPrompt = buildLessonPlanPrompt(promptContext);
       const lessonPlanResponse = await generateContent(lessonPlanPrompt, aiConfig);
-      lessonPlanHtml = extractHtml(lessonPlanResponse.content);
+      const lessonPlanRawHtml = extractHtml(lessonPlanResponse.content);
+
+      onProgress?.({
+        step: "lesson_plan",
+        progress: 60,
+        message: "Adding images to lesson plan...",
+      });
+      lessonPlanHtml = await processVisualPlaceholders(lessonPlanRawHtml);
 
       totalInputTokens += lessonPlanResponse.inputTokens;
       totalOutputTokens += lessonPlanResponse.outputTokens;
@@ -121,7 +141,14 @@ export async function generateTeacherPack(
 
       const answerKeyPrompt = buildAnswerKeyPrompt(promptContext, worksheetHtml);
       const answerKeyResponse = await generateContent(answerKeyPrompt, aiConfig);
-      answerKeyHtml = extractHtml(answerKeyResponse.content);
+      const answerKeyRawHtml = extractHtml(answerKeyResponse.content);
+
+      onProgress?.({
+        step: "answer_key",
+        progress: 85,
+        message: "Adding images to answer key...",
+      });
+      answerKeyHtml = await processVisualPlaceholders(answerKeyRawHtml);
 
       totalInputTokens += answerKeyResponse.inputTokens;
       totalOutputTokens += answerKeyResponse.outputTokens;
@@ -137,10 +164,23 @@ export async function generateTeacherPack(
       message: "Saving results...",
     });
 
+    // Get the next version number for this project
+    const { data: existingVersions } = await supabase
+      .from("project_versions")
+      .select("version_number")
+      .eq("project_id", request.projectId)
+      .order("version_number", { ascending: false })
+      .limit(1);
+
+    const nextVersionNumber = existingVersions && existingVersions.length > 0
+      ? existingVersions[0].version_number + 1
+      : 1;
+
     const { data: version, error: versionError } = await supabase
       .from("project_versions")
       .insert({
         project_id: request.projectId,
+        version_number: nextVersionNumber,
         worksheet_html: worksheetHtml,
         lesson_plan_html: lessonPlanHtml || null,
         answer_key_html: answerKeyHtml || null,
@@ -156,18 +196,18 @@ export async function generateTeacherPack(
       throw new Error(`Failed to save version: ${versionError.message}`);
     }
 
-    // Update project status
+    // Update project status (credits_used is 0 for Ollama)
     await supabase
       .from("projects")
       .update({
         status: "completed",
-        credits_used: creditsUsed,
+        credits_used: isOllama ? 0 : creditsUsed,
         completed_at: new Date().toISOString(),
       })
       .eq("id", request.projectId);
 
-    // Adjust credits if different from reserved
-    if (creditsUsed < ESTIMATED_CREDITS) {
+    // Adjust credits if different from reserved (skip for Ollama)
+    if (!isOllama && creditsUsed < ESTIMATED_CREDITS) {
       await refundCredits(
         userId,
         ESTIMATED_CREDITS - creditsUsed,
@@ -191,13 +231,15 @@ export async function generateTeacherPack(
       creditsUsed,
     };
   } catch (error) {
-    // Refund reserved credits on error
-    await refundCredits(
-      userId,
-      ESTIMATED_CREDITS,
-      request.projectId,
-      `Generation failed: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    // Refund reserved credits on error (skip for Ollama since no credits were reserved)
+    if (!isOllama) {
+      await refundCredits(
+        userId,
+        ESTIMATED_CREDITS,
+        request.projectId,
+        `Generation failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
 
     // Update project status to failed
     const supabase = getSupabaseClient();

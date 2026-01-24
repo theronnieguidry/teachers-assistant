@@ -5,6 +5,8 @@ import { supabase } from "@/services/supabase";
 import { toast } from "@/stores/toastStore";
 import type { UserProfile, UserCredits } from "@/types";
 
+export type OAuthProvider = "google" | "apple";
+
 interface AuthState {
   user: User | null;
   session: Session | null;
@@ -18,6 +20,7 @@ interface AuthState {
   initialize: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  signInWithOAuth: (provider: OAuthProvider) => Promise<void>;
   signOut: () => Promise<void>;
   refreshCredits: () => Promise<void>;
   clearError: () => void;
@@ -121,6 +124,31 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           set({ isLoading: false });
         }
+      },
+
+      signInWithOAuth: async (provider: OAuthProvider) => {
+        try {
+          set({ isLoading: true, error: null });
+
+          const { error } = await supabase.auth.signInWithOAuth({
+            provider,
+            options: {
+              redirectTo: window.location.origin,
+            },
+          });
+
+          if (error) throw error;
+
+          // Note: The actual session will be picked up by onAuthStateChange
+          // when the OAuth flow completes and redirects back
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "OAuth sign in failed";
+          set({ error: message, isLoading: false });
+          toast.error("Sign in failed", message);
+          throw error;
+        }
+        // Don't set isLoading to false here - the page will redirect
       },
 
       signOut: async () => {

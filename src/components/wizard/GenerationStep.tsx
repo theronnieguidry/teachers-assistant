@@ -24,8 +24,11 @@ export function GenerationStep() {
     classDetails,
     selectedInspiration,
     outputPath,
+    aiProvider,
+    ollamaModel,
+    regeneratingProjectId,
   } = useWizardStore();
-  const { createProject, updateProject, updateProjectWithVersion } = useProjectStore();
+  const { createProject, updateProject } = useProjectStore();
   const { session } = useAuthStore();
   const startedRef = useRef(false);
 
@@ -50,29 +53,39 @@ export function GenerationStep() {
     let projectId: string | null = null;
 
     try {
-      // Create project in database
-      setGenerationState({ progress: 5, message: "Saving project..." });
+      // Check if we're regenerating an existing project
+      if (regeneratingProjectId) {
+        // Regenerating - use existing project
+        projectId = regeneratingProjectId;
+        setGenerationState({ progress: 5, message: "Preparing regeneration..." });
 
-      const project = await createProject({
-        title,
-        prompt,
-        grade: classDetails.grade,
-        subject: classDetails.subject,
-        options: {
-          questionCount: classDetails.questionCount,
-          includeVisuals: classDetails.includeVisuals,
-          difficulty: classDetails.difficulty,
-          format: classDetails.format,
-          includeAnswerKey: classDetails.includeAnswerKey,
-        },
-        inspiration: selectedInspiration,
-        outputPath: outputPath || undefined,
-      });
+        // Update project status to generating
+        await updateProject(projectId, { status: "generating" });
+      } else {
+        // Create new project in database
+        setGenerationState({ progress: 5, message: "Saving project..." });
 
-      projectId = project.id;
+        const project = await createProject({
+          title,
+          prompt,
+          grade: classDetails.grade,
+          subject: classDetails.subject,
+          options: {
+            questionCount: classDetails.questionCount,
+            includeVisuals: classDetails.includeVisuals,
+            difficulty: classDetails.difficulty,
+            format: classDetails.format,
+            includeAnswerKey: classDetails.includeAnswerKey,
+          },
+          inspiration: selectedInspiration,
+          outputPath: outputPath || undefined,
+        });
 
-      // Update project status to generating
-      await updateProject(projectId, { status: "generating" });
+        projectId = project.id;
+
+        // Update project status to generating
+        await updateProject(projectId, { status: "generating" });
+      }
 
       setGenerationState({ progress: 10, message: "Starting AI generation..." });
 
@@ -91,26 +104,15 @@ export function GenerationStep() {
             includeAnswerKey: classDetails.includeAnswerKey,
           },
           inspiration: selectedInspiration,
-          aiProvider: "claude",
+          aiProvider,
+          aiModel: ollamaModel || undefined,
         },
         session.access_token,
         handleProgress
       );
 
-      setGenerationState({ progress: 85, message: "Saving generated content..." });
-
-      // Save version to database
-      await updateProjectWithVersion(projectId, "completed", {
-        versionNumber: 1,
-        worksheetHtml: result.worksheetHtml,
-        lessonPlanHtml: result.lessonPlanHtml,
-        answerKeyHtml: result.answerKeyHtml,
-        aiProvider: "claude",
-        aiModel: null,
-      });
-
-      // Update credits used
-      await updateProject(projectId, { creditsUsed: result.creditsUsed });
+      // Note: The backend (generator.ts) already saves the version and updates the project status.
+      // We only need to handle local file saving here.
 
       // Save files to local folder if output path specified
       if (outputPath) {
@@ -178,15 +180,9 @@ export function GenerationStep() {
   };
 
   const handleProgress = (progress: GenerationProgress) => {
-    const progressMap: Record<string, number> = {
-      worksheet: 30,
-      lesson_plan: 55,
-      answer_key: 75,
-      complete: 85,
-    };
-
+    // Use actual progress values from API
     setGenerationState({
-      progress: progressMap[progress.step] || progress.progress,
+      progress: progress.progress,
       message: progress.message,
     });
   };

@@ -59,7 +59,8 @@ export interface GenerationRequest {
   subject: string;
   options: ProjectOptions;
   inspiration: InspirationItem[];
-  aiProvider?: "claude" | "openai";
+  aiProvider?: "claude" | "openai" | "ollama";
+  aiModel?: string;
 }
 
 export interface GenerationProgress {

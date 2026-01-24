@@ -42,7 +42,8 @@ describe("Prompt Templates", () => {
 
     it("should include visual instructions when enabled", () => {
       const result = buildWorksheetPrompt(baseContext);
-      expect(result).toContain("[VISUAL: description]");
+      expect(result).toContain("[VISUAL:");
+      expect(result).toContain("Visual Placeholders");
     });
 
     it("should not include visual instructions when disabled", () => {
@@ -51,7 +52,7 @@ describe("Prompt Templates", () => {
         options: { ...baseContext.options, includeVisuals: false },
       };
       const result = buildWorksheetPrompt(context);
-      expect(result).not.toContain("[VISUAL: description]");
+      expect(result).not.toContain("[VISUAL:");
     });
 
     it("should include difficulty instructions", () => {

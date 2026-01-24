@@ -14,6 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Frontend development
 npm install                    # Install dependencies
 npm run dev                    # Start Vite dev server (frontend only)
+npm run dev:watch              # Start Vite + API with auto-restart on crash
 npm run tauri dev              # Start Tauri dev mode (full app)
 npm run tauri build            # Build production installer (Windows MSI/NSIS)
 
@@ -174,7 +175,7 @@ e2e/
 ```
 
 **E2E patterns:**
-- Mock auth via `localStorage.setItem("sb-localhost-auth-token", ...)`
+- Mock auth via `localStorage.setItem("sb-127-auth-token", ...)` (key derived from Supabase URL hostname)
 - Use `page.waitForSelector()` before assertions
 - Radix Select: Click trigger, then `getByRole("option")`
 - Dialog close: `getByRole("button", { name: "Close" })` (sr-only text)
@@ -187,9 +188,13 @@ e2e/
 | `src/stores/wizardStore.ts` | Creation wizard state machine |
 | `src/stores/toastStore.ts` | Toast notification system |
 | `src/services/generation-api.ts` | API client with streaming support |
+| `src/services/tauri-bridge.ts` | Tauri IPC commands (includes Ollama) |
 | `src/components/preview/PreviewTabs.tsx` | Tabbed preview with print/PDF |
-| `generation-api/src/services/ai-provider.ts` | Claude/OpenAI abstraction |
+| `src/components/settings/OllamaSetup.tsx` | Local AI setup wizard |
+| `generation-api/src/services/ai-provider.ts` | Claude/OpenAI/Ollama abstraction |
 | `generation-api/src/prompts/templates.ts` | AI prompt templates |
+| `src-tauri/src/commands/ollama.rs` | Tauri commands for Ollama management |
+| `src-tauri/nsis/installer-hooks.nsh` | NSIS hooks for Ollama auto-install |
 | `src-tauri/tauri.conf.json` | Tauri bundling configuration |
 | `playwright.config.ts` | E2E test configuration |
 
@@ -208,9 +213,112 @@ PORT=3001
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# AI Provider (choose one: claude, openai, ollama)
+AI_PROVIDER=ollama
+
+# Cloud providers (require API keys)
 ANTHROPIC_API_KEY=your-anthropic-api-key
 OPENAI_API_KEY=your-openai-api-key
+
+# Ollama (free local LLM - no API key needed)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
 ```
+
+## AI Providers
+
+The application supports three AI providers:
+
+| Provider | Cost | Setup | Quality |
+|----------|------|-------|---------|
+| **Claude** | Paid (API) | Add `ANTHROPIC_API_KEY` | Excellent |
+| **OpenAI** | Paid (API) | Add `OPENAI_API_KEY` | Excellent |
+| **Ollama** | Free | Install Ollama locally | Good (model dependent) |
+
+### Using Ollama (Free Local LLM)
+
+Ollama runs AI models locally on your machine - completely free with no API costs.
+
+**Auto-Install (Recommended):**
+When you install TA Teachers Assistant, Ollama is automatically installed as part of the setup process. On first launch, if no models are available, the app will prompt you to download the recommended `llama3.2` model.
+
+The Settings (gear icon) in the header opens the Local AI Setup dialog where you can:
+- Install/manage Ollama
+- Start/stop the Ollama server
+- Download additional models
+
+**Manual Setup (Alternative):**
+```bash
+# 1. Download and install from https://ollama.com/download
+
+# 2. Pull a model (choose based on your RAM)
+ollama pull llama3.2      # 2GB, good for 8GB RAM
+ollama pull llama3.1:8b   # 4.7GB, better quality
+ollama pull mistral       # 4GB, fast and capable
+
+# 3. Start the server
+ollama serve
+
+# 4. Set in generation-api/.env
+AI_PROVIDER=ollama
+OLLAMA_MODEL=llama3.2
+```
+
+**Recommended Models for K-6 Content:**
+- `llama3.2` - Good balance of speed and quality (default)
+- `llama3.2:1b` - Fastest, smallest footprint
+- `mistral` - Fast, good for worksheets
+- `gemma2:2b` - Google's efficient model
+
+## Local Development & Testing
+
+### API Cost Avoidance
+
+**IMPORTANT**: When running local tests or development that would normally call AI APIs (Anthropic/OpenAI), do NOT use production API credits. Instead:
+
+1. **Use Ollama**: Set `AI_PROVIDER=ollama` for free local generation
+2. **Unit Tests**: All AI service calls should be mocked (see `src/__tests__/mocks/`)
+3. **E2E Tests**: Do not test actual generation flow - mock API responses
+4. **Integration Testing**: When testing the generation API locally, prefer:
+   - Mocked responses for automated tests
+   - Local/free model alternatives if available
+   - Minimal test prompts if real API calls are necessary
+
+This ensures development and testing do not incur unnecessary API costs.
+
+### Dev Watcher
+
+The `npm run dev:watch` command starts a robust development environment that:
+
+1. **Starts both servers**: Vite dev server (port 1420) and Generation API (port 3001)
+2. **Auto-clears ports**: Kills any orphaned processes occupying the ports before starting
+3. **Auto-restarts on crash**: If either server crashes, it restarts automatically after 3 seconds
+4. **Health monitoring**: Checks server health every 30 seconds and restarts unresponsive servers
+5. **Graceful shutdown**: Press Ctrl+C to stop all services cleanly
+
+The watcher script is located at `scripts/dev-watcher.cjs`.
+
+**Troubleshooting Port Conflicts:**
+
+The dev watcher auto-restarts on crashes, but `.env` file changes require a full restart. If you see "Port already in use" errors:
+
+```bash
+# Option 1: Kill all Node processes (nuclear option)
+taskkill //F //IM node.exe
+
+# Option 2: Kill specific ports
+# First, find the process IDs:
+netstat -ano | findstr ":1420 :3001"
+
+# Then kill them (replace PID with actual number):
+taskkill //F //PID <PID>
+
+# Then start fresh:
+npm run dev:watch
+```
+
+**Note:** On Windows, use `//F` and `//PID` (double slashes) in taskkill commands when running from certain shells.
 
 ## Custom Skills
 
@@ -239,6 +347,23 @@ This project uses **issue-driven development**:
 4. **Run full test suite**: `npm run test:run && npx playwright test`
 5. **Commit** with descriptive message referencing issue
 6. **Create PR**: `gh pr create`
+
+### Creating Issues
+
+**IMPORTANT**: All bugs, feature requests, and tasks MUST be created as GitHub issues using the `gh` CLI:
+
+```bash
+# Create a feature request
+gh issue create --title "Feature: description" --label "enhancement"
+
+# Create a bug report
+gh issue create --title "Bug: description" --label "bug"
+
+# Create a task
+gh issue create --title "Task: description" --label "task"
+```
+
+When Claude identifies issues or the user requests new features, create GitHub issues rather than just noting them in conversation.
 
 ### Issue Templates
 

@@ -52,7 +52,18 @@ function getCommonInstructions(ctx: PromptContext): string {
 - Target audience: ${GRADE_DESCRIPTIONS[ctx.grade]}
 - Subject: ${ctx.subject}
 - Difficulty: ${DIFFICULTY_INSTRUCTIONS[ctx.options.difficulty || "medium"]}
-${ctx.options.includeVisuals ? "- Include placeholder descriptions for visuals/images in [VISUAL: description] format" : ""}
+${ctx.options.includeVisuals ? `
+## IMPORTANT: Visual Placeholders
+You MUST include visual placeholders in your HTML using EXACTLY this format:
+[VISUAL: search term]
+
+Examples of correct usage:
+- [VISUAL: red apple]
+- [VISUAL: counting objects]
+- [VISUAL: happy children]
+- [VISUAL: math addition]
+
+Place these placeholders where images should appear. Use 2-3 word descriptions.` : ""}
 
 ## Teacher's Request
 ${ctx.prompt}

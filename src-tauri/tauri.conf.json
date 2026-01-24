@@ -39,7 +39,14 @@
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "",
+      "nsis": {
+        "installerHooks": "nsis/installer-hooks.nsh",
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "headerImage": null,
+        "sidebarImage": null
+      }
     },
     "shortDescription": "AI-powered teaching materials generator for K-6 educators",
     "longDescription": "TA (Teacher's Assistant) is a desktop application that helps homeschool parents and K-6 educators generate customized worksheets, lesson plans, and answer keys using AI. Features include grade-appropriate content, multiple difficulty levels, and support for various subjects.",

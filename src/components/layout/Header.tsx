@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { LogOut, Coins, GraduationCap, User } from "lucide-react";
+import { LogOut, Coins, GraduationCap, User, Settings } from "lucide-react";
+import { OllamaSetup } from "@/components/settings";
 
 export function Header() {
   const { profile, credits, signOut } = useAuth();
+  const [ollamaSetupOpen, setOllamaSetupOpen] = useState(false);
 
   return (
     <header className="h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -29,6 +32,16 @@ export function Header() {
             </div>
           )}
 
+          {/* Settings */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setOllamaSetupOpen(true)}
+            title="Local AI Setup"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+
           {/* User info */}
           <div className="flex items-center gap-2 pl-2 border-l">
             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
@@ -48,6 +61,9 @@ export function Header() {
           </div>
         </div>
       </div>
+
+      {/* Ollama Setup Dialog */}
+      <OllamaSetup open={ollamaSetupOpen} onOpenChange={setOllamaSetupOpen} />
     </header>
   );
 }

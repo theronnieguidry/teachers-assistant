@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{file_system, dialog};
+use commands::{file_system, dialog, ollama};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -12,6 +12,13 @@ pub fn run() {
             file_system::save_file,
             file_system::read_file,
             dialog::open_folder,
+            ollama::check_ollama_status,
+            ollama::install_ollama,
+            ollama::start_ollama,
+            ollama::stop_ollama,
+            ollama::pull_ollama_model,
+            ollama::list_ollama_models,
+            ollama::get_recommended_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

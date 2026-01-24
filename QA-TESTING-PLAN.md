@@ -18,14 +18,14 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 
 ## Test Summary
 
-### Latest Run: 2026-01-23
+### Latest Run: 2026-01-24
 
 | Metric | Value |
 |--------|-------|
-| Unit Tests (Frontend) | 333 ✅ |
+| Unit Tests (Frontend) | 341 ✅ |
 | Unit Tests (API) | 98 ✅ |
-| E2E Tests | 144 ✅ (48 × 3 browsers) |
-| **Total** | **575** |
+| E2E Tests | 156 ✅ (52 × 3 browsers) |
+| **Total** | **595** |
 | **Pass Rate** | **100%** |
 
 ---
@@ -44,6 +44,10 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | AUTH-006 | Trial credits banner on signup | ✅ | ✅ | ✅ | |
 | AUTH-007 | Password field is masked | ✅ | ✅ | ✅ | |
 | AUTH-008 | Switch back to login | ✅ | ✅ | ✅ | |
+| AUTH-009 | Google sign in button on login | ✅ | ✅ | ✅ | OAuth |
+| AUTH-010 | Apple sign in button on login | ✅ | ✅ | ✅ | OAuth |
+| AUTH-011 | OAuth buttons on signup | ✅ | ✅ | ✅ | OAuth |
+| AUTH-012 | 'Or continue with email' divider | ✅ | ✅ | ✅ | OAuth |
 
 ### 2. Dashboard Tests (`e2e/dashboard.spec.ts`)
 
@@ -72,6 +76,10 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | WIZ-008 | Back returns to step 1 | ✅ | ✅ | ✅ | |
 | WIZ-009 | Close wizard via close button | ✅ | ✅ | ✅ | |
 | WIZ-010 | Step 2 shows Skip button | ✅ | ✅ | ✅ | |
+| WIZ-011 | Step 3 shows AI provider selection | ⏳ | ⏳ | ⏳ | Issue #8 |
+| WIZ-012 | Claude is selected by default | ⏳ | ⏳ | ⏳ | Issue #8 |
+| WIZ-013 | Can select different provider | ⏳ | ⏳ | ⏳ | Issue #8 |
+| WIZ-014 | Recommended badge on Claude | ⏳ | ⏳ | ⏳ | Issue #8 |
 
 ### 4. Inspiration Panel Tests (`e2e/inspiration.spec.ts`)
 
@@ -96,6 +104,11 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | PROJ-002 | Refresh button with icon | ✅ | ✅ | ✅ | |
 | PROJ-003 | Empty state when no projects | ✅ | ✅ | ✅ | 15s timeout for Firefox |
 | PROJ-004 | Refresh button clickable | ✅ | ✅ | ✅ | |
+| PROJ-005 | Regenerate button opens wizard with pre-filled data | ⏳ | ⏳ | ⏳ | New |
+| PROJ-006 | Open folder button opens output folder | ⏳ | ⏳ | ⏳ | Tauri only |
+| PROJ-007 | Duplicate button creates project copy | ⏳ | ⏳ | ⏳ | New |
+| PROJ-008 | Delete button removes project | ⏳ | ⏳ | ⏳ | Existing |
+| PROJ-009 | Project action buttons show on hover | ⏳ | ⏳ | ⏳ | New |
 
 ### 6. Accessibility Tests (`e2e/accessibility.spec.ts`)
 
@@ -110,6 +123,34 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | A11Y-007 | Interactive elements focusable | ✅ | ✅ | ✅ | Authenticated |
 | A11Y-008 | Focus is visible | ✅ | ✅ | ✅ | Authenticated |
 
+### 7. Project Regeneration Tests (Unit: `wizardStore.test.ts`)
+
+| Test ID | Description | Status | Notes |
+|---------|-------------|:------:|-------|
+| REGEN-001 | openWizardForRegeneration sets regeneratingProjectId | ⏳ | New |
+| REGEN-002 | Wizard pre-fills prompt from existing project | ⏳ | New |
+| REGEN-003 | Wizard pre-fills classDetails from existing project | ⏳ | New |
+| REGEN-004 | Wizard pre-fills inspiration from existing project | ⏳ | New |
+| REGEN-005 | Wizard pre-fills outputPath from existing project | ⏳ | New |
+| REGEN-006 | GenerationStep skips createProject when regenerating | ⏳ | New |
+| REGEN-007 | GenerationStep uses existing projectId for API call | ⏳ | New |
+| REGEN-008 | reset() clears regeneratingProjectId | ⏳ | New |
+| REGEN-009 | openWizard() sets regeneratingProjectId to null | ⏳ | New |
+
+### 8. AI Provider Selection Tests (Unit: `ProviderSelector.test.tsx`)
+
+| Test ID | Description | Status | Notes |
+|---------|-------------|:------:|-------|
+| TC-PROV-001 | Renders all three provider options | ⏳ | Issue #8 |
+| TC-PROV-002 | Claude has Recommended badge | ⏳ | Issue #8 |
+| TC-PROV-003 | Ollama has Free badge | ⏳ | Issue #8 |
+| TC-PROV-004 | onChange called when provider clicked | ⏳ | Issue #8 |
+| TC-PROV-005 | Shows Ollama status (Running/Not running) | ⏳ | Issue #8 |
+| TC-PROV-006 | Model dropdown when Ollama selected | ⏳ | Issue #8 |
+| TC-PROV-007 | Auto-select first model for Ollama | ⏳ | Issue #8 |
+| TC-PROV-008 | Warning shown when Ollama unavailable | ⏳ | Issue #8 |
+| TC-PROV-009 | Generate button validation with Ollama | ⏳ | Issue #8 |
+
 ---
 
 ## Issues Log
@@ -120,6 +161,7 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | QA-002 | 2026-01-23 | AUTH-* | CardTitle renders as div, not heading | Medium | ✅ Fixed | Use `getByText()` instead of `getByRole("heading")` |
 | QA-003 | 2026-01-23 | WIZ-002 | "Inspiration" text matches multiple elements | Low | ✅ Fixed | Added `{ exact: true }` to text assertions |
 | QA-004 | 2026-01-23 | PROJ-003 | Firefox slow Supabase connection | Low | ✅ Fixed | Increased timeout to 15s |
+| QA-005 | 2026-01-24 | AUTH-009/010 | OAuth providers (Google/Apple) not enabled in Supabase | Medium | ✅ Fixed | Configured Google OAuth in Supabase dashboard, updated .env to use hosted Supabase |
 
 ---
 
@@ -171,11 +213,34 @@ npx playwright show-report
 
 | Gate | Requirement | Current |
 |------|-------------|---------|
-| Unit Tests | 100% passing | ✅ 431/431 |
+| Unit Tests | 100% passing | ✅ 439/439 |
 | E2E Tests | ≥95% passing | ✅ 100% |
 | Critical Issues | 0 open | ✅ 0 |
 | High Issues | 0 open | ✅ 0 |
+| Medium Issues | 0 open | ✅ 0 |
 | Documentation | Updated | ✅ |
+
+---
+
+## Untested User Flows
+
+The current E2E tests verify **UI element visibility and basic interactions**, not full end-to-end user flows. The following flows require real backend integration and are not covered by automated tests:
+
+| Flow | Reason Not Tested | Manual Test Status |
+|------|-------------------|-------------------|
+| OAuth Sign-In (Google) | Configured and working | ✅ Manually verified |
+| OAuth Sign-In (Apple) | Requires Apple Developer account setup | ⏳ Not configured |
+| Email Sign-In | Would require test Supabase credentials | ⏳ Not tested |
+| Email Sign-Up | Would create real user accounts | ⏳ Not tested |
+| AI Generation Flow | Would incur API costs (Anthropic/OpenAI) | ⏳ Not tested |
+| PDF Export | Requires completed project | ⏳ Not tested |
+| Project Save/Load | Requires authenticated session | ⏳ Not tested |
+| Credits Deduction | Requires real generation | ⏳ Not tested |
+
+**Recommendation**: Create a dedicated test environment with:
+- Test Supabase project with OAuth providers configured
+- Mocked AI responses for generation testing
+- Isolated test user accounts
 
 ---
 
@@ -183,6 +248,7 @@ npx playwright show-report
 
 | Date | Tests | Pass Rate | Notes |
 |------|-------|-----------|-------|
+| 2026-01-24 | 595 | 100% | Full QA run, documented untested flows |
 | 2026-01-23 | 575 | 100% | Initial full pass after E2E fixes |
 | 2026-01-23 | 563 | 67% | E2E tests created, selectors fixed |
 | 2026-01-23 | 431 | 100% | Unit tests only |

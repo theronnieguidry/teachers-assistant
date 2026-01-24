@@ -1,5 +1,5 @@
 export type Grade = "K" | "1" | "2" | "3" | "4" | "5" | "6";
-export type AIProvider = "claude" | "openai";
+export type AIProvider = "claude" | "openai" | "ollama";
 export type GenerationStep = "worksheet" | "lesson_plan" | "answer_key" | "complete";
 
 export interface InspirationItem {

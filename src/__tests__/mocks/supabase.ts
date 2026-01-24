@@ -96,6 +96,10 @@ export const createMockSupabaseClient = () => {
         data: { user: mockUser, session: mockSession },
         error: null,
       }),
+      signInWithOAuth: vi.fn().mockResolvedValue({
+        data: { url: "https://accounts.google.com/oauth", provider: "google" },
+        error: null,
+      }),
       signOut: vi.fn().mockResolvedValue({ error: null }),
       onAuthStateChange: vi.fn((callback) => {
         authStateChangeCallbacks.push(callback);

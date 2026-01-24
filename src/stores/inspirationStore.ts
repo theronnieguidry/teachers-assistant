@@ -7,7 +7,7 @@ interface InspirationState {
   error: string | null;
 
   // Actions
-  addItem: (item: Omit<InspirationItem, "id">) => void;
+  addItem: (item: Omit<InspirationItem, "id">) => InspirationItem;
   removeItem: (id: string) => void;
   updateItem: (id: string, data: Partial<InspirationItem>) => void;
   reorderItems: (startIndex: number, endIndex: number) => void;
@@ -33,6 +33,7 @@ export const useInspirationStore = create<InspirationState>((set) => ({
       items: [...state.items, item],
       error: null,
     }));
+    return item;
   },
 
   removeItem: (id) => {

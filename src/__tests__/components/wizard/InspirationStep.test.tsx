@@ -36,8 +36,14 @@ describe("InspirationStep", () => {
 
     expect(screen.getByText(/no inspiration items yet/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/add URLs, PDFs, or images in the left panel/i)
+      screen.getByText(/drop URLs, PDFs, or images here/i)
     ).toBeInTheDocument();
+  });
+
+  it("shows Add URL button", () => {
+    render(<InspirationStep />);
+
+    expect(screen.getByRole("button", { name: /add url/i })).toBeInTheDocument();
   });
 
   it("renders Back and Skip buttons when no items", () => {

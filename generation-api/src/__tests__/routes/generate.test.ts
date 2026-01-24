@@ -147,10 +147,15 @@ describe("Generate Route", () => {
       .set("Authorization", "Bearer valid-token")
       .send(validRequestBody);
 
+    // Route uses SSE streaming - returns 200 with text/event-stream
     expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.result.projectId).toBe("project-123");
-    expect(response.body.result.creditsUsed).toBe(5);
+    expect(response.headers["content-type"]).toContain("text/event-stream");
+
+    // Parse SSE response to find the complete event
+    const sseData = response.text;
+    expect(sseData).toContain("data:");
+    expect(sseData).toContain('"type":"complete"');
+    expect(sseData).toContain('"projectId":"project-123"');
 
     expect(mockGenerateTeacherPack).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -167,7 +172,7 @@ describe("Generate Route", () => {
     );
   });
 
-  it("should return 402 for insufficient credits", async () => {
+  it("should return error event for insufficient credits via SSE", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
@@ -180,11 +185,14 @@ describe("Generate Route", () => {
       .set("Authorization", "Bearer valid-token")
       .send(validRequestBody);
 
-    expect(response.status).toBe(402);
-    expect(response.body.error).toBe("Insufficient credits");
+    // SSE is set up before generateTeacherPack is called, so errors come as SSE events
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/event-stream");
+    expect(response.text).toContain('"type":"error"');
+    expect(response.text).toContain("Insufficient credits");
   });
 
-  it("should return 500 for generation errors", async () => {
+  it("should return error event for generation errors via SSE", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
@@ -197,8 +205,11 @@ describe("Generate Route", () => {
       .set("Authorization", "Bearer valid-token")
       .send(validRequestBody);
 
-    expect(response.status).toBe(500);
-    expect(response.body.error).toBe("Generation failed");
+    // SSE is set up before generateTeacherPack is called, so errors come as SSE events
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/event-stream");
+    expect(response.text).toContain('"type":"error"');
+    expect(response.text).toContain("AI provider error");
   });
 
   it("should accept optional aiProvider parameter", async () => {

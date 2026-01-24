@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Grade, InspirationItem, ProjectOptions } from "@/types";
+import type { Grade, InspirationItem, ProjectOptions, Project } from "@/types";
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -13,6 +13,8 @@ interface ClassDetails {
   includeAnswerKey: boolean;
 }
 
+type AiProvider = "claude" | "openai" | "ollama";
+
 interface WizardState {
   isOpen: boolean;
   currentStep: WizardStep;
@@ -22,6 +24,13 @@ interface WizardState {
   selectedInspiration: InspirationItem[];
   outputPath: string | null;
 
+  // AI Provider state
+  aiProvider: AiProvider;
+  ollamaModel: string | null;
+
+  // Regeneration state
+  regeneratingProjectId: string | null;
+
   // Generation state
   isGenerating: boolean;
   generationProgress: number;
@@ -30,6 +39,7 @@ interface WizardState {
 
   // Actions
   openWizard: (prompt: string) => void;
+  openWizardForRegeneration: (project: Project) => void;
   closeWizard: () => void;
   setStep: (step: WizardStep) => void;
   nextStep: () => void;
@@ -39,6 +49,8 @@ interface WizardState {
   setClassDetails: (details: ClassDetails) => void;
   setSelectedInspiration: (items: InspirationItem[]) => void;
   setOutputPath: (path: string) => void;
+  setAiProvider: (provider: AiProvider) => void;
+  setOllamaModel: (model: string | null) => void;
   setGenerationState: (state: {
     isGenerating?: boolean;
     progress?: number;
@@ -66,6 +78,9 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   classDetails: null,
   selectedInspiration: [],
   outputPath: null,
+  aiProvider: "claude",
+  ollamaModel: null,
+  regeneratingProjectId: null,
   isGenerating: false,
   generationProgress: 0,
   generationMessage: "",
@@ -83,6 +98,38 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       classDetails: { ...defaultClassDetails },
       selectedInspiration: [],
       outputPath: null,
+      aiProvider: "claude",
+      ollamaModel: null,
+      regeneratingProjectId: null,
+      isGenerating: false,
+      generationProgress: 0,
+      generationMessage: "",
+      generationError: null,
+    });
+  },
+
+  openWizardForRegeneration: (project) => {
+    // Extract options with defaults
+    const options = project.options || {};
+    set({
+      isOpen: true,
+      currentStep: 1,
+      prompt: project.prompt,
+      title: project.title,
+      classDetails: {
+        grade: project.grade,
+        subject: project.subject,
+        format: (options.format as ClassDetails["format"]) || "both",
+        questionCount: options.questionCount || 10,
+        includeVisuals: options.includeVisuals ?? true,
+        difficulty: (options.difficulty as ClassDetails["difficulty"]) || "medium",
+        includeAnswerKey: options.includeAnswerKey ?? true,
+      },
+      selectedInspiration: project.inspiration || [],
+      outputPath: project.outputPath || null,
+      aiProvider: "claude",
+      ollamaModel: null,
+      regeneratingProjectId: project.id,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -132,6 +179,14 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     set({ outputPath: path });
   },
 
+  setAiProvider: (provider) => {
+    set({ aiProvider: provider });
+  },
+
+  setOllamaModel: (model) => {
+    set({ ollamaModel: model });
+  },
+
   setGenerationState: (state) => {
     set((current) => ({
       isGenerating: state.isGenerating ?? current.isGenerating,
@@ -150,6 +205,9 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       classDetails: null,
       selectedInspiration: [],
       outputPath: null,
+      aiProvider: "claude",
+      ollamaModel: null,
+      regeneratingProjectId: null,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",

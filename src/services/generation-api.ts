@@ -52,6 +52,7 @@ export async function generateTeacherPack(
         options: request.options,
         inspiration: request.inspiration,
         aiProvider: request.aiProvider || "claude",
+        aiModel: request.aiModel,
       }),
     },
     accessToken

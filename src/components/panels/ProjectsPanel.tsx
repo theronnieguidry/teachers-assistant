@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProjectStore } from "@/stores/projectStore";
+import { useWizardStore } from "@/stores/wizardStore";
+import { openFolder, isTauriContext } from "@/services/tauri-bridge";
+import { toast } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 
 export function ProjectsPanel() {
@@ -19,7 +22,45 @@ export function ProjectsPanel() {
     fetchProjects,
     setCurrentProject,
     deleteProject,
+    createProject,
   } = useProjectStore();
+  const { openWizardForRegeneration } = useWizardStore();
+
+  const handleOpenFolder = async (outputPath: string | null) => {
+    if (!outputPath) {
+      toast.info("No output folder", "This project doesn't have an output folder set.");
+      return;
+    }
+    try {
+      if (isTauriContext()) {
+        await openFolder(outputPath);
+      } else {
+        toast.info("Desktop only", "Opening folders is only available in the desktop app.");
+      }
+    } catch (error) {
+      console.error("Failed to open folder:", error);
+      toast.error("Failed to open folder", error instanceof Error ? error.message : "Unknown error");
+    }
+  };
+
+  const handleDuplicate = async (project: typeof projects[0]) => {
+    try {
+      const duplicatedProject = await createProject({
+        title: `${project.title} (Copy)`,
+        prompt: project.prompt,
+        grade: project.grade,
+        subject: project.subject,
+        options: project.options as Record<string, unknown>,
+        inspiration: project.inspiration,
+        outputPath: project.outputPath || undefined,
+      });
+      setCurrentProject(duplicatedProject);
+      toast.success("Project duplicated", `Created "${duplicatedProject.title}"`);
+    } catch (error) {
+      console.error("Failed to duplicate project:", error);
+      toast.error("Failed to duplicate", error instanceof Error ? error.message : "Unknown error");
+    }
+  };
 
   useEffect(() => {
     fetchProjects();
@@ -119,6 +160,10 @@ export function ProjectsPanel() {
                     size="icon"
                     className="h-7 w-7"
                     title="Open folder"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenFolder(project.outputPath);
+                    }}
                   >
                     <FolderOpen className="h-3.5 w-3.5" />
                   </Button>
@@ -127,6 +172,10 @@ export function ProjectsPanel() {
                     size="icon"
                     className="h-7 w-7"
                     title="Regenerate"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openWizardForRegeneration(project);
+                    }}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                   </Button>
@@ -135,6 +184,10 @@ export function ProjectsPanel() {
                     size="icon"
                     className="h-7 w-7"
                     title="Duplicate"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDuplicate(project);
+                    }}
                   >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>

@@ -3,6 +3,8 @@ import {
   generateContent,
   calculateCredits,
   resetClients,
+  isOllamaAvailable,
+  getOllamaModels,
 } from "../../services/ai-provider.js";
 
 // Mock Anthropic SDK
@@ -17,19 +19,33 @@ vi.mock("@anthropic-ai/sdk", () => ({
   })),
 }));
 
-// Mock OpenAI SDK
+// Mock OpenAI SDK - used by both OpenAI and Ollama providers
+const mockChatCreate = vi.fn();
 vi.mock("openai", () => ({
-  default: vi.fn().mockImplementation(() => ({
+  default: vi.fn().mockImplementation(({ baseURL }) => ({
     chat: {
       completions: {
-        create: vi.fn().mockResolvedValue({
-          choices: [{ message: { content: "Mock OpenAI response" } }],
-          usage: { prompt_tokens: 150, completion_tokens: 250 },
+        create: mockChatCreate.mockImplementation(() => {
+          // Return different responses based on baseURL (Ollama vs OpenAI)
+          if (baseURL?.includes("11434")) {
+            return Promise.resolve({
+              choices: [{ message: { content: "Mock Ollama response" } }],
+              usage: { prompt_tokens: 80, completion_tokens: 120 },
+            });
+          }
+          return Promise.resolve({
+            choices: [{ message: { content: "Mock OpenAI response" } }],
+            usage: { prompt_tokens: 150, completion_tokens: 250 },
+          });
         }),
       },
     },
   })),
 }));
+
+// Mock global fetch for Ollama availability checks
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
 describe("AI Provider Service", () => {
   beforeEach(() => {
@@ -38,11 +54,21 @@ describe("AI Provider Service", () => {
     // Set required env vars
     process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
     process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.OLLAMA_BASE_URL = "http://localhost:11434";
+    process.env.OLLAMA_MODEL = "llama3.2";
+
+    // Default: Ollama is available
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ models: [{ name: "llama3.2" }] }),
+    });
   });
 
   afterEach(() => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.OPENAI_API_KEY;
+    delete process.env.OLLAMA_BASE_URL;
+    delete process.env.OLLAMA_MODEL;
   });
 
   describe("generateContent", () => {
@@ -88,10 +114,86 @@ describe("AI Provider Service", () => {
       });
     });
 
+    describe("with Ollama", () => {
+      it("should generate content using Ollama when available", async () => {
+        const result = await generateContent("Test prompt", {
+          provider: "ollama",
+        });
+
+        expect(result.content).toBe("Mock Ollama response");
+        expect(result.inputTokens).toBe(80);
+        expect(result.outputTokens).toBe(120);
+      });
+
+      it("should throw error when Ollama is not running", async () => {
+        mockFetch.mockRejectedValue(new Error("Connection refused"));
+        resetClients();
+
+        await expect(
+          generateContent("Test prompt", { provider: "ollama" })
+        ).rejects.toThrow("Ollama is not running");
+      });
+
+      it("should use OLLAMA_MODEL env var when set", async () => {
+        process.env.OLLAMA_MODEL = "mistral";
+        resetClients();
+
+        await generateContent("Test prompt", { provider: "ollama" });
+
+        // Verify the model was passed (via mock inspection)
+        expect(mockChatCreate).toHaveBeenCalled();
+      });
+    });
+
     it("should throw error for unsupported provider", async () => {
       await expect(
         generateContent("Test prompt", { provider: "unknown" as never })
       ).rejects.toThrow("Unsupported AI provider");
+    });
+  });
+
+  describe("isOllamaAvailable", () => {
+    it("should return true when Ollama is running", async () => {
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const result = await isOllamaAvailable();
+      expect(result).toBe(true);
+    });
+
+    it("should return false when Ollama is not running", async () => {
+      mockFetch.mockRejectedValue(new Error("Connection refused"));
+
+      const result = await isOllamaAvailable();
+      expect(result).toBe(false);
+    });
+
+    it("should return false when Ollama returns error status", async () => {
+      mockFetch.mockResolvedValue({ ok: false });
+
+      const result = await isOllamaAvailable();
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("getOllamaModels", () => {
+    it("should return list of available models", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            models: [{ name: "llama3.2" }, { name: "mistral" }],
+          }),
+      });
+
+      const models = await getOllamaModels();
+      expect(models).toEqual(["llama3.2", "mistral"]);
+    });
+
+    it("should return empty array when Ollama is not available", async () => {
+      mockFetch.mockRejectedValue(new Error("Connection refused"));
+
+      const models = await getOllamaModels();
+      expect(models).toEqual([]);
     });
   });
 

@@ -93,4 +93,42 @@ test.describe("Authentication", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByText("Welcome back")).toBeVisible();
   });
+
+  test("AUTH-009: should display Google sign in button on login", async ({ page }) => {
+    await page.waitForSelector("text=Welcome back", { timeout: 10000 });
+
+    await expect(
+      page.getByRole("button", { name: /continue with google/i })
+    ).toBeVisible();
+  });
+
+  test("AUTH-010: should display Apple sign in button on login", async ({ page }) => {
+    await page.waitForSelector("text=Welcome back", { timeout: 10000 });
+
+    await expect(
+      page.getByRole("button", { name: /continue with apple/i })
+    ).toBeVisible();
+  });
+
+  test("AUTH-011: should display OAuth buttons on signup", async ({ page }) => {
+    await page.waitForSelector("text=Welcome back", { timeout: 10000 });
+
+    // Navigate to signup
+    await page.getByRole("button", { name: "Sign up" }).click();
+    await expect(page.getByText("Create an account")).toBeVisible();
+
+    // Should see OAuth buttons
+    await expect(
+      page.getByRole("button", { name: /continue with google/i })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /continue with apple/i })
+    ).toBeVisible();
+  });
+
+  test("AUTH-012: should display 'Or continue with email' divider", async ({ page }) => {
+    await page.waitForSelector("text=Welcome back", { timeout: 10000 });
+
+    await expect(page.getByText(/or continue with email/i)).toBeVisible();
+  });
 });

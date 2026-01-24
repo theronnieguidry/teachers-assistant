@@ -21,6 +21,7 @@ export function useAuth() {
     error: store.error,
     signIn: store.signIn,
     signUp: store.signUp,
+    signInWithOAuth: store.signInWithOAuth,
     signOut: store.signOut,
     refreshCredits: store.refreshCredits,
     clearError: store.clearError,

@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { signUpSchema, type SignUpFormData } from "@/lib/validators";
+import { OAuthButtons } from "./OAuthButtons";
+import { AuthDivider } from "./AuthDivider";
 
 interface SignupFormProps {
   onSwitchToLogin: () => void;
@@ -71,6 +73,13 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
               {submitError || error}
             </div>
           )}
+
+          <OAuthButtons
+            onOAuthError={(msg) => setSubmitError(msg)}
+            disabled={isLoading}
+          />
+
+          <AuthDivider />
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>

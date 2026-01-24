@@ -6,6 +6,9 @@ import type { GenerationRequest, AIProvider } from "../types.js";
 
 const router = Router();
 
+// Default provider from environment, fallback to claude
+const DEFAULT_AI_PROVIDER = (process.env.AI_PROVIDER || "claude") as AIProvider;
+
 const generateRequestSchema = z.object({
   projectId: z.string().min(1),
   prompt: z.string().min(10).max(2000),
@@ -34,7 +37,8 @@ const generateRequestSchema = z.object({
     )
     .optional()
     .default([]),
-  aiProvider: z.enum(["claude", "openai"]).optional().default("claude"),
+  aiProvider: z.enum(["claude", "openai", "ollama"]).optional(),
+  aiModel: z.string().optional(),
 });
 
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
@@ -55,6 +59,8 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const data = parseResult.data;
+    const aiProvider = (data.aiProvider || DEFAULT_AI_PROVIDER) as AIProvider;
+
     const request: GenerationRequest = {
       projectId: data.projectId,
       prompt: data.prompt,
@@ -62,31 +68,47 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       subject: data.subject,
       options: data.options,
       inspiration: data.inspiration,
-      aiProvider: data.aiProvider as AIProvider,
+      aiProvider,
     };
 
-    // For SSE streaming, we could use res.write() for progress
-    // For now, just return the final result
+    const aiModel = data.aiModel;
+    console.log(`[${request.projectId}] Using AI provider: ${aiProvider}${aiModel ? `, model: ${aiModel}` : ""}`);
+
+    // Set up SSE streaming for progress updates
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    const sendProgress = (progress: { step: string; progress: number; message: string }) => {
+      console.log(`[${request.projectId}] ${progress.step}: ${progress.progress}% - ${progress.message}`);
+      res.write(`data: ${JSON.stringify({ type: "progress", ...progress })}\n\n`);
+    };
+
     const result = await generateTeacherPack(
       request,
       req.userId,
       {
-        aiProvider: data.aiProvider as AIProvider,
+        aiProvider,
+        model: aiModel,
       },
-      (progress) => {
-        // In a streaming implementation, we'd send progress here
-        console.log(
-          `[${request.projectId}] ${progress.step}: ${progress.progress}% - ${progress.message}`
-        );
-      }
+      sendProgress
     );
 
-    res.json({
-      success: true,
-      result,
-    });
+    // Send final result
+    res.write(`data: ${JSON.stringify({ type: "complete", result })}\n\n`);
+    res.end();
   } catch (error) {
     console.error("Generation error:", error);
+
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    // Check if headers already sent (SSE mode)
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ type: "error", message: errorMessage })}\n\n`);
+      res.end();
+      return;
+    }
 
     if (error instanceof Error && error.message === "Insufficient credits") {
       res.status(402).json({ error: "Insufficient credits" });
@@ -95,7 +117,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
 
     res.status(500).json({
       error: "Generation failed",
-      message: error instanceof Error ? error.message : "Unknown error",
+      message: errorMessage,
     });
   }
 });
