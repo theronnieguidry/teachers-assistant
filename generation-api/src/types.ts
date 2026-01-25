@@ -25,7 +25,8 @@ export interface GenerationRequest {
   grade: Grade;
   subject: string;
   options: ProjectOptions;
-  inspiration: InspirationItem[];
+  inspiration?: InspirationItem[]; // Legacy: embedded items
+  inspirationIds?: string[]; // New: IDs of persisted items to fetch
   aiProvider?: AIProvider;
   prePolished?: boolean; // Skip prompt polishing if already done client-side
 }

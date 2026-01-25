@@ -195,7 +195,7 @@ describe("Polish Route", () => {
   describe("Successful Polishing", () => {
     it("should return polished prompt successfully", async () => {
       const polishedPrompt = "Create a comprehensive math worksheet about fractions for 3rd graders...";
-      mockPolishPrompt.mockResolvedValue(polishedPrompt);
+      mockPolishPrompt.mockResolvedValue({ polished: polishedPrompt, wasPolished: true });
 
       const response = await request(app).post("/polish").send(validRequestBody);
 
@@ -210,7 +210,7 @@ describe("Polish Route", () => {
     it("should return wasPolished: true when prompt was enhanced", async () => {
       const originalPrompt = "Math fractions";
       const polishedPrompt = "Create a math worksheet about fractions with visual fraction bars...";
-      mockPolishPrompt.mockResolvedValue(polishedPrompt);
+      mockPolishPrompt.mockResolvedValue({ polished: polishedPrompt, wasPolished: true });
 
       const response = await request(app)
         .post("/polish")
@@ -228,7 +228,11 @@ describe("Polish Route", () => {
     it("should return wasPolished: false when prompt was not changed", async () => {
       const originalPrompt = "Create a detailed math worksheet about fractions";
       // Polisher returns same prompt (e.g., already detailed or polishing disabled)
-      mockPolishPrompt.mockResolvedValue(originalPrompt);
+      mockPolishPrompt.mockResolvedValue({
+        polished: originalPrompt,
+        wasPolished: false,
+        skipReason: "already_detailed",
+      });
 
       const response = await request(app)
         .post("/polish")
@@ -241,10 +245,11 @@ describe("Polish Route", () => {
       expect(response.body.wasPolished).toBe(false);
       expect(response.body.original).toBe(originalPrompt);
       expect(response.body.polished).toBe(originalPrompt);
+      expect(response.body.skipReason).toBe("already_detailed");
     });
 
     it("should call polishPrompt with correct context", async () => {
-      mockPolishPrompt.mockResolvedValue("polished");
+      mockPolishPrompt.mockResolvedValue({ polished: "polished", wasPolished: true });
 
       await request(app).post("/polish").send(validRequestBody);
 
@@ -263,7 +268,7 @@ describe("Polish Route", () => {
 
   describe("Optional Fields", () => {
     it("should accept optional inspirationTitles array", async () => {
-      mockPolishPrompt.mockResolvedValue("polished prompt");
+      mockPolishPrompt.mockResolvedValue({ polished: "polished prompt", wasPolished: true });
 
       const response = await request(app)
         .post("/polish")
@@ -281,7 +286,7 @@ describe("Polish Route", () => {
     });
 
     it("should handle empty inspirationTitles array", async () => {
-      mockPolishPrompt.mockResolvedValue("polished prompt");
+      mockPolishPrompt.mockResolvedValue({ polished: "polished prompt", wasPolished: true });
 
       const response = await request(app)
         .post("/polish")
@@ -299,7 +304,7 @@ describe("Polish Route", () => {
     });
 
     it("should work without inspirationTitles", async () => {
-      mockPolishPrompt.mockResolvedValue("polished prompt");
+      mockPolishPrompt.mockResolvedValue({ polished: "polished prompt", wasPolished: true });
 
       const response = await request(app).post("/polish").send(validRequestBody);
 
@@ -312,7 +317,7 @@ describe("Polish Route", () => {
 
     validGrades.forEach((grade) => {
       it(`should accept grade "${grade}"`, async () => {
-        mockPolishPrompt.mockResolvedValue("polished");
+        mockPolishPrompt.mockResolvedValue({ polished: "polished", wasPolished: true });
 
         const response = await request(app)
           .post("/polish")
@@ -331,7 +336,7 @@ describe("Polish Route", () => {
 
     validFormats.forEach((format) => {
       it(`should accept format "${format}"`, async () => {
-        mockPolishPrompt.mockResolvedValue("polished");
+        mockPolishPrompt.mockResolvedValue({ polished: "polished", wasPolished: true });
 
         const response = await request(app)
           .post("/polish")
@@ -350,7 +355,7 @@ describe("Polish Route", () => {
 
     validDifficulties.forEach((difficulty) => {
       it(`should accept difficulty "${difficulty}"`, async () => {
-        mockPolishPrompt.mockResolvedValue("polished");
+        mockPolishPrompt.mockResolvedValue({ polished: "polished", wasPolished: true });
 
         const response = await request(app)
           .post("/polish")
@@ -397,7 +402,7 @@ describe("Polish Route", () => {
 
   describe("Edge Cases", () => {
     it("should handle questionCount at minimum boundary (1)", async () => {
-      mockPolishPrompt.mockResolvedValue("polished");
+      mockPolishPrompt.mockResolvedValue({ polished: "polished", wasPolished: true });
 
       const response = await request(app)
         .post("/polish")
@@ -410,7 +415,7 @@ describe("Polish Route", () => {
     });
 
     it("should handle questionCount at maximum boundary (50)", async () => {
-      mockPolishPrompt.mockResolvedValue("polished");
+      mockPolishPrompt.mockResolvedValue({ polished: "polished", wasPolished: true });
 
       const response = await request(app)
         .post("/polish")
@@ -423,7 +428,7 @@ describe("Polish Route", () => {
     });
 
     it("should handle includeVisuals false", async () => {
-      mockPolishPrompt.mockResolvedValue("polished");
+      mockPolishPrompt.mockResolvedValue({ polished: "polished", wasPolished: true });
 
       const response = await request(app)
         .post("/polish")
@@ -442,7 +447,7 @@ describe("Polish Route", () => {
 
     it("should handle very long prompts", async () => {
       const longPrompt = "A".repeat(1000);
-      mockPolishPrompt.mockResolvedValue(longPrompt);
+      mockPolishPrompt.mockResolvedValue({ polished: longPrompt, wasPolished: false, skipReason: "already_detailed" });
 
       const response = await request(app)
         .post("/polish")
@@ -456,7 +461,7 @@ describe("Polish Route", () => {
 
     it("should handle special characters in prompt", async () => {
       const specialPrompt = "Math <script>alert('xss')</script> & fractions";
-      mockPolishPrompt.mockResolvedValue("polished");
+      mockPolishPrompt.mockResolvedValue({ polished: "polished", wasPolished: true });
 
       const response = await request(app)
         .post("/polish")

@@ -5,6 +5,7 @@ import type {
   UserCredits,
   Grade,
 } from "@/types";
+import { TIMEOUTS } from "@/lib/async-utils";
 
 export interface PolishContext {
   prompt: string;
@@ -17,10 +18,18 @@ export interface PolishContext {
   inspirationTitles?: string[];
 }
 
+export type PolishSkipReason =
+  | "disabled"
+  | "already_detailed"
+  | "ollama_error"
+  | "ollama_unavailable"
+  | "invalid_response";
+
 export interface PolishResult {
   original: string;
   polished: string;
   wasPolished: boolean;
+  skipReason?: PolishSkipReason;
 }
 
 const API_BASE_URL = import.meta.env.VITE_GENERATION_API_URL || "http://localhost:3001";
@@ -39,18 +48,35 @@ export class GenerationApiError extends Error {
 async function fetchWithAuth(
   endpoint: string,
   options: RequestInit,
-  accessToken: string
+  accessToken: string,
+  timeoutMs: number = TIMEOUTS.FETCH_DEFAULT
 ): Promise<Response> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      ...options.headers,
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  return response;
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        ...options.headers,
+      },
+    });
+
+    return response;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new GenerationApiError(
+        `Request to ${endpoint} timed out after ${timeoutMs}ms`,
+        504
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function generateTeacherPack(
@@ -58,6 +84,9 @@ export async function generateTeacherPack(
   accessToken: string,
   onProgress?: (progress: GenerationProgress) => void
 ): Promise<GenerationResult> {
+  console.log("[generation-api] Starting generateTeacherPack for project:", request.projectId);
+
+  // Use longer timeout for streaming requests (5 minutes for initial connection)
   const response = await fetchWithAuth(
     "/generate",
     {
@@ -74,7 +103,8 @@ export async function generateTeacherPack(
         prePolished: request.prePolished,
       }),
     },
-    accessToken
+    accessToken,
+    TIMEOUTS.STREAMING_TOTAL // Use longer timeout for generation requests
   );
 
   if (!response.ok) {
@@ -114,38 +144,92 @@ async function handleStreamingResponse(
   const decoder = new TextDecoder();
   let result: GenerationResult | null = null;
 
+  // Idle timeout - reset every time we receive data
+  let idleTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  // Total timeout - max time for entire stream
+  let totalTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  let isTimedOut = false;
+  let timeoutReason = "";
+
+  const clearTimeouts = () => {
+    if (idleTimeoutId) clearTimeout(idleTimeoutId);
+    if (totalTimeoutId) clearTimeout(totalTimeoutId);
+  };
+
+  const resetIdleTimeout = () => {
+    if (idleTimeoutId) clearTimeout(idleTimeoutId);
+    idleTimeoutId = setTimeout(() => {
+      isTimedOut = true;
+      timeoutReason = `No data received for ${TIMEOUTS.STREAMING_IDLE / 1000} seconds`;
+      console.error("[generation-api] Idle timeout reached, cancelling stream");
+      reader.cancel("Idle timeout").catch(() => {});
+    }, TIMEOUTS.STREAMING_IDLE);
+  };
+
+  // Set total timeout
+  totalTimeoutId = setTimeout(() => {
+    isTimedOut = true;
+    timeoutReason = `Total streaming time exceeded ${TIMEOUTS.STREAMING_TOTAL / 1000} seconds`;
+    console.error("[generation-api] Total timeout reached, cancelling stream");
+    reader.cancel("Total timeout").catch(() => {});
+  }, TIMEOUTS.STREAMING_TOTAL);
+
   try {
+    console.log("[generation-api] Starting streaming response processing");
+    resetIdleTimeout();
+
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+
+      if (isTimedOut) {
+        throw new GenerationApiError(`Streaming timeout: ${timeoutReason}`, 504);
+      }
+
+      if (done) {
+        console.log("[generation-api] Stream complete (done=true)");
+        break;
+      }
+
+      // Reset idle timeout on each chunk
+      resetIdleTimeout();
 
       const chunk = decoder.decode(value, { stream: true });
       const lines = chunk.split("\n");
 
       for (const line of lines) {
         if (line.startsWith("data: ")) {
-          const data = JSON.parse(line.slice(6));
+          try {
+            const data = JSON.parse(line.slice(6));
 
-          if (data.type === "progress" && onProgress) {
-            onProgress({
-              step: data.step,
-              progress: data.progress,
-              message: data.message,
-            });
-          } else if (data.type === "complete") {
-            result = data.result;
-          } else if (data.type === "error") {
-            throw new GenerationApiError(data.message, 500);
+            if (data.type === "progress" && onProgress) {
+              console.log(`[generation-api] Progress: ${data.progress}% - ${data.message}`);
+              onProgress({
+                step: data.step,
+                progress: data.progress,
+                message: data.message,
+              });
+            } else if (data.type === "complete") {
+              console.log("[generation-api] Received complete event");
+              result = data.result;
+            } else if (data.type === "error") {
+              console.error("[generation-api] Stream error:", data.message);
+              throw new GenerationApiError(data.message, 500);
+            }
+          } catch (parseError) {
+            if (parseError instanceof GenerationApiError) throw parseError;
+            console.warn("[generation-api] Failed to parse SSE line:", line, parseError);
           }
         }
       }
     }
   } finally {
+    clearTimeouts();
     reader.releaseLock();
   }
 
   if (!result) {
-    throw new GenerationApiError("No result received", 500);
+    console.error("[generation-api] Stream ended without complete event");
+    throw new GenerationApiError("No result received from stream", 500);
   }
 
   return result;

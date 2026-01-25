@@ -5,8 +5,12 @@ import { AppLayout } from "@/components/layout/AppLayout";
 
 // Mock tauri-bridge
 const mockCheckOllamaStatus = vi.fn();
+const mockCheckForUpdates = vi.fn();
+const mockDownloadAndInstallUpdate = vi.fn();
 vi.mock("@/services/tauri-bridge", () => ({
   checkOllamaStatus: () => mockCheckOllamaStatus(),
+  checkForUpdates: () => mockCheckForUpdates(),
+  downloadAndInstallUpdate: () => mockDownloadAndInstallUpdate(),
 }));
 
 // Mock child components to isolate AppLayout tests
@@ -18,7 +22,7 @@ vi.mock("@/components/layout/Sidebar", () => ({
   Sidebar: () => <aside data-testid="sidebar">Sidebar</aside>,
 }));
 
-// Mock OllamaSetup to capture open state
+// Mock OllamaSetup and UpdateDialog to capture open state
 const mockOnOpenChange = vi.fn();
 vi.mock("@/components/settings", () => ({
   OllamaSetup: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
@@ -30,6 +34,9 @@ vi.mock("@/components/settings", () => ({
       </div>
     ) : null;
   },
+  UpdateDialog: ({ open }: { open: boolean }) => {
+    return open ? <div data-testid="update-dialog" role="dialog">Update Dialog</div> : null;
+  },
 }));
 
 describe("AppLayout", () => {
@@ -38,6 +45,8 @@ describe("AppLayout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    // Default: no updates available
+    mockCheckForUpdates.mockResolvedValue({ available: false });
   });
 
   afterEach(() => {

@@ -191,12 +191,14 @@ e2e/
 | `src/services/tauri-bridge.ts` | Tauri IPC commands (includes Ollama) |
 | `src/components/preview/PreviewTabs.tsx` | Tabbed preview with print/PDF |
 | `src/components/settings/OllamaSetup.tsx` | Local AI setup wizard |
+| `src/components/settings/UpdateDialog.tsx` | Update notification dialog |
 | `generation-api/src/services/ai-provider.ts` | Claude/OpenAI/Ollama abstraction |
 | `generation-api/src/prompts/templates.ts` | AI prompt templates |
 | `src-tauri/src/commands/ollama.rs` | Tauri commands for Ollama management |
 | `src-tauri/nsis/installer-hooks.nsh` | NSIS hooks for Ollama auto-install |
 | `src-tauri/tauri.conf.json` | Tauri bundling configuration |
 | `playwright.config.ts` | E2E test configuration |
+| `.github/workflows/release.yml` | Auto-release CI/CD pipeline |
 
 ## Environment Variables
 
@@ -335,6 +337,23 @@ Invokes a comprehensive QA review that:
 
 **When adding new features**: The `/qa` skill expects new E2E tests to be added to `e2e/*.spec.ts` and documented in `QA-TESTING-PLAN.md`.
 
+### `/new-release` - Release Automation
+Automates the full release workflow:
+1. Checks for uncommitted changes
+2. Asks for version bump type (patch/minor/major)
+3. **Auto-generates user-friendly release notes** from git commits
+4. Shows release notes for your review/approval
+5. Bumps version in package.json, Cargo.toml, and tauri.conf.json
+6. Commits with `chore: release vX.Y.Z`
+7. Creates and pushes git tag
+8. Triggers GitHub Actions to build and publish
+
+**Usage**: Type `/new-release` to start a new release.
+
+**Release Notes**: The skill analyzes commits since the last tag and generates non-technical release notes that end users see in the update dialog. You review and approve before publishing.
+
+**Prerequisites**: GitHub secrets must be configured (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
+
 ---
 
 ## Development Workflow
@@ -389,6 +408,74 @@ npm run tauri build
 #   - msi/TA Teachers Assistant_0.1.0_x64_en-US.msi
 #   - nsis/TA Teachers Assistant_0.1.0_x64-setup.exe
 ```
+
+## Releasing New Versions
+
+The app uses **Tauri's auto-update system** with **GitHub Releases** for distribution.
+
+### Release Workflow
+
+```bash
+# 1. Update version in package.json
+npm version patch  # or minor/major
+
+# 2. Sync version to Cargo.toml (must match)
+cd src-tauri
+# Edit Cargo.toml version manually, or use cargo-edit:
+# cargo install cargo-edit && cargo set-version 0.2.0
+
+# 3. Commit version bump
+git add -A
+git commit -m "chore: bump version to 0.2.0"
+
+# 4. Create and push tag
+git tag v0.2.0
+git push && git push --tags
+
+# 5. GitHub Actions automatically:
+#    - Builds the Windows installer
+#    - Signs the binary with TAURI_SIGNING_PRIVATE_KEY
+#    - Creates a GitHub Release
+#    - Uploads installer + signature + latest.json
+```
+
+### GitHub Secrets Required
+
+Set these in: **Settings → Secrets and variables → Actions**
+
+| Secret | Description |
+|--------|-------------|
+| `TAURI_SIGNING_PRIVATE_KEY` | Content of `~/.tauri/ta-update.key` |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password used when generating key |
+
+### How Auto-Updates Work
+
+1. **On app startup**: Silently checks `latest.json` from GitHub Releases
+2. **If update available**: Shows dialog with version number and changelog
+3. **User clicks "Update"**: Downloads, verifies signature, installs, restarts
+4. **User clicks "Later"**: Dismissed until next app restart
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `.github/workflows/release.yml` | CI/CD pipeline for releases |
+| `src-tauri/tauri.conf.json` | Updater config (pubkey, endpoints) |
+| `src/components/settings/UpdateDialog.tsx` | Update notification UI |
+| `src/services/tauri-bridge.ts` | `checkForUpdates()`, `downloadAndInstallUpdate()` |
+
+### Regenerating Update Keys
+
+If you need to generate new signing keys:
+
+```bash
+cd src-tauri
+npx @tauri-apps/cli signer generate -w ~/.tauri/ta-update.key -p "your-password"
+```
+
+Then update:
+1. `tauri.conf.json` → `plugins.updater.pubkey` (new public key)
+2. GitHub Secrets (new private key and password)
 
 ## Known Issues & Fixes
 

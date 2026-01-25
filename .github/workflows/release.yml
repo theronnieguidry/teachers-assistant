@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install API dependencies
+        run: cd generation-api && npm ci
+
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Run API tests with coverage
+        run: cd generation-api && npm run test:coverage
+
+      - name: Read release notes
+        id: notes
+        run: |
+          if (Test-Path "RELEASE_NOTES.md") {
+            $notes = Get-Content "RELEASE_NOTES.md" -Raw
+          } else {
+            $notes = "Bug fixes and improvements."
+          }
+          # Set multiline output
+          echo "NOTES<<EOF" >> $env:GITHUB_OUTPUT
+          echo $notes >> $env:GITHUB_OUTPUT
+          echo "EOF" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Build and Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'TA Teachers Assistant ${{ github.ref_name }}'
+          releaseBody: |
+            ${{ steps.notes.outputs.NOTES }}
+
+            ---
+
+            ## Installation
+
+            Download the installer for your platform below:
+            - **Windows**: Download the `.exe` file and run the installer
+
+            ## Auto-Updates
+
+            Existing installations will automatically detect and prompt for this update on next launch.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true

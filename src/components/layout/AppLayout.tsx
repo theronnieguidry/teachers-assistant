@@ -1,8 +1,13 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
-import { OllamaSetup } from "@/components/settings";
-import { checkOllamaStatus } from "@/services/tauri-bridge";
+import { OllamaSetup, UpdateDialog } from "@/components/settings";
+import {
+  checkOllamaStatus,
+  checkForUpdates,
+  downloadAndInstallUpdate,
+  type UpdateInfo,
+} from "@/services/tauri-bridge";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -12,6 +17,25 @@ const OLLAMA_SETUP_SEEN_KEY = "ta-ollama-setup-seen";
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [showOllamaSetup, setShowOllamaSetup] = useState(false);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  // Check for updates on startup (silent, in background)
+  useEffect(() => {
+    const checkUpdates = async () => {
+      try {
+        const update = await checkForUpdates();
+        if (update?.available) {
+          setUpdateInfo(update);
+          setShowUpdateDialog(true);
+        }
+      } catch {
+        // Silent fail - update check is not critical
+      }
+    };
+
+    checkUpdates();
+  }, []);
 
   useEffect(() => {
     // Check if user has already seen the Ollama setup
@@ -53,6 +77,14 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* First-run Ollama setup dialog */}
       <OllamaSetup open={showOllamaSetup} onOpenChange={handleSetupClose} />
+
+      {/* Update available dialog */}
+      <UpdateDialog
+        open={showUpdateDialog}
+        onOpenChange={setShowUpdateDialog}
+        updateInfo={updateInfo}
+        onUpdate={downloadAndInstallUpdate}
+      />
     </div>
   );
 }

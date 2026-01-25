@@ -13,6 +13,7 @@ interface ProjectState {
   fetchProjects: () => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
   fetchProjectVersion: (projectId: string) => Promise<ProjectVersion | null>;
+  fetchProjectInspiration: (projectId: string) => Promise<InspirationItem[]>;
   createProject: (data: CreateProjectData) => Promise<Project>;
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
   updateProjectWithVersion: (
@@ -31,6 +32,7 @@ interface CreateProjectData {
   subject: string;
   options?: Record<string, unknown>;
   inspiration?: InspirationItem[];
+  inspirationIds?: string[]; // New: IDs of inspiration items to link
   outputPath?: string;
 }
 
@@ -63,6 +65,35 @@ interface DbProjectVersion {
   ai_provider: string | null;
   ai_model: string | null;
   created_at: string;
+}
+
+interface DbInspirationItem {
+  id: string;
+  user_id: string;
+  type: "url" | "pdf" | "image" | "text";
+  title: string | null;
+  source_url: string | null;
+  content: string | null;
+  storage_path: string | null;
+  created_at: string;
+}
+
+interface ProjectInspirationJoin {
+  position: number;
+  inspiration_items: DbInspirationItem;
+}
+
+function mapDbInspirationToItem(item: DbInspirationItem): InspirationItem {
+  return {
+    id: item.id,
+    userId: item.user_id,
+    type: item.type,
+    title: item.title || "",
+    sourceUrl: item.source_url || undefined,
+    content: item.content || undefined,
+    storagePath: item.storage_path || undefined,
+    createdAt: new Date(item.created_at),
+  };
 }
 
 function mapDbVersionToVersion(v: DbProjectVersion): ProjectVersion {
@@ -167,6 +198,38 @@ export const useProjectStore = create<ProjectState>((set) => ({
     }
   },
 
+  fetchProjectInspiration: async (projectId) => {
+    try {
+      const { data, error } = await supabase
+        .from("project_inspiration")
+        .select(`
+          position,
+          inspiration_items (*)
+        `)
+        .eq("project_id", projectId)
+        .order("position");
+
+      if (error) {
+        console.error("Failed to fetch project inspiration:", error);
+        return [];
+      }
+
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Map the joined data to InspirationItem[]
+      const items = (data as unknown as ProjectInspirationJoin[])
+        .filter((row) => row.inspiration_items)
+        .map((row) => mapDbInspirationToItem(row.inspiration_items));
+
+      return items;
+    } catch (error) {
+      console.error("Failed to fetch project inspiration:", error);
+      return [];
+    }
+  },
+
   updateProjectWithVersion: async (projectId, status, version) => {
     try {
       set({ isLoading: true, error: null });
@@ -256,6 +319,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Keep inspiration in JSONB for backwards compatibility during transition
       const insertData = {
         user_id: user.id,
         title: data.title,
@@ -275,6 +339,24 @@ export const useProjectStore = create<ProjectState>((set) => ({
         .single();
 
       if (error) throw error;
+
+      // Link inspiration items via junction table if IDs provided
+      if (data.inspirationIds && data.inspirationIds.length > 0) {
+        const junctionRecords = data.inspirationIds.map((inspirationId, index) => ({
+          project_id: (newProject as DbProject).id,
+          inspiration_id: inspirationId,
+          position: index,
+        }));
+
+        const { error: junctionError } = await supabase
+          .from("project_inspiration")
+          .insert(junctionRecords as never);
+
+        if (junctionError) {
+          console.error("Failed to link inspiration items:", junctionError);
+          // Don't throw - project was created successfully
+        }
+      }
 
       const project = mapDbProjectToProject(newProject as DbProject);
 

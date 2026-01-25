@@ -1,8 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Mock pdf-parse via createRequire - must use vi.hoisted() to avoid hoisting issues
+const { mockPdf } = vi.hoisted(() => ({
+  mockPdf: vi.fn(),
+}));
+
+vi.mock("module", () => ({
+  createRequire: () => (moduleName: string) => {
+    if (moduleName === "pdf-parse") {
+      return mockPdf;
+    }
+    throw new Error(`Unexpected require: ${moduleName}`);
+  },
+}));
+
 // Mock AI provider with factory function
 vi.mock("../../services/ai-provider.js", () => ({
   generateContent: vi.fn(),
+  analyzeImageWithVision: vi.fn(),
+  supportsVision: vi.fn(),
 }));
 
 import {
@@ -10,7 +26,7 @@ import {
   parseInspiration,
   parseAllInspiration,
 } from "../../services/inspiration-parser.js";
-import { generateContent } from "../../services/ai-provider.js";
+import { generateContent, analyzeImageWithVision, supportsVision } from "../../services/ai-provider.js";
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -22,6 +38,22 @@ describe("Inspiration Parser Service", () => {
       content: "Summarized content about educational topics",
       inputTokens: 100,
       outputTokens: 50,
+    });
+    vi.mocked(analyzeImageWithVision).mockResolvedValue({
+      content: "Design analysis: colorful layout with blue headers, playful fonts",
+      inputTokens: 200,
+      outputTokens: 100,
+    });
+    vi.mocked(supportsVision).mockImplementation((provider) =>
+      provider === "claude" || provider === "openai"
+    );
+    mockPdf.mockResolvedValue({
+      text: "This is a comprehensive educational PDF document containing detailed lesson plans, worksheets, and activities for elementary school students covering mathematics, reading, and science topics.",
+      numpages: 2,
+      numrender: 2,
+      info: {},
+      metadata: null,
+      version: "1.0",
     });
   });
 
@@ -210,7 +242,44 @@ describe("Inspiration Parser Service", () => {
       expect(result.extractedContent).toBe("Summarized content about educational topics");
     });
 
-    it("should handle image with placeholder content", async () => {
+    it("should extract text from base64-encoded PDF", async () => {
+      // Simulate base64-encoded PDF content (more than 100 chars)
+      const base64PdfContent = "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoK".padEnd(200, "A");
+
+      const item = {
+        id: "item-1",
+        type: "pdf" as const,
+        title: "worksheet.pdf",
+        content: base64PdfContent,
+      };
+
+      const result = await parseInspiration(item, aiConfig);
+
+      expect(mockPdf).toHaveBeenCalled();
+      expect(result.type).toBe("pdf");
+      // Should use AI to summarize the extracted text
+      expect(result.extractedContent).toBe("Summarized content about educational topics");
+    });
+
+    it("should handle PDF extraction failure gracefully", async () => {
+      mockPdf.mockRejectedValue(new Error("Invalid PDF"));
+
+      const base64PdfContent = "invalid-base64-pdf-content".padEnd(200, "X");
+
+      const item = {
+        id: "item-1",
+        type: "pdf" as const,
+        title: "corrupted.pdf",
+        content: base64PdfContent,
+      };
+
+      const result = await parseInspiration(item, aiConfig);
+
+      expect(result.type).toBe("pdf");
+      expect(result.extractedContent).toBe("[PDF text extraction failed]");
+    });
+
+    it("should handle image with placeholder content when no base64 data", async () => {
       const item = {
         id: "item-1",
         type: "image" as const,
@@ -221,6 +290,65 @@ describe("Inspiration Parser Service", () => {
 
       expect(result.type).toBe("image");
       expect(result.extractedContent).toBe("[Image: diagram.png]");
+    });
+
+    it("should analyze image with vision API when provider supports it", async () => {
+      const base64ImageContent = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+      const item = {
+        id: "item-1",
+        type: "image" as const,
+        title: "worksheet-design.png",
+        content: base64ImageContent,
+        storagePath: "image/png",
+      };
+
+      const result = await parseInspiration(item, aiConfig);
+
+      expect(vi.mocked(supportsVision)).toHaveBeenCalledWith("claude");
+      expect(vi.mocked(analyzeImageWithVision)).toHaveBeenCalled();
+      expect(result.type).toBe("image");
+      expect(result.extractedContent).toContain("Design analysis");
+    });
+
+    it("should fallback to placeholder for image when provider does not support vision", async () => {
+      const base64ImageContent = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB";
+
+      const item = {
+        id: "item-1",
+        type: "image" as const,
+        title: "photo.jpg",
+        content: base64ImageContent,
+        storagePath: "image/jpeg",
+      };
+
+      // Ollama doesn't support vision
+      const ollamaConfig = { provider: "ollama" as const };
+
+      const result = await parseInspiration(item, ollamaConfig);
+
+      expect(vi.mocked(supportsVision)).toHaveBeenCalledWith("ollama");
+      expect(vi.mocked(analyzeImageWithVision)).not.toHaveBeenCalled();
+      expect(result.extractedContent).toBe("[Image: photo.jpg]");
+    });
+
+    it("should handle vision API failure gracefully", async () => {
+      vi.mocked(analyzeImageWithVision).mockRejectedValue(new Error("Vision API error"));
+
+      const base64ImageContent = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB";
+
+      const item = {
+        id: "item-1",
+        type: "image" as const,
+        title: "problematic.png",
+        content: base64ImageContent,
+        storagePath: "image/png",
+      };
+
+      const result = await parseInspiration(item, aiConfig);
+
+      expect(result.type).toBe("image");
+      expect(result.extractedContent).toBe("[Image: problematic.png]");
     });
   });
 

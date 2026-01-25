@@ -14,6 +14,17 @@ export interface AIProviderConfig {
   maxTokens?: number;
 }
 
+// Vision image format for multimodal AI requests
+export interface VisionImage {
+  mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  base64Data: string;
+}
+
+// Check if a provider supports vision/image analysis
+export function supportsVision(provider: AIProvider): boolean {
+  return provider === "claude" || provider === "openai";
+}
+
 // Default models
 const DEFAULT_MODELS: Record<AIProvider, string> = {
   claude: "claude-sonnet-4-20250514",
@@ -180,6 +191,94 @@ async function generateWithOllama(
       );
     }
     throw error;
+  }
+}
+
+// Vision API: Analyze images with Claude
+async function analyzeWithClaudeVision(
+  prompt: string,
+  images: VisionImage[],
+  config: AIProviderConfig
+): Promise<AIResponse> {
+  const client = getAnthropicClient();
+  const model = config.model || DEFAULT_MODELS.claude;
+  const maxTokens = config.maxTokens || 1000;
+
+  // Build content array with text prompt and images
+  const content: Anthropic.MessageCreateParams["messages"][0]["content"] = [
+    { type: "text", text: prompt },
+    ...images.map((img) => ({
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: img.mediaType,
+        data: img.base64Data,
+      },
+    })),
+  ];
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content }],
+  });
+
+  const textContent = response.content.find((block) => block.type === "text");
+  return {
+    content: textContent?.type === "text" ? textContent.text : "",
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  };
+}
+
+// Vision API: Analyze images with OpenAI
+async function analyzeWithOpenAIVision(
+  prompt: string,
+  images: VisionImage[],
+  config: AIProviderConfig
+): Promise<AIResponse> {
+  const client = getOpenAIClient();
+  const model = config.model || DEFAULT_MODELS.openai;
+  const maxTokens = config.maxTokens || 1000;
+
+  // Build content array with text prompt and images
+  const content: OpenAI.ChatCompletionContentPart[] = [
+    { type: "text", text: prompt },
+    ...images.map((img) => ({
+      type: "image_url" as const,
+      image_url: {
+        url: `data:${img.mediaType};base64,${img.base64Data}`,
+        detail: "low" as const, // Use low detail to minimize token cost
+      },
+    })),
+  ];
+
+  const response = await client.chat.completions.create({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content }],
+  });
+
+  return {
+    content: response.choices[0]?.message?.content || "",
+    inputTokens: response.usage?.prompt_tokens || 0,
+    outputTokens: response.usage?.completion_tokens || 0,
+  };
+}
+
+// Analyze images using vision-capable AI providers
+export async function analyzeImageWithVision(
+  prompt: string,
+  images: VisionImage[],
+  config: AIProviderConfig
+): Promise<AIResponse> {
+  switch (config.provider) {
+    case "claude":
+      return analyzeWithClaudeVision(prompt, images, config);
+    case "openai":
+      return analyzeWithOpenAIVision(prompt, images, config);
+    default:
+      throw new Error(`Vision not supported for provider: ${config.provider}`);
   }
 }
 

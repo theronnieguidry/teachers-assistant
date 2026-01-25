@@ -77,22 +77,51 @@ const DIFFICULTY_INSTRUCTIONS: Record<string, string> = {
 function formatInspiration(inspiration: ParsedInspiration[]): string {
   if (inspiration.length === 0) return "";
 
-  return `
-## Reference Materials
-The teacher has provided these materials for inspiration:
-${inspiration
+  // Separate design items (images, PDFs) from content items (URLs, text)
+  const designItems = inspiration.filter(
+    (i) => i.type === "image" || i.type === "pdf"
+  );
+  const contentItems = inspiration.filter(
+    (i) => i.type === "url" || i.type === "text"
+  );
+
+  let output = "";
+
+  if (designItems.length > 0) {
+    output += `
+## Design Style Guide
+The teacher has provided these materials to guide the visual design:
+${designItems
   .map(
     (item, i) => `
-### Reference ${i + 1}: ${item.title}
-Type: ${item.type}
-Content:
+### Design Reference ${i + 1}: ${item.title}
 ${item.extractedContent}
 `
   )
   .join("\n")}
 
-Please incorporate ideas, styles, or content from these references where appropriate.
+IMPORTANT: Match the visual style, colors, and layout described above in your HTML/CSS output.
 `;
+  }
+
+  if (contentItems.length > 0) {
+    output += `
+## Content References
+The teacher has provided these materials for content inspiration:
+${contentItems
+  .map(
+    (item, i) => `
+### Reference ${i + 1}: ${item.title}
+${item.extractedContent}
+`
+  )
+  .join("\n")}
+
+Please incorporate ideas, topics, or teaching approaches from these references where appropriate.
+`;
+  }
+
+  return output;
 }
 
 function getCommonInstructions(ctx: PromptContext): string {

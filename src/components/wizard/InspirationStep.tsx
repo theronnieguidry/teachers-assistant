@@ -1,16 +1,40 @@
-import { useCallback, useState } from "react";
-import { Link, FileText, Image, Plus, Upload } from "lucide-react";
+import { useCallback, useState, useEffect } from "react";
+import { Link, FileText, Image, Plus, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useInspirationStore } from "@/stores/inspirationStore";
+import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import type { InspirationItem } from "@/types";
+
+// Helper to read file as base64
+async function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove data URL prefix (e.g., "data:application/pdf;base64,")
+      const base64 = result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 export function InspirationStep() {
   const { selectedInspiration, setSelectedInspiration, nextStep, prevStep } =
     useWizardStore();
-  const { items: globalItems, addItem } = useInspirationStore();
+  const { items: globalItems, isLoading, addLocalItem, fetchItems } = useInspirationStore();
+  const { user } = useAuthStore();
   const [isDragging, setIsDragging] = useState(false);
+
+  // Load inspiration items if not already loaded
+  useEffect(() => {
+    if (user && globalItems.length === 0) {
+      fetchItems();
+    }
+  }, [user, globalItems.length, fetchItems]);
 
   const toggleItem = (item: InspirationItem) => {
     const isSelected = selectedInspiration.some((i) => i.id === item.id);
@@ -39,24 +63,18 @@ export function InspirationStep() {
   const handleAddUrl = () => {
     const url = prompt("Enter a URL for inspiration:");
     if (url && url.startsWith("http")) {
-      try {
-        const newItem = addItem({
-          type: "url",
-          title: new URL(url).hostname,
-          sourceUrl: url,
-        });
-        // Auto-select the newly added item
-        if (newItem) {
-          setSelectedInspiration([...selectedInspiration, newItem]);
-        }
-      } catch {
-        alert("Please enter a valid URL");
-      }
+      const newItem = addLocalItem({
+        type: "url",
+        title: new URL(url).hostname,
+        sourceUrl: url,
+      });
+      // Auto-select the newly added item
+      setSelectedInspiration([...selectedInspiration, newItem]);
     }
   };
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
@@ -68,40 +86,47 @@ export function InspirationStep() {
       // Handle URL drop
       if (url || (text && text.startsWith("http"))) {
         const droppedUrl = url || text;
-        const newItem = addItem({
+        const newItem = addLocalItem({
           type: "url",
           title: new URL(droppedUrl).hostname,
           sourceUrl: droppedUrl,
         });
-        if (newItem) {
-          setSelectedInspiration([...selectedInspiration, newItem]);
-        }
+        setSelectedInspiration([...selectedInspiration, newItem]);
         return;
       }
 
-      // Handle file drops
+      // Handle file drops - read files as base64 for backend processing
       const newItems: InspirationItem[] = [];
-      files.forEach((file) => {
-        if (file.type === "application/pdf") {
-          const newItem = addItem({
-            type: "pdf",
-            title: file.name,
-            content: file.name,
-          });
-          if (newItem) newItems.push(newItem);
-        } else if (file.type.startsWith("image/")) {
-          const newItem = addItem({
-            type: "image",
-            title: file.name,
-          });
-          if (newItem) newItems.push(newItem);
+      for (const file of files) {
+        try {
+          if (file.type === "application/pdf") {
+            const base64Content = await readFileAsBase64(file);
+            const newItem = addLocalItem({
+              type: "pdf",
+              title: file.name,
+              content: base64Content,
+            });
+            newItems.push(newItem);
+          } else if (file.type.startsWith("image/")) {
+            const base64Content = await readFileAsBase64(file);
+            const mediaType = file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+            const newItem = addLocalItem({
+              type: "image",
+              title: file.name,
+              content: base64Content,
+              storagePath: mediaType, // Store media type for vision API
+            });
+            newItems.push(newItem);
+          }
+        } catch (error) {
+          console.error(`Failed to read file ${file.name}:`, error);
         }
-      });
+      }
       if (newItems.length > 0) {
         setSelectedInspiration([...selectedInspiration, ...newItems]);
       }
     },
-    [addItem, selectedInspiration, setSelectedInspiration]
+    [addLocalItem, selectedInspiration, setSelectedInspiration]
   );
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -150,7 +175,9 @@ export function InspirationStep() {
           globalItems.length === 0 ? "py-6" : "py-2"
         )}
       >
-        {globalItems.length === 0 ? (
+        {isLoading ? (
+          <Loader2 className="h-6 w-6 mx-auto text-muted-foreground/50 animate-spin" />
+        ) : globalItems.length === 0 ? (
           <>
             <Upload className="h-6 w-6 mx-auto text-muted-foreground/50 mb-2" />
             <p className="text-xs text-muted-foreground">

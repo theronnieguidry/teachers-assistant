@@ -44,12 +44,13 @@ router.post("/", async (req, res) => {
       inspirationTitles: parseResult.data.inspirationTitles,
     };
 
-    const polished = await polishPrompt(context);
+    const result = await polishPrompt(context);
 
     res.json({
       original: context.prompt,
-      polished,
-      wasPolished: polished !== context.prompt,
+      polished: result.polished,
+      wasPolished: result.wasPolished,
+      skipReason: result.skipReason,
     });
   } catch (error) {
     console.error("Polish endpoint error:", error);

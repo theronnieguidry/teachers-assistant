@@ -1,8 +1,46 @@
 import type { InspirationItem, ParsedInspiration } from "../types.js";
-import { generateContent, type AIProviderConfig } from "./ai-provider.js";
+import {
+  generateContent,
+  analyzeImageWithVision,
+  supportsVision,
+  type AIProviderConfig,
+  type VisionImage,
+} from "./ai-provider.js";
 import { buildInspirationParsePrompt } from "../prompts/templates.js";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdf = require("pdf-parse");
+
+// Prompt for analyzing educational material design from images
+const DESIGN_ANALYSIS_PROMPT = `Analyze this educational material's visual design and provide a concise style guide that can be used to create similar worksheets.
+
+Describe:
+1. COLOR SCHEME: Primary colors, accent colors, background colors (with approximate hex codes if possible)
+2. TYPOGRAPHY: Heading style (bold, playful, formal), text hierarchy
+3. LAYOUT: Column structure, spacing, margins, alignment
+4. VISUAL ELEMENTS: Border styles, icons, illustrations style (cartoon, realistic, line art)
+5. OVERALL AESTHETIC: (e.g., "playful and colorful", "clean and minimal", "fun with hand-drawn feel")
+
+Format as a brief design guide that an AI can follow when generating HTML/CSS for worksheets.`;
 
 const MAX_CONTENT_LENGTH = 10000;
+
+// Extract text content from base64-encoded PDF
+async function extractPdfText(base64Content: string): Promise<string> {
+  try {
+    const buffer = Buffer.from(base64Content, "base64");
+    const data = await pdf(buffer);
+    const text = data.text.trim();
+
+    if (text.length > MAX_CONTENT_LENGTH) {
+      return text.substring(0, MAX_CONTENT_LENGTH) + "...";
+    }
+    return text || "[PDF contained no extractable text]";
+  } catch (error) {
+    console.error("Failed to extract PDF text:", error);
+    return "[PDF text extraction failed]";
+  }
+}
 
 export async function fetchUrlContent(url: string): Promise<string> {
   try {
@@ -78,14 +116,33 @@ export async function parseInspiration(
       break;
 
     case "pdf":
-      // PDF content should already be extracted and stored in content field
-      content = item.content || "[PDF content not available]";
+      // Check if content is base64-encoded PDF data (substantial length)
+      if (item.content && item.content.length > 100) {
+        content = await extractPdfText(item.content);
+      } else {
+        content = item.content || "[PDF content not available]";
+      }
       break;
 
     case "image":
-      // For images, we'd typically use vision API
-      // For now, just use the title/filename
-      content = `[Image: ${item.title}]`;
+      // Use vision API if provider supports it and we have base64 content
+      if (item.content && supportsVision(aiConfig.provider)) {
+        const mediaType = (item.storagePath || "image/png") as VisionImage["mediaType"];
+        try {
+          const response = await analyzeImageWithVision(
+            DESIGN_ANALYSIS_PROMPT,
+            [{ mediaType, base64Data: item.content }],
+            { ...aiConfig, maxTokens: 500 }
+          );
+          content = response.content;
+        } catch (error) {
+          console.error("Vision analysis failed:", error);
+          content = `[Image: ${item.title}]`;
+        }
+      } else {
+        // Fallback for providers without vision support (e.g., Ollama)
+        content = `[Image: ${item.title}]`;
+      }
       break;
 
     default:

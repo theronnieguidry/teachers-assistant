@@ -35,6 +35,11 @@ export async function generateTeacherPack(
   config: GeneratorConfig,
   onProgress?: ProgressCallback
 ): Promise<GenerationResult> {
+  const startTime = Date.now();
+  console.log(`[generator] Starting generation for project ${request.projectId}`);
+  console.log(`[generator] User: ${userId}, Provider: ${config.aiProvider}, Model: ${config.model || "default"}`);
+  console.log(`[generator] Inspiration items: ${request.inspiration.length}, Pre-polished: ${request.prePolished}`);
+
   const aiConfig: AIProviderConfig = {
     provider: config.aiProvider,
     model: config.model,
@@ -46,10 +51,15 @@ export async function generateTeacherPack(
 
   // Reserve credits first (skip for Ollama)
   if (!isOllama) {
+    console.log(`[generator] Reserving ${ESTIMATED_CREDITS} credits...`);
     const reserved = await reserveCredits(userId, ESTIMATED_CREDITS, request.projectId);
     if (!reserved) {
+      console.error("[generator] Failed to reserve credits - insufficient balance");
       throw new Error("Insufficient credits");
     }
+    console.log("[generator] Credits reserved successfully");
+  } else {
+    console.log("[generator] Using Ollama (free) - skipping credit reservation");
   }
 
   let totalInputTokens = 0;
@@ -57,13 +67,16 @@ export async function generateTeacherPack(
 
   try {
     // Update project status to generating
+    console.log("[generator] Updating project status to 'generating'...");
     const supabase = getSupabaseClient();
     await supabase
       .from("projects")
       .update({ status: "generating" })
       .eq("id", request.projectId);
+    console.log("[generator] Project status updated");
 
     // Parse inspiration materials
+    console.log(`[generator] Processing ${request.inspiration.length} inspiration materials...`);
     onProgress?.({
       step: "worksheet",
       progress: 5,
@@ -73,19 +86,21 @@ export async function generateTeacherPack(
     let parsedInspiration: ParsedInspiration[] = [];
     if (request.inspiration.length > 0) {
       parsedInspiration = await parseAllInspiration(request.inspiration, aiConfig);
+      console.log(`[generator] Parsed ${parsedInspiration.length} inspiration items`);
     }
 
     // Polish the user's prompt using Ollama (free, runs locally)
     // Skip if already polished client-side
     let polishedPrompt = request.prompt;
     if (!request.prePolished) {
+      console.log("[generator] Polishing prompt...");
       onProgress?.({
         step: "worksheet",
         progress: 10,
         message: "Refining your request...",
       });
 
-      polishedPrompt = await polishPrompt({
+      const polishResult = await polishPrompt({
         prompt: request.prompt,
         grade: request.grade,
         subject: request.subject,
@@ -95,6 +110,10 @@ export async function generateTeacherPack(
         includeVisuals: request.options.includeVisuals ?? true,
         inspirationTitles: parsedInspiration.map((i) => i.title),
       });
+      polishedPrompt = polishResult.polished;
+      console.log(`[generator] Prompt polished: ${polishResult.wasPolished ? "yes" : "no (skipped)"}`);
+    } else {
+      console.log("[generator] Prompt already polished client-side, skipping");
     }
 
     const promptContext = {
@@ -106,6 +125,7 @@ export async function generateTeacherPack(
     };
 
     // Generate worksheet
+    console.log("[generator] Generating worksheet...");
     onProgress?.({
       step: "worksheet",
       progress: 20,
@@ -115,6 +135,7 @@ export async function generateTeacherPack(
     const worksheetPrompt = buildWorksheetPrompt(promptContext);
     const worksheetResponse = await generateContent(worksheetPrompt, aiConfig);
     const worksheetRawHtml = extractHtml(worksheetResponse.content);
+    console.log(`[generator] Worksheet generated: ${worksheetResponse.inputTokens} input, ${worksheetResponse.outputTokens} output tokens`);
 
     onProgress?.({
       step: "worksheet",
@@ -122,6 +143,7 @@ export async function generateTeacherPack(
       message: "Adding images to worksheet...",
     });
     const worksheetHtml = await processVisualPlaceholders(worksheetRawHtml);
+    console.log("[generator] Worksheet images processed");
 
     totalInputTokens += worksheetResponse.inputTokens;
     totalOutputTokens += worksheetResponse.outputTokens;
@@ -132,6 +154,7 @@ export async function generateTeacherPack(
       request.options.format === "lesson_plan" ||
       request.options.format === "both"
     ) {
+      console.log("[generator] Generating lesson plan...");
       onProgress?.({
         step: "lesson_plan",
         progress: 50,
@@ -141,6 +164,7 @@ export async function generateTeacherPack(
       const lessonPlanPrompt = buildLessonPlanPrompt(promptContext);
       const lessonPlanResponse = await generateContent(lessonPlanPrompt, aiConfig);
       const lessonPlanRawHtml = extractHtml(lessonPlanResponse.content);
+      console.log(`[generator] Lesson plan generated: ${lessonPlanResponse.inputTokens} input, ${lessonPlanResponse.outputTokens} output tokens`);
 
       onProgress?.({
         step: "lesson_plan",
@@ -148,14 +172,18 @@ export async function generateTeacherPack(
         message: "Adding images to lesson plan...",
       });
       lessonPlanHtml = await processVisualPlaceholders(lessonPlanRawHtml);
+      console.log("[generator] Lesson plan images processed");
 
       totalInputTokens += lessonPlanResponse.inputTokens;
       totalOutputTokens += lessonPlanResponse.outputTokens;
+    } else {
+      console.log("[generator] Skipping lesson plan (not requested)");
     }
 
     // Generate answer key if requested
     let answerKeyHtml = "";
     if (request.options.includeAnswerKey !== false) {
+      console.log("[generator] Generating answer key...");
       onProgress?.({
         step: "answer_key",
         progress: 75,
@@ -165,6 +193,7 @@ export async function generateTeacherPack(
       const answerKeyPrompt = buildAnswerKeyPrompt(promptContext, worksheetHtml);
       const answerKeyResponse = await generateContent(answerKeyPrompt, aiConfig);
       const answerKeyRawHtml = extractHtml(answerKeyResponse.content);
+      console.log(`[generator] Answer key generated: ${answerKeyResponse.inputTokens} input, ${answerKeyResponse.outputTokens} output tokens`);
 
       onProgress?.({
         step: "answer_key",
@@ -172,15 +201,20 @@ export async function generateTeacherPack(
         message: "Adding images to answer key...",
       });
       answerKeyHtml = await processVisualPlaceholders(answerKeyRawHtml);
+      console.log("[generator] Answer key images processed");
 
       totalInputTokens += answerKeyResponse.inputTokens;
       totalOutputTokens += answerKeyResponse.outputTokens;
+    } else {
+      console.log("[generator] Skipping answer key (not requested)");
     }
 
     // Calculate actual credits used
     const creditsUsed = calculateCredits(totalInputTokens, totalOutputTokens);
+    console.log(`[generator] Total tokens - Input: ${totalInputTokens}, Output: ${totalOutputTokens}, Credits: ${creditsUsed}`);
 
     // Create project version
+    console.log("[generator] Saving project version...");
     onProgress?.({
       step: "complete",
       progress: 95,
@@ -198,6 +232,7 @@ export async function generateTeacherPack(
     const nextVersionNumber = existingVersions && existingVersions.length > 0
       ? existingVersions[0].version_number + 1
       : 1;
+    console.log(`[generator] Creating version ${nextVersionNumber}...`);
 
     const { data: version, error: versionError } = await supabase
       .from("project_versions")
@@ -216,10 +251,13 @@ export async function generateTeacherPack(
       .single();
 
     if (versionError) {
+      console.error("[generator] Failed to save version:", versionError);
       throw new Error(`Failed to save version: ${versionError.message}`);
     }
+    console.log(`[generator] Version saved with ID: ${version.id}`);
 
     // Update project status (credits_used is 0 for Ollama)
+    console.log("[generator] Updating project status to 'completed'...");
     await supabase
       .from("projects")
       .update({
@@ -231,13 +269,18 @@ export async function generateTeacherPack(
 
     // Adjust credits if different from reserved (skip for Ollama)
     if (!isOllama && creditsUsed < ESTIMATED_CREDITS) {
+      const refundAmount = ESTIMATED_CREDITS - creditsUsed;
+      console.log(`[generator] Refunding ${refundAmount} unused credits...`);
       await refundCredits(
         userId,
-        ESTIMATED_CREDITS - creditsUsed,
+        refundAmount,
         request.projectId,
         "Actual usage less than reserved"
       );
     }
+
+    const elapsedTime = Date.now() - startTime;
+    console.log(`[generator] Generation complete in ${elapsedTime}ms`);
 
     onProgress?.({
       step: "complete",
@@ -254,8 +297,12 @@ export async function generateTeacherPack(
       creditsUsed,
     };
   } catch (error) {
+    const elapsedTime = Date.now() - startTime;
+    console.error(`[generator] Generation failed after ${elapsedTime}ms:`, error);
+
     // Refund reserved credits on error (skip for Ollama since no credits were reserved)
     if (!isOllama) {
+      console.log("[generator] Refunding reserved credits due to error...");
       await refundCredits(
         userId,
         ESTIMATED_CREDITS,
@@ -265,6 +312,7 @@ export async function generateTeacherPack(
     }
 
     // Update project status to failed
+    console.log("[generator] Updating project status to 'failed'...");
     const supabase = getSupabaseClient();
     await supabase
       .from("projects")

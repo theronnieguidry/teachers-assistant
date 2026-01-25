@@ -13,13 +13,19 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
+      include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "node_modules/",
         "src/__tests__/",
         "src/**/*.d.ts",
         "src/vite-env.d.ts",
         "src/main.tsx",
+        "src/App.tsx",
         "**/*.config.*",
+        "**/index.ts",
+        "src/types/**",
+        "e2e/**",
+        "generation-api/**",
       ],
       thresholds: {
         statements: 80,

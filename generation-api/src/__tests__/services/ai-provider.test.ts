@@ -5,6 +5,9 @@ import {
   resetClients,
   isOllamaAvailable,
   getOllamaModels,
+  supportsVision,
+  analyzeImageWithVision,
+  type VisionImage,
 } from "../../services/ai-provider.js";
 
 // Mock Anthropic SDK
@@ -217,6 +220,76 @@ describe("AI Provider Service", () => {
 
     it("should handle zero tokens", () => {
       expect(calculateCredits(0, 0)).toBe(0);
+    });
+  });
+
+  describe("supportsVision", () => {
+    it("should return true for Claude", () => {
+      expect(supportsVision("claude")).toBe(true);
+    });
+
+    it("should return true for OpenAI", () => {
+      expect(supportsVision("openai")).toBe(true);
+    });
+
+    it("should return false for Ollama", () => {
+      expect(supportsVision("ollama")).toBe(false);
+    });
+  });
+
+  describe("analyzeImageWithVision", () => {
+    const testImage: VisionImage = {
+      mediaType: "image/png",
+      base64Data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    };
+
+    it("should analyze image with Claude", async () => {
+      const result = await analyzeImageWithVision(
+        "Describe this image",
+        [testImage],
+        { provider: "claude" }
+      );
+
+      expect(result.content).toBe("Mock Claude response");
+      expect(result.inputTokens).toBe(100);
+      expect(result.outputTokens).toBe(200);
+    });
+
+    it("should analyze image with OpenAI", async () => {
+      const result = await analyzeImageWithVision(
+        "Describe this image",
+        [testImage],
+        { provider: "openai" }
+      );
+
+      expect(result.content).toBe("Mock OpenAI response");
+      expect(result.inputTokens).toBe(150);
+      expect(result.outputTokens).toBe(250);
+    });
+
+    it("should throw error for Ollama (not supported)", async () => {
+      await expect(
+        analyzeImageWithVision(
+          "Describe this image",
+          [testImage],
+          { provider: "ollama" }
+        )
+      ).rejects.toThrow("Vision not supported for provider: ollama");
+    });
+
+    it("should handle multiple images", async () => {
+      const images: VisionImage[] = [
+        { mediaType: "image/png", base64Data: "base64data1" },
+        { mediaType: "image/jpeg", base64Data: "base64data2" },
+      ];
+
+      const result = await analyzeImageWithVision(
+        "Compare these images",
+        images,
+        { provider: "claude" }
+      );
+
+      expect(result.content).toBe("Mock Claude response");
     });
   });
 });

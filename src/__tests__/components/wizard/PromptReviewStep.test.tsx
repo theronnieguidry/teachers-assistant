@@ -75,20 +75,142 @@ describe("PromptReviewStep", () => {
     expect(screen.getByText(/refining your request/i)).toBeInTheDocument();
   });
 
-  it("displays original prompt always", async () => {
-    mockPolishPrompt.mockResolvedValue({
-      original: "Create a math worksheet about fractions",
-      polished: "Enhanced math worksheet prompt...",
-      wasPolished: true,
+  describe("final prompt display", () => {
+    it("displays polished prompt in 'What will be sent to AI' section by default", async () => {
+      const polishedText = "Create a comprehensive 3rd grade math worksheet focusing on fraction concepts...";
+      mockPolishPrompt.mockResolvedValue({
+        original: "Create a math worksheet about fractions",
+        polished: polishedText,
+        wasPolished: true,
+      });
+
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.queryByText(/refining your request/i)).not.toBeInTheDocument();
+      });
+
+      // Should show "What will be sent to AI" label
+      expect(screen.getByText(/what will be sent to ai/i)).toBeInTheDocument();
+
+      // The final prompt display should contain the polished text
+      const finalPromptDisplay = screen.getByTestId("final-prompt-display");
+      expect(finalPromptDisplay).toHaveTextContent(polishedText);
     });
 
-    render(<PromptReviewStep />);
+    it("displays original prompt when 'Use my original request' is selected", async () => {
+      const originalText = "Create a math worksheet about fractions";
+      const polishedText = "Enhanced math worksheet prompt...";
+      mockPolishPrompt.mockResolvedValue({
+        original: originalText,
+        polished: polishedText,
+        wasPolished: true,
+      });
 
-    await waitFor(() => {
+      const user = userEvent.setup();
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/use my original request/i)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByLabelText(/use my original request/i));
+
+      // The final prompt display should now show the original text
+      const finalPromptDisplay = screen.getByTestId("final-prompt-display");
+      expect(finalPromptDisplay).toHaveTextContent(originalText);
+    });
+
+    it("shows editable textarea when 'Edit the prompt' is selected", async () => {
+      const polishedText = "Polished prompt text";
+      mockPolishPrompt.mockResolvedValue({
+        original: "Original",
+        polished: polishedText,
+        wasPolished: true,
+      });
+
+      const user = userEvent.setup();
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/edit the prompt/i)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByLabelText(/edit the prompt/i));
+
+      // Should show textarea with polished text
+      await waitFor(() => {
+        const textarea = screen.getByTestId("final-prompt-textarea");
+        expect(textarea).toBeInTheDocument();
+        expect(textarea).toHaveValue(polishedText);
+      });
+    });
+
+    it("updates final prompt display when user edits the prompt", async () => {
+      mockPolishPrompt.mockResolvedValue({
+        original: "Original",
+        polished: "Polished text",
+        wasPolished: true,
+      });
+
+      const user = userEvent.setup();
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/edit the prompt/i)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByLabelText(/edit the prompt/i));
+
+      const textarea = await screen.findByTestId("final-prompt-textarea");
+      await user.clear(textarea);
+      await user.type(textarea, "My custom edited prompt");
+
+      expect(textarea).toHaveValue("My custom edited prompt");
+      expect(mockSetPolishedPrompt).toHaveBeenCalledWith("My custom edited prompt");
+    });
+
+    it("shows original prompt as reference when polished prompt differs", async () => {
+      const originalText = "Create a math worksheet about fractions";
+      const polishedText = "Enhanced math worksheet prompt...";
+      mockPolishPrompt.mockResolvedValue({
+        original: originalText,
+        polished: polishedText,
+        wasPolished: true,
+      });
+
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.queryByText(/refining your request/i)).not.toBeInTheDocument();
+      });
+
+      // Should show "Your original request" as a reference
       expect(screen.getByText(/your original request/i)).toBeInTheDocument();
+      expect(screen.getByText(originalText)).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Create a math worksheet about fractions")).toBeInTheDocument();
+    it("hides original reference when user selects original prompt", async () => {
+      mockPolishPrompt.mockResolvedValue({
+        original: "Create a math worksheet about fractions",
+        polished: "Enhanced prompt...",
+        wasPolished: true,
+      });
+
+      const user = userEvent.setup();
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/use my original request/i)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByLabelText(/use my original request/i));
+
+      // Original reference should be hidden when original is selected (no need to show it twice)
+      await waitFor(() => {
+        expect(screen.queryByText(/your original request/i)).not.toBeInTheDocument();
+      });
+    });
   });
 
   it("shows polished prompt when available", async () => {
@@ -119,6 +241,20 @@ describe("PromptReviewStep", () => {
     });
   });
 
+  it("shows original prompt when polishing fails", async () => {
+    mockPolishPrompt.mockRejectedValue(new Error("API Error"));
+
+    render(<PromptReviewStep />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/refining your request/i)).not.toBeInTheDocument();
+    });
+
+    // Should still show the original prompt in the "What will be sent to AI" section
+    const finalPromptDisplay = screen.getByTestId("final-prompt-display");
+    expect(finalPromptDisplay).toHaveTextContent("Create a math worksheet about fractions");
+  });
+
   it("shows radio options when polishing succeeds", async () => {
     mockPolishPrompt.mockResolvedValue({
       original: "Original",
@@ -133,7 +269,7 @@ describe("PromptReviewStep", () => {
     });
 
     expect(screen.getByLabelText(/use my original request/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/edit the enhanced version/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/edit the prompt/i)).toBeInTheDocument();
   });
 
   it("switching to original sets usePolishedPrompt to false", async () => {
@@ -166,10 +302,10 @@ describe("PromptReviewStep", () => {
     render(<PromptReviewStep />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/edit the enhanced version/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/edit the prompt/i)).toBeInTheDocument();
     });
 
-    await user.click(screen.getByLabelText(/edit the enhanced version/i));
+    await user.click(screen.getByLabelText(/edit the prompt/i));
 
     // Should show textarea instead of readonly div
     await waitFor(() => {
@@ -289,7 +425,7 @@ describe("PromptReviewStep", () => {
     );
   });
 
-  it("shows header message about cleaning up request", async () => {
+  it("shows header message about what will be sent to AI", async () => {
     mockPolishPrompt.mockResolvedValue({
       original: "Original",
       polished: "Polished",
@@ -300,8 +436,111 @@ describe("PromptReviewStep", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/I cleaned up your request a bit/i)
+        screen.getByText(/Here's what we'll send to AI/i)
       ).toBeInTheDocument();
+    });
+  });
+
+  it("shows enhanced message when polishing occurred", async () => {
+    mockPolishPrompt.mockResolvedValue({
+      original: "Original",
+      polished: "Polished",
+      wasPolished: true,
+    });
+
+    render(<PromptReviewStep />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/I've enhanced your request/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("does not show radio options when polishing was skipped", async () => {
+    mockPolishPrompt.mockResolvedValue({
+      original: "Same prompt",
+      polished: "Same prompt",
+      wasPolished: false,
+    });
+
+    render(<PromptReviewStep />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/refining your request/i)).not.toBeInTheDocument();
+    });
+
+    // Radio options should not be shown when prompt wasn't actually polished
+    expect(screen.queryByLabelText(/use enhanced version/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/use my original request/i)).not.toBeInTheDocument();
+  });
+
+  describe("skip reason display", () => {
+    it("shows skip reason when Ollama is unavailable", async () => {
+      mockPolishPrompt.mockResolvedValue({
+        original: "Original prompt",
+        polished: "Original prompt",
+        wasPolished: false,
+        skipReason: "ollama_unavailable",
+      });
+
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("skip-reason-notice")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/ollama is not running/i)).toBeInTheDocument();
+    });
+
+    it("shows skip reason when prompt is already detailed", async () => {
+      mockPolishPrompt.mockResolvedValue({
+        original: "A very detailed prompt that is longer than 100 characters",
+        polished: "A very detailed prompt that is longer than 100 characters",
+        wasPolished: false,
+        skipReason: "already_detailed",
+      });
+
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("skip-reason-notice")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/already detailed enough/i)).toBeInTheDocument();
+    });
+
+    it("shows skip reason when there is an Ollama error", async () => {
+      mockPolishPrompt.mockResolvedValue({
+        original: "Original",
+        polished: "Original",
+        wasPolished: false,
+        skipReason: "ollama_error",
+      });
+
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("skip-reason-notice")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/make sure ollama is running/i)).toBeInTheDocument();
+    });
+
+    it("does not show skip reason notice when polishing succeeded", async () => {
+      mockPolishPrompt.mockResolvedValue({
+        original: "Original",
+        polished: "Polished and enhanced prompt",
+        wasPolished: true,
+      });
+
+      render(<PromptReviewStep />);
+
+      await waitFor(() => {
+        expect(screen.queryByText(/refining your request/i)).not.toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId("skip-reason-notice")).not.toBeInTheDocument();
     });
   });
 });

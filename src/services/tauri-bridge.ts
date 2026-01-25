@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { documentDir, join } from "@tauri-apps/api/path";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 // Check if running in Tauri context
 export function isTauriContext(): boolean {
@@ -88,6 +90,12 @@ export async function saveTeacherPack(
   },
   projectTitle: string
 ): Promise<string[]> {
+  // Skip local file saving when not in Tauri context (browser dev mode)
+  if (!isTauriContext()) {
+    console.log("Skipping local file save - not running in Tauri context");
+    return [];
+  }
+
   const sanitizedTitle = projectTitle.replace(/[^a-zA-Z0-9-_ ]/g, "").trim();
   const savedFiles: string[] = [];
 
@@ -296,4 +304,63 @@ function formatBytes(bytes: number): string {
   if (bytes >= gb) return `${(bytes / gb).toFixed(1)} GB`;
   if (bytes >= mb) return `${(bytes / mb).toFixed(1)} MB`;
   return `${bytes} bytes`;
+}
+
+// Update functions
+
+export interface UpdateInfo {
+  available: boolean;
+  version: string;
+  body: string;
+  date?: string;
+}
+
+let cachedUpdate: Update | null = null;
+
+/**
+ * Check for application updates
+ * Only works in Tauri context
+ */
+export async function checkForUpdates(): Promise<UpdateInfo | null> {
+  if (!isTauriContext()) {
+    return null;
+  }
+
+  try {
+    const update = await check();
+    if (update) {
+      cachedUpdate = update;
+      return {
+        available: true,
+        version: update.version,
+        body: update.body || "",
+        date: update.date,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to check for updates:", error);
+    return null;
+  }
+}
+
+/**
+ * Download and install the available update
+ * Only works in Tauri context
+ */
+export async function downloadAndInstallUpdate(): Promise<void> {
+  if (!isTauriContext()) {
+    throw new Error("Updates only available in desktop app");
+  }
+
+  if (!cachedUpdate) {
+    throw new Error("No update available");
+  }
+
+  try {
+    await cachedUpdate.downloadAndInstall();
+    await relaunch();
+  } catch (error) {
+    throw new Error(`Update failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
 }

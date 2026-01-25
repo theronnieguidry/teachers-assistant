@@ -172,9 +172,9 @@ export function ProjectsPanel() {
                     size="icon"
                     className="h-7 w-7"
                     title="Regenerate"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      openWizardForRegeneration(project);
+                      await openWizardForRegeneration(project);
                     }}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />

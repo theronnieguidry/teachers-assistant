@@ -18,14 +18,14 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 
 ## Test Summary
 
-### Latest Run: 2026-01-24 (Updated)
+### Latest Run: 2026-01-24 (Post-Inspiration Persistence + Regeneration Tests)
 
 | Metric | Value |
 |--------|-------|
-| Unit Tests (Frontend) | 388 ✅ |
-| Unit Tests (API) | 106 ✅ |
-| E2E Tests | 177 ✅ (59 × 3 browsers) |
-| **Total** | **671** |
+| Unit Tests (Frontend) | 462 ✅ |
+| Unit Tests (API) | 189 ✅ |
+| E2E Tests | 184 ✅ (across 3 browsers) |
+| **Total** | **835** |
 | **Pass Rate** | **100%** |
 
 ---
@@ -80,6 +80,7 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | WIZ-012 | Claude is selected by default | ✅ | ✅ | ✅ | |
 | WIZ-013 | Can select different provider | ✅ | ✅ | ✅ | |
 | WIZ-014 | Recommended badge on Claude | ✅ | ✅ | ✅ | |
+| WIZ-015 | Dialog maintains minimum height across steps | ✅ | ✅ | ✅ | New - QA-008 fix |
 
 ### 4. Inspiration Panel Tests (`e2e/inspiration.spec.ts`)
 
@@ -127,29 +128,29 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 
 | Test ID | Description | Status | Notes |
 |---------|-------------|:------:|-------|
-| REGEN-001 | openWizardForRegeneration sets regeneratingProjectId | ⏳ | New |
-| REGEN-002 | Wizard pre-fills prompt from existing project | ⏳ | New |
-| REGEN-003 | Wizard pre-fills classDetails from existing project | ⏳ | New |
-| REGEN-004 | Wizard pre-fills inspiration from existing project | ⏳ | New |
-| REGEN-005 | Wizard pre-fills outputPath from existing project | ⏳ | New |
-| REGEN-006 | GenerationStep skips createProject when regenerating | ⏳ | New |
-| REGEN-007 | GenerationStep uses existing projectId for API call | ⏳ | New |
-| REGEN-008 | reset() clears regeneratingProjectId | ⏳ | New |
-| REGEN-009 | openWizard() sets regeneratingProjectId to null | ⏳ | New |
+| REGEN-001 | openWizardForRegeneration sets regeneratingProjectId | ✅ | Implemented |
+| REGEN-002 | Wizard pre-fills prompt from existing project | ✅ | Implemented |
+| REGEN-003 | Wizard pre-fills classDetails from existing project | ✅ | Implemented |
+| REGEN-004 | Wizard pre-fills inspiration from existing project | ✅ | Implemented |
+| REGEN-005 | Wizard pre-fills outputPath from existing project | ✅ | Implemented |
+| REGEN-006 | GenerationStep skips createProject when regenerating | ⏳ | Component test needed |
+| REGEN-007 | GenerationStep uses existing projectId for API call | ⏳ | Component test needed |
+| REGEN-008 | reset() clears regeneratingProjectId | ✅ | Implemented |
+| REGEN-009 | openWizard() sets regeneratingProjectId to null | ✅ | Implemented |
 
 ### 8. AI Provider Selection Tests (Unit: `ProviderSelector.test.tsx`)
 
 | Test ID | Description | Status | Notes |
 |---------|-------------|:------:|-------|
-| TC-PROV-001 | Renders all three provider options | ⏳ | Issue #8 |
-| TC-PROV-002 | Claude has Recommended badge | ⏳ | Issue #8 |
-| TC-PROV-003 | Ollama has Free badge | ⏳ | Issue #8 |
-| TC-PROV-004 | onChange called when provider clicked | ⏳ | Issue #8 |
-| TC-PROV-005 | Shows Ollama status (Running/Not running) | ⏳ | Issue #8 |
-| TC-PROV-006 | Model dropdown when Ollama selected | ⏳ | Issue #8 |
-| TC-PROV-007 | Auto-select first model for Ollama | ⏳ | Issue #8 |
-| TC-PROV-008 | Warning shown when Ollama unavailable | ⏳ | Issue #8 |
-| TC-PROV-009 | Generate button validation with Ollama | ⏳ | Issue #8 |
+| TC-PROV-001 | Renders all three provider options | ✅ | Already implemented |
+| TC-PROV-002 | Claude has Recommended badge | ✅ | Already implemented |
+| TC-PROV-003 | Ollama has Free badge | ✅ | Already implemented |
+| TC-PROV-004 | onChange called when provider clicked | ✅ | Already implemented |
+| TC-PROV-005 | Shows Ollama status (Running/Not running) | ✅ | Already implemented |
+| TC-PROV-006 | Model dropdown when Ollama selected | ✅ | Already implemented |
+| TC-PROV-007 | Auto-select first model for Ollama | ✅ | Already implemented |
+| TC-PROV-008 | Warning shown when Ollama unavailable | ✅ | Already implemented |
+| TC-PROV-009 | Generate button validation with Ollama | ⏳ | Component integration test |
 
 ---
 
@@ -164,6 +165,7 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | QA-005 | 2026-01-24 | AUTH-009/010 | OAuth providers (Google/Apple) not enabled in Supabase | Medium | ✅ Fixed | Configured Google OAuth in Supabase dashboard, updated .env to use hosted Supabase |
 | QA-006 | 2026-01-24 | A11Y-005/006/007/008 | Accessibility authenticated tests failing - mock auth not intercepting Supabase session endpoint | Medium | ✅ Fixed | Added `/auth/v1/session` and `/rest/v1/profiles` route mocks to beforeEach |
 | QA-007 | 2026-01-24 | AUTH-003 | Auth form submit test flaky due to loading state timeout | Low | ✅ Fixed | Updated test to wait for loading or error states, then verify form returns |
+| QA-008 | 2026-01-24 | WIZ-015 | Wizard dialog too narrow, step labels truncated | Medium | ✅ Fixed | Changed `max-w-2xl` to `max-w-3xl` (768px), added `min-h-[500px]`, removed broken `setItems` |
 
 ---
 
@@ -215,8 +217,8 @@ npx playwright show-report
 
 | Gate | Requirement | Current |
 |------|-------------|---------|
-| Unit Tests | 100% passing | ✅ 494/494 |
-| E2E Tests | ≥95% passing | ✅ 100% (177/177) |
+| Unit Tests | 100% passing | ✅ 651/651 |
+| E2E Tests | ≥95% passing | ✅ 100% (184/184) |
 | Critical Issues | 0 open | ✅ 0 |
 | High Issues | 0 open | ✅ 0 |
 | Medium Issues | 0 open | ✅ 0 |
@@ -250,6 +252,8 @@ The current E2E tests verify **UI element visibility and basic interactions**, n
 
 | Date | Tests | Pass Rate | Notes |
 |------|-------|-----------|-------|
+| 2026-01-24 | 835 | 100% | Added REGEN-001 to REGEN-009 regeneration tests (+11 tests) |
+| 2026-01-24 | 824 | 100% | Post-inspiration persistence feature, wizard flow verified, +153 tests from new architecture |
 | 2026-01-24 | 671 | 100% | QA run: Fixed A11Y authenticated tests (mock session endpoint), AUTH-003 timing |
 | 2026-01-24 | 595 | 100% | Full QA run, documented untested flows |
 | 2026-01-23 | 575 | 100% | Initial full pass after E2E fixes |

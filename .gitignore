@@ -34,3 +34,6 @@ archive/
 e2e-results/
 test-results/
 playwright-report/
+
+# Coverage reports
+coverage/

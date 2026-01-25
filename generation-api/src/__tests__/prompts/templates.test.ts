@@ -154,7 +154,7 @@ describe("Prompt Templates", () => {
   });
 
   describe("with inspiration materials", () => {
-    it("should include inspiration content in prompts", () => {
+    it("should include content inspiration items as Content References", () => {
       const contextWithInspiration = {
         ...baseContext,
         inspiration: [
@@ -168,23 +168,79 @@ describe("Prompt Templates", () => {
       };
 
       const result = buildWorksheetPrompt(contextWithInspiration);
-      expect(result).toContain("Reference Materials");
+      expect(result).toContain("Content References");
       expect(result).toContain("Example Site");
       expect(result).toContain("Sample extracted content");
     });
 
-    it("should handle multiple inspiration items", () => {
+    it("should include design inspiration items as Design Style Guide", () => {
       const contextWithInspiration = {
         ...baseContext,
         inspiration: [
-          { id: "1", type: "url" as const, title: "Site 1", extractedContent: "Content 1" },
-          { id: "2", type: "pdf" as const, title: "Doc 1", extractedContent: "Content 2" },
+          {
+            id: "insp-1",
+            type: "image" as const,
+            title: "worksheet-style.png",
+            extractedContent: "Colorful layout with blue headers, playful fonts, rounded borders",
+          },
         ],
       };
 
       const result = buildWorksheetPrompt(contextWithInspiration);
-      expect(result).toContain("Reference 1: Site 1");
-      expect(result).toContain("Reference 2: Doc 1");
+      expect(result).toContain("Design Style Guide");
+      expect(result).toContain("Design Reference 1: worksheet-style.png");
+      expect(result).toContain("Colorful layout with blue headers");
+      expect(result).toContain("Match the visual style");
+    });
+
+    it("should separate design items (image, pdf) from content items (url, text)", () => {
+      const contextWithInspiration = {
+        ...baseContext,
+        inspiration: [
+          { id: "1", type: "url" as const, title: "Math Website", extractedContent: "Math lesson content" },
+          { id: "2", type: "image" as const, title: "Design.png", extractedContent: "Blue and green colors" },
+          { id: "3", type: "pdf" as const, title: "Scholastic.pdf", extractedContent: "Fun layout with icons" },
+          { id: "4", type: "text" as const, title: "Notes", extractedContent: "Teacher notes here" },
+        ],
+      };
+
+      const result = buildWorksheetPrompt(contextWithInspiration);
+
+      // Design items should be in Design Style Guide
+      expect(result).toContain("Design Style Guide");
+      expect(result).toContain("Design Reference 1: Design.png");
+      expect(result).toContain("Design Reference 2: Scholastic.pdf");
+
+      // Content items should be in Content References
+      expect(result).toContain("Content References");
+      expect(result).toContain("Reference 1: Math Website");
+      expect(result).toContain("Reference 2: Notes");
+    });
+
+    it("should handle only design items", () => {
+      const contextWithInspiration = {
+        ...baseContext,
+        inspiration: [
+          { id: "1", type: "pdf" as const, title: "Design Guide.pdf", extractedContent: "Layout specs" },
+        ],
+      };
+
+      const result = buildWorksheetPrompt(contextWithInspiration);
+      expect(result).toContain("Design Style Guide");
+      expect(result).not.toContain("Content References");
+    });
+
+    it("should handle only content items", () => {
+      const contextWithInspiration = {
+        ...baseContext,
+        inspiration: [
+          { id: "1", type: "url" as const, title: "Resource Site", extractedContent: "Helpful content" },
+        ],
+      };
+
+      const result = buildWorksheetPrompt(contextWithInspiration);
+      expect(result).toContain("Content References");
+      expect(result).not.toContain("Design Style Guide");
     });
   });
 

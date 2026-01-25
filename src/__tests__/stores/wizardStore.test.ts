@@ -1,10 +1,21 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useWizardStore, getProjectOptions } from "@/stores/wizardStore";
+import { useProjectStore } from "@/stores/projectStore";
+
+// Mock projectStore
+vi.mock("@/stores/projectStore", () => ({
+  useProjectStore: {
+    getState: vi.fn(() => ({
+      fetchProjectInspiration: vi.fn().mockResolvedValue([]),
+    })),
+  },
+}));
 
 describe("wizardStore", () => {
   beforeEach(() => {
     // Reset store between tests
     useWizardStore.getState().reset();
+    vi.clearAllMocks();
   });
 
   describe("initial state", () => {
@@ -321,6 +332,229 @@ describe("wizardStore", () => {
         format: "worksheet",
         includeAnswerKey: true,
       });
+    });
+  });
+
+  describe("openWizardForRegeneration", () => {
+    const mockProject = {
+      id: "project-123",
+      userId: "user-123",
+      title: "Test Project",
+      description: null,
+      prompt: "Create a math worksheet about addition",
+      grade: "3" as const,
+      subject: "Math",
+      options: {
+        format: "worksheet",
+        questionCount: 15,
+        includeVisuals: false,
+        difficulty: "hard",
+        includeAnswerKey: true,
+      },
+      inspiration: [
+        { id: "insp-1", type: "url" as const, title: "Reference" },
+      ],
+      outputPath: "/path/to/output",
+      status: "completed" as const,
+      errorMessage: null,
+      creditsUsed: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      completedAt: new Date(),
+    };
+
+    beforeEach(() => {
+      // Reset the mock for fetchProjectInspiration
+      vi.mocked(useProjectStore.getState).mockReturnValue({
+        fetchProjectInspiration: vi.fn().mockResolvedValue([]),
+      } as never);
+    });
+
+    it("REGEN-001: should set regeneratingProjectId", async () => {
+      const { openWizardForRegeneration } = useWizardStore.getState();
+
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      expect(state.regeneratingProjectId).toBe("project-123");
+    });
+
+    it("REGEN-002: should pre-fill prompt from existing project", async () => {
+      const { openWizardForRegeneration } = useWizardStore.getState();
+
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      expect(state.prompt).toBe("Create a math worksheet about addition");
+    });
+
+    it("REGEN-003: should pre-fill classDetails from existing project", async () => {
+      const { openWizardForRegeneration } = useWizardStore.getState();
+
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      expect(state.classDetails).toEqual({
+        grade: "3",
+        subject: "Math",
+        format: "worksheet",
+        questionCount: 15,
+        includeVisuals: false,
+        difficulty: "hard",
+        includeAnswerKey: true,
+      });
+    });
+
+    it("REGEN-004: should pre-fill inspiration from existing project (JSONB fallback)", async () => {
+      // Junction table returns empty, should fall back to JSONB
+      vi.mocked(useProjectStore.getState).mockReturnValue({
+        fetchProjectInspiration: vi.fn().mockResolvedValue([]),
+      } as never);
+
+      const { openWizardForRegeneration } = useWizardStore.getState();
+
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      expect(state.selectedInspiration).toEqual([
+        { id: "insp-1", type: "url", title: "Reference" },
+      ]);
+    });
+
+    it("REGEN-005: should pre-fill outputPath from existing project", async () => {
+      const { openWizardForRegeneration } = useWizardStore.getState();
+
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      expect(state.outputPath).toBe("/path/to/output");
+    });
+
+    it("should pre-fill title from existing project", async () => {
+      const { openWizardForRegeneration } = useWizardStore.getState();
+
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      expect(state.title).toBe("Test Project");
+    });
+
+    it("should open wizard on step 1", async () => {
+      const { openWizardForRegeneration } = useWizardStore.getState();
+
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      expect(state.isOpen).toBe(true);
+      expect(state.currentStep).toBe(1);
+    });
+
+    it("should reset generation state", async () => {
+      useWizardStore.setState({
+        isGenerating: true,
+        generationProgress: 50,
+        generationMessage: "Old message",
+        generationError: "Old error",
+      });
+
+      const { openWizardForRegeneration } = useWizardStore.getState();
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      expect(state.isGenerating).toBe(false);
+      expect(state.generationProgress).toBe(0);
+      expect(state.generationMessage).toBe("");
+      expect(state.generationError).toBeNull();
+    });
+
+    it("should use defaults when project options are missing", async () => {
+      const projectWithoutOptions = {
+        ...mockProject,
+        options: {},
+        inspiration: undefined,
+        outputPath: null,
+      };
+
+      const { openWizardForRegeneration } = useWizardStore.getState();
+      await openWizardForRegeneration(projectWithoutOptions);
+
+      const state = useWizardStore.getState();
+      expect(state.classDetails).toEqual({
+        grade: "3",
+        subject: "Math",
+        format: "both",
+        questionCount: 10,
+        includeVisuals: true,
+        difficulty: "medium",
+        includeAnswerKey: true,
+      });
+      expect(state.selectedInspiration).toEqual([]);
+      expect(state.outputPath).toBeNull();
+    });
+
+    it("should load inspiration from junction table when available", async () => {
+      const junctionInspiration = [
+        { id: "junction-insp-1", type: "url" as const, title: "From Junction Table" },
+        { id: "junction-insp-2", type: "pdf" as const, title: "PDF from Junction" },
+      ];
+
+      vi.mocked(useProjectStore.getState).mockReturnValue({
+        fetchProjectInspiration: vi.fn().mockResolvedValue(junctionInspiration),
+      } as never);
+
+      const { openWizardForRegeneration } = useWizardStore.getState();
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      // Should use junction table items, not JSONB fallback
+      expect(state.selectedInspiration).toEqual(junctionInspiration);
+    });
+
+    it("should fallback to JSONB when junction table is empty", async () => {
+      vi.mocked(useProjectStore.getState).mockReturnValue({
+        fetchProjectInspiration: vi.fn().mockResolvedValue([]),
+      } as never);
+
+      const { openWizardForRegeneration } = useWizardStore.getState();
+      await openWizardForRegeneration(mockProject);
+
+      const state = useWizardStore.getState();
+      // Should fallback to JSONB inspiration
+      expect(state.selectedInspiration).toEqual([
+        { id: "insp-1", type: "url", title: "Reference" },
+      ]);
+    });
+
+    it("should call fetchProjectInspiration with correct project ID", async () => {
+      const mockFetch = vi.fn().mockResolvedValue([]);
+      vi.mocked(useProjectStore.getState).mockReturnValue({
+        fetchProjectInspiration: mockFetch,
+      } as never);
+
+      const { openWizardForRegeneration } = useWizardStore.getState();
+      await openWizardForRegeneration(mockProject);
+
+      expect(mockFetch).toHaveBeenCalledWith("project-123");
+    });
+  });
+
+  describe("regeneratingProjectId state", () => {
+    it("REGEN-008: reset() should clear regeneratingProjectId", () => {
+      useWizardStore.setState({ regeneratingProjectId: "project-123" });
+
+      const { reset } = useWizardStore.getState();
+      reset();
+
+      expect(useWizardStore.getState().regeneratingProjectId).toBeNull();
+    });
+
+    it("REGEN-009: openWizard() should set regeneratingProjectId to null", () => {
+      useWizardStore.setState({ regeneratingProjectId: "project-123" });
+
+      const { openWizard } = useWizardStore.getState();
+      openWizard("New prompt");
+
+      expect(useWizardStore.getState().regeneratingProjectId).toBeNull();
     });
   });
 });

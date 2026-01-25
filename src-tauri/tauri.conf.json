@@ -23,12 +23,13 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.openai.com http://localhost:*"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.openai.com https://github.com https://*.github.com http://localhost:*"
     }
   },
   "bundle": {
     "active": true,
     "targets": ["msi", "nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -61,6 +62,15 @@
     },
     "shell": {
       "open": true
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU0M0Q1RkUwQjRGRTdDQzIKUldUQ2ZQNjA0Rjg5Vko0QktONXN0aEFSV292OXhxTVJIeXZGK0Ftd1AvNEsreVQvQnlqRGFwaHUK",
+      "endpoints": [
+        "https://github.com/theronnieguidry/teachers-assistant/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

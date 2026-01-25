@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
-import { Loader2, Sparkles, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Sparkles, AlertCircle, Info, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useAuthStore } from "@/stores/authStore";
-import { polishPrompt } from "@/services/generation-api";
+import { polishPrompt, type PolishSkipReason } from "@/services/generation-api";
 
 type PromptChoice = "polished" | "original" | "edited";
+
+const SKIP_REASON_MESSAGES: Record<PolishSkipReason, string> = {
+  disabled: "Prompt enhancement is disabled.",
+  already_detailed: "Your prompt is already detailed enough - no enhancement needed.",
+  ollama_error: "Could not connect to Ollama. Make sure Ollama is running.",
+  ollama_unavailable: "Ollama is not running. Start Ollama to enable prompt enhancement, or continue with your original request.",
+  invalid_response: "Received an unexpected response from Ollama.",
+};
 
 export function PromptReviewStep() {
   const {
@@ -29,6 +37,7 @@ export function PromptReviewStep() {
   const [promptChoice, setPromptChoice] = useState<PromptChoice>("polished");
   const [editedPrompt, setEditedPrompt] = useState("");
   const [wasPolished, setWasPolished] = useState(true);
+  const [skipReason, setSkipReason] = useState<PolishSkipReason | null>(null);
 
   // Polish the prompt when the step loads
   useEffect(() => {
@@ -44,6 +53,7 @@ export function PromptReviewStep() {
 
     setIsPolishing(true);
     setPolishError(null);
+    setSkipReason(null);
 
     try {
       const result = await polishPrompt(
@@ -64,8 +74,9 @@ export function PromptReviewStep() {
       setEditedPrompt(result.polished);
       setWasPolished(result.wasPolished);
 
-      // If polishing was skipped (prompt already detailed), default to original
+      // If polishing was skipped, store the reason and default to original
       if (!result.wasPolished) {
+        setSkipReason(result.skipReason || null);
         setPromptChoice("original");
         setUsePolishedPrompt(false);
       }
@@ -128,6 +139,17 @@ export function PromptReviewStep() {
     );
   }
 
+  // Determine what will actually be sent to the AI
+  const getFinalPrompt = () => {
+    if (promptChoice === "original" || !wasPolished || polishError) {
+      return prompt;
+    }
+    return editedPrompt || polishedPrompt || prompt;
+  };
+
+  const finalPrompt = getFinalPrompt();
+  const promptWasChanged = wasPolished && !polishError && finalPrompt !== prompt;
+
   return (
     <div className="space-y-4">
       {/* Header message */}
@@ -135,8 +157,9 @@ export function PromptReviewStep() {
         <div className="flex items-start gap-3">
           <Sparkles className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
           <p className="text-sm">
-            I cleaned up your request a bit before we send it off to AI to generate your teaching materials.
-            Is there anything you'd like to change first?
+            {wasPolished && !polishError
+              ? "Here's what we'll send to AI. I've enhanced your request a bit. Is there anything you'd like to change?"
+              : "Here's what we'll send to AI to generate your teaching materials. Is there anything you'd like to change?"}
           </p>
         </div>
       </div>
@@ -149,15 +172,35 @@ export function PromptReviewStep() {
         </div>
       )}
 
-      {/* Original prompt (always shown) */}
-      <div className="space-y-2">
-        <Label className="text-muted-foreground">Your original request:</Label>
-        <div className="p-3 bg-muted/50 rounded-md text-sm">
-          {prompt}
+      {/* Skip reason notice */}
+      {!wasPolished && skipReason && !polishError && (
+        <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg flex items-start gap-2" data-testid="skip-reason-notice">
+          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            {SKIP_REASON_MESSAGES[skipReason]}
+          </p>
         </div>
+      )}
+
+      {/* Final prompt - what will be sent to AI (always shown prominently) */}
+      <div className="space-y-2">
+        <Label>What will be sent to AI:</Label>
+        {promptChoice === "edited" && wasPolished ? (
+          <Textarea
+            value={editedPrompt}
+            onChange={(e) => handleEditedPromptChange(e.target.value)}
+            className="min-h-[120px] resize-none"
+            placeholder="Edit your prompt here..."
+            data-testid="final-prompt-textarea"
+          />
+        ) : (
+          <div className="p-3 bg-primary/5 border border-primary/20 rounded-md text-sm" data-testid="final-prompt-display">
+            {finalPrompt}
+          </div>
+        )}
       </div>
 
-      {/* Prompt choice */}
+      {/* Prompt choice - only show when polishing actually changed something */}
       {wasPolished && !polishError && (
         <RadioGroup
           value={promptChoice}
@@ -179,30 +222,19 @@ export function PromptReviewStep() {
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="edited" id="edited" />
             <Label htmlFor="edited" className="cursor-pointer">
-              Edit the enhanced version
+              Edit the prompt
             </Label>
           </div>
         </RadioGroup>
       )}
 
-      {/* Polished/edited prompt */}
-      {promptChoice !== "original" && wasPolished && (
+      {/* Original prompt - shown as reference when different from final */}
+      {promptWasChanged && promptChoice !== "original" && (
         <div className="space-y-2">
-          <Label className={promptChoice === "edited" ? "" : "text-muted-foreground"}>
-            {promptChoice === "edited" ? "Edit your prompt:" : "Enhanced version:"}
-          </Label>
-          {promptChoice === "edited" ? (
-            <Textarea
-              value={editedPrompt}
-              onChange={(e) => handleEditedPromptChange(e.target.value)}
-              className="min-h-[120px] resize-none"
-              placeholder="Edit your prompt here..."
-            />
-          ) : (
-            <div className="p-3 bg-primary/5 border border-primary/20 rounded-md text-sm">
-              {polishedPrompt || editedPrompt}
-            </div>
-          )}
+          <Label className="text-muted-foreground text-xs">Your original request:</Label>
+          <div className="p-2 bg-muted/30 rounded-md text-xs text-muted-foreground">
+            {prompt}
+          </div>
         </div>
       )}
 

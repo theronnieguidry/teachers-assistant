@@ -3,6 +3,7 @@ import { Loader2, CheckCircle2, XCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useProjectStore } from "@/stores/projectStore";
+import { useInspirationStore } from "@/stores/inspirationStore";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
 import { generateTeacherPack, GenerationApiError } from "@/services/generation-api";
@@ -34,6 +35,7 @@ export function GenerationStep() {
   // Use the polished prompt if available and user chose to use it
   const finalPrompt = usePolishedPrompt && polishedPrompt ? polishedPrompt : prompt;
   const { createProject, updateProject } = useProjectStore();
+  const { persistLocalItems } = useInspirationStore();
   const { session } = useAuthStore();
   const startedRef = useRef(false);
 
@@ -46,7 +48,14 @@ export function GenerationStep() {
   }, []);
 
   const startGeneration = async () => {
-    if (!classDetails || !session?.access_token) return;
+    if (!classDetails || !session?.access_token) {
+      console.log("[GenerationStep] Cannot start - missing classDetails or session");
+      return;
+    }
+
+    console.log("[GenerationStep] Starting generation...");
+    console.log(`[GenerationStep] AI Provider: ${aiProvider}, Model: ${ollamaModel || "default"}`);
+    console.log(`[GenerationStep] Selected inspiration items: ${selectedInspiration.length}`);
 
     setGenerationState({
       isGenerating: true,
@@ -61,15 +70,41 @@ export function GenerationStep() {
       // Check if we're regenerating an existing project
       if (regeneratingProjectId) {
         // Regenerating - use existing project
+        console.log(`[GenerationStep] Regenerating existing project: ${regeneratingProjectId}`);
         projectId = regeneratingProjectId;
         setGenerationState({ progress: 5, message: "Preparing regeneration..." });
 
         // Update project status to generating
         await updateProject(projectId, { status: "generating" });
+        console.log("[GenerationStep] Project status updated to 'generating'");
       } else {
         // Create new project in database
+        const localItemCount = selectedInspiration.filter((i) => i.id.startsWith("local_")).length;
+        console.log(`[GenerationStep] Creating new project with ${localItemCount} local inspiration items`);
+        setGenerationState({ progress: 3, message: "Saving inspiration items..." });
+
+        // Persist any local inspiration items to database
+        console.log("[GenerationStep] Persisting local inspiration items...");
+        const idMapping = await persistLocalItems();
+        console.log(`[GenerationStep] Persisted ${idMapping.size} items`);
+
+        // Map selected items to their persisted IDs
+        const persistedInspiration = selectedInspiration.map((item) => ({
+          ...item,
+          id: item.id.startsWith("local_")
+            ? idMapping.get(item.id) || item.id
+            : item.id,
+        }));
+
+        // Extract IDs for junction table linking (filter out any that failed to persist)
+        const inspirationIds = persistedInspiration
+          .map((item) => item.id)
+          .filter((id) => !id.startsWith("local_"));
+        console.log(`[GenerationStep] Linking ${inspirationIds.length} inspiration items to project`);
+
         setGenerationState({ progress: 5, message: "Saving project..." });
 
+        console.log("[GenerationStep] Creating project in database...");
         const project = await createProject({
           title,
           prompt,
@@ -82,16 +117,20 @@ export function GenerationStep() {
             format: classDetails.format,
             includeAnswerKey: classDetails.includeAnswerKey,
           },
-          inspiration: selectedInspiration,
+          inspiration: persistedInspiration,
+          inspirationIds,
           outputPath: outputPath || undefined,
         });
 
         projectId = project.id;
+        console.log(`[GenerationStep] Project created with ID: ${projectId}`);
 
         // Update project status to generating
         await updateProject(projectId, { status: "generating" });
+        console.log("[GenerationStep] Project status updated to 'generating'");
       }
 
+      console.log("[GenerationStep] Starting AI generation via API...");
       setGenerationState({ progress: 10, message: "Starting AI generation..." });
 
       // Call the Generation API with the final (possibly polished) prompt
@@ -119,9 +158,11 @@ export function GenerationStep() {
 
       // Note: The backend (generator.ts) already saves the version and updates the project status.
       // We only need to handle local file saving here.
+      console.log("[GenerationStep] AI generation complete, received result");
 
       // Save files to local folder if output path specified
       if (outputPath) {
+        console.log(`[GenerationStep] Saving files to local folder: ${outputPath}`);
         setGenerationState({ progress: 95, message: "Saving files to folder..." });
         try {
           await saveTeacherPack(
@@ -133,12 +174,14 @@ export function GenerationStep() {
             },
             title
           );
+          console.log("[GenerationStep] Local files saved successfully");
         } catch (error) {
-          console.error("Failed to save files locally:", error);
+          console.error("[GenerationStep] Failed to save files locally:", error);
           // Don't fail the whole operation if local save fails
         }
       }
 
+      console.log("[GenerationStep] Generation flow complete");
       setGenerationState({
         progress: 100,
         message: "Complete!",
@@ -150,7 +193,7 @@ export function GenerationStep() {
         `Your ${title} materials are ready to view and print.`
       );
     } catch (error) {
-      console.error("Generation failed:", error);
+      console.error("[GenerationStep] Generation failed:", error);
 
       // Update project status to failed
       if (projectId) {

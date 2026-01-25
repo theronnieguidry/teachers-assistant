@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   Link,
   FileText,
@@ -6,16 +6,53 @@ import {
   X,
   Plus,
   Upload,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useInspirationStore } from "@/stores/inspirationStore";
+import { useWizardStore } from "@/stores/wizardStore";
+import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
+// Helper to read file as base64
+async function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove data URL prefix (e.g., "data:application/pdf;base64,")
+      const base64 = result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function InspirationPanel() {
-  const { items, addItem, removeItem } = useInspirationStore();
+  const { items, isLoading, addItem, removeItem, fetchItems } = useInspirationStore();
+  const isWizardOpen = useWizardStore((state) => state.isOpen);
+  const { user } = useAuthStore();
+  const prevWizardOpenRef = useRef(isWizardOpen);
+
+  // Load inspiration items when user is authenticated
+  useEffect(() => {
+    if (user) {
+      fetchItems();
+    }
+  }, [user, fetchItems]);
+
+  // Re-fetch when wizard closes to show newly persisted items
+  useEffect(() => {
+    if (prevWizardOpenRef.current && !isWizardOpen && user) {
+      // Wizard just closed - re-fetch to get any newly persisted items
+      fetchItems();
+    }
+    prevWizardOpenRef.current = isWizardOpen;
+  }, [isWizardOpen, user, fetchItems]);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
 
@@ -26,29 +63,42 @@ export function InspirationPanel() {
       // Handle URL drop
       if (url || (text && text.startsWith("http"))) {
         const droppedUrl = url || text;
-        addItem({
-          type: "url",
-          title: new URL(droppedUrl).hostname,
-          sourceUrl: droppedUrl,
-        });
+        try {
+          await addItem({
+            type: "url",
+            title: new URL(droppedUrl).hostname,
+            sourceUrl: droppedUrl,
+          });
+        } catch {
+          // Error handled by store
+        }
         return;
       }
 
-      // Handle file drops
-      files.forEach((file) => {
-        if (file.type === "application/pdf") {
-          addItem({
-            type: "pdf",
-            title: file.name,
-            content: file.name, // In real app, would extract text
-          });
-        } else if (file.type.startsWith("image/")) {
-          addItem({
-            type: "image",
-            title: file.name,
-          });
+      // Handle file drops - read files as base64 for backend processing
+      for (const file of files) {
+        try {
+          if (file.type === "application/pdf") {
+            const base64Content = await readFileAsBase64(file);
+            await addItem({
+              type: "pdf",
+              title: file.name,
+              content: base64Content,
+            });
+          } else if (file.type.startsWith("image/")) {
+            const base64Content = await readFileAsBase64(file);
+            const mediaType = file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+            await addItem({
+              type: "image",
+              title: file.name,
+              content: base64Content,
+              storagePath: mediaType, // Store media type for vision API
+            });
+          }
+        } catch {
+          // Error handled by store
         }
-      });
+      }
     },
     [addItem]
   );
@@ -58,17 +108,17 @@ export function InspirationPanel() {
     e.stopPropagation();
   };
 
-  const handleAddUrl = () => {
+  const handleAddUrl = async () => {
     const url = prompt("Enter a URL for inspiration:");
     if (url && url.startsWith("http")) {
       try {
-        addItem({
+        await addItem({
           type: "url",
           title: new URL(url).hostname,
           sourceUrl: url,
         });
       } catch {
-        alert("Please enter a valid URL");
+        // Error handled by store toast
       }
     }
   };
@@ -113,7 +163,9 @@ export function InspirationPanel() {
           items.length === 0 ? "py-6" : "py-2"
         )}
       >
-        {items.length === 0 ? (
+        {isLoading ? (
+          <Loader2 className="h-6 w-6 mx-auto text-muted-foreground/50 animate-spin" />
+        ) : items.length === 0 ? (
           <>
             <Upload className="h-6 w-6 mx-auto text-muted-foreground/50 mb-2" />
             <p className="text-xs text-muted-foreground">
@@ -143,7 +195,7 @@ export function InspirationPanel() {
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => removeItem(item.id)}
+                  onClick={() => removeItem(item.id).catch(() => {})}
                 >
                   <X className="h-3 w-3" />
                 </Button>

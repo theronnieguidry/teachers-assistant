@@ -228,6 +228,29 @@ export interface Database {
           created_at?: string;
         };
       };
+      project_inspiration: {
+        Row: {
+          id: string;
+          project_id: string;
+          inspiration_id: string;
+          position: number;
+          added_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          inspiration_id: string;
+          position?: number;
+          added_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string;
+          inspiration_id?: string;
+          position?: number;
+          added_at?: string;
+        };
+      };
     };
     Functions: {
       reserve_credits: {

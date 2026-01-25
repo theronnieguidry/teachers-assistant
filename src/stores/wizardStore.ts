@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { Grade, InspirationItem, ProjectOptions, Project } from "@/types";
+import { useProjectStore } from "@/stores/projectStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -43,7 +45,7 @@ interface WizardState {
 
   // Actions
   openWizard: (prompt: string) => void;
-  openWizardForRegeneration: (project: Project) => void;
+  openWizardForRegeneration: (project: Project) => Promise<void>;
   closeWizard: () => void;
   setStep: (step: WizardStep) => void;
   nextStep: () => void;
@@ -98,6 +100,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     // Generate title from prompt (first 50 chars)
     const title =
       prompt.length > 50 ? prompt.substring(0, 50) + "..." : prompt;
+    // Use the user's default AI provider from settings
+    const defaultProvider = useSettingsStore.getState().defaultAiProvider;
     set({
       isOpen: true,
       currentStep: 1,
@@ -106,7 +110,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       classDetails: { ...defaultClassDetails },
       selectedInspiration: [],
       outputPath: null,
-      aiProvider: "claude",
+      aiProvider: defaultProvider,
       ollamaModel: null,
       polishedPrompt: null,
       usePolishedPrompt: true,
@@ -118,9 +122,21 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     });
   },
 
-  openWizardForRegeneration: (project) => {
+  openWizardForRegeneration: async (project) => {
     // Extract options with defaults
     const options = project.options || {};
+
+    // Try to fetch inspiration from junction table first (proper relational approach)
+    let inspiration = await useProjectStore.getState().fetchProjectInspiration(project.id);
+
+    // Fallback to JSONB for legacy projects or if junction table is empty
+    if (inspiration.length === 0 && project.inspiration && project.inspiration.length > 0) {
+      inspiration = project.inspiration;
+    }
+
+    // Use the user's default AI provider from settings
+    const defaultProvider = useSettingsStore.getState().defaultAiProvider;
+
     set({
       isOpen: true,
       currentStep: 1,
@@ -135,9 +151,9 @@ export const useWizardStore = create<WizardState>((set, get) => ({
         difficulty: (options.difficulty as ClassDetails["difficulty"]) || "medium",
         includeAnswerKey: options.includeAnswerKey ?? true,
       },
-      selectedInspiration: project.inspiration || [],
+      selectedInspiration: inspiration,
       outputPath: project.outputPath || null,
-      aiProvider: "claude",
+      aiProvider: defaultProvider,
       ollamaModel: null,
       polishedPrompt: null,
       usePolishedPrompt: true,
@@ -217,6 +233,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   },
 
   reset: () => {
+    const defaultProvider = useSettingsStore.getState().defaultAiProvider;
     set({
       isOpen: false,
       currentStep: 1,
@@ -225,7 +242,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       classDetails: null,
       selectedInspiration: [],
       outputPath: null,
-      aiProvider: "claude",
+      aiProvider: defaultProvider,
       ollamaModel: null,
       polishedPrompt: null,
       usePolishedPrompt: true,

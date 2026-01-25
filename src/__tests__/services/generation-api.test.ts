@@ -8,6 +8,7 @@ import {
   parseInspiration,
   GenerationApiError,
 } from "@/services/generation-api";
+import { TIMEOUTS } from "@/lib/async-utils";
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -455,6 +456,47 @@ describe("Generation API Service", () => {
       await expect(
         generateTeacherPack(mockRequest, "test-token")
       ).rejects.toThrow("No result received");
+    });
+  });
+
+  describe("fetch timeout handling", () => {
+    it("should throw GenerationApiError on fetch timeout", async () => {
+      // Create an AbortError to simulate timeout
+      const abortError = new Error("The operation was aborted");
+      abortError.name = "AbortError";
+
+      mockFetch.mockRejectedValue(abortError);
+
+      await expect(getCredits("test-token")).rejects.toThrow(GenerationApiError);
+      await expect(getCredits("test-token")).rejects.toMatchObject({
+        statusCode: 504,
+        message: expect.stringContaining("timed out"),
+      });
+    });
+
+    it("should pass abort signal to fetch", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ credits: { balance: 50 } }),
+      });
+
+      await getCredits("test-token");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        })
+      );
+    });
+  });
+
+  describe("streaming timeout constants", () => {
+    it("should have reasonable timeout values", () => {
+      // Verify timeout constants are reasonable
+      expect(TIMEOUTS.STREAMING_IDLE).toBe(30000); // 30 seconds
+      expect(TIMEOUTS.STREAMING_TOTAL).toBe(300000); // 5 minutes
+      expect(TIMEOUTS.FETCH_DEFAULT).toBe(30000); // 30 seconds
     });
   });
 });

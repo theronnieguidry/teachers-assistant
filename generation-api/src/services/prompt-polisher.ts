@@ -62,22 +62,36 @@ Create an improved prompt that:
 Return ONLY the improved prompt text (2-4 sentences). No explanations or formatting.`;
 }
 
+export interface PolishResult {
+  polished: string;
+  wasPolished: boolean;
+  skipReason?: string;
+}
+
 /**
  * Polish a user's prompt using Ollama
  *
  * @param ctx - Context including the raw prompt and wizard settings
- * @returns The polished prompt, or the original if polishing fails/is disabled
+ * @returns The polished prompt with metadata, or the original if polishing fails/is disabled
  */
-export async function polishPrompt(ctx: PolishContext): Promise<string> {
+export async function polishPrompt(ctx: PolishContext): Promise<PolishResult> {
   // Check if polishing is explicitly disabled
   if (process.env.ENABLE_PROMPT_POLISHING === "false") {
-    return ctx.prompt;
+    return {
+      polished: ctx.prompt,
+      wasPolished: false,
+      skipReason: "disabled",
+    };
   }
 
-  // Skip if the prompt is already detailed (100+ chars suggests user put effort in)
-  if (ctx.prompt.length > 100) {
+  // Skip if the prompt is already very detailed (300+ chars suggests user put significant effort in)
+  if (ctx.prompt.length > 300) {
     console.log("Prompt polishing skipped: prompt already detailed");
-    return ctx.prompt;
+    return {
+      polished: ctx.prompt,
+      wasPolished: false,
+      skipReason: "already_detailed",
+    };
   }
 
   const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
@@ -99,7 +113,11 @@ export async function polishPrompt(ctx: PolishContext): Promise<string> {
 
     if (!response.ok) {
       console.log("Prompt polishing skipped: Ollama returned error");
-      return ctx.prompt;
+      return {
+        polished: ctx.prompt,
+        wasPolished: false,
+        skipReason: "ollama_error",
+      };
     }
 
     const data = await response.json();
@@ -108,16 +126,27 @@ export async function polishPrompt(ctx: PolishContext): Promise<string> {
     // Validate the polished prompt
     if (polished && polished.length > 20 && polished.length < 1000) {
       console.log(`Prompt polished: "${ctx.prompt.substring(0, 50)}..." → "${polished.substring(0, 80)}..."`);
-      return polished;
+      return {
+        polished,
+        wasPolished: true,
+      };
     }
 
     // Invalid response, use original
     console.log("Prompt polishing skipped: invalid response from Ollama");
-    return ctx.prompt;
+    return {
+      polished: ctx.prompt,
+      wasPolished: false,
+      skipReason: "invalid_response",
+    };
   } catch (error) {
-    // Silently fall back to original prompt
+    // Fall back to original prompt
     // This handles: Ollama not installed, not running, timeout, network errors
     console.log("Prompt polishing skipped: Ollama unavailable");
-    return ctx.prompt;
+    return {
+      polished: ctx.prompt,
+      wasPolished: false,
+      skipReason: "ollama_unavailable",
+    };
   }
 }

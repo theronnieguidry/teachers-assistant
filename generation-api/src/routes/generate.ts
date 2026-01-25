@@ -2,7 +2,8 @@ import { Router, type Response } from "express";
 import { z } from "zod";
 import type { AuthenticatedRequest } from "../middleware/auth.js";
 import { generateTeacherPack } from "../services/generator.js";
-import type { GenerationRequest, AIProvider } from "../types.js";
+import { getSupabaseClient } from "../services/credits.js";
+import type { GenerationRequest, AIProvider, InspirationItem } from "../types.js";
 
 const router = Router();
 
@@ -37,9 +38,36 @@ const generateRequestSchema = z.object({
     )
     .optional()
     .default([]),
+  inspirationIds: z.array(z.string()).optional(),
   aiProvider: z.enum(["claude", "openai", "ollama"]).optional(),
   aiModel: z.string().optional(),
 });
+
+// Fetch inspiration items by IDs from database
+async function fetchInspirationItems(ids: string[], userId: string): Promise<InspirationItem[]> {
+  if (ids.length === 0) return [];
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("inspiration_items")
+    .select("id, type, title, source_url, content, storage_path")
+    .in("id", ids)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Failed to fetch inspiration items:", error);
+    return [];
+  }
+
+  return (data || []).map((item) => ({
+    id: item.id,
+    type: item.type as InspirationItem["type"],
+    title: item.title || "",
+    sourceUrl: item.source_url || undefined,
+    content: item.content || undefined,
+    storagePath: item.storage_path || undefined,
+  }));
+}
 
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -61,13 +89,19 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
     const data = parseResult.data;
     const aiProvider = (data.aiProvider || DEFAULT_AI_PROVIDER) as AIProvider;
 
+    // Fetch inspiration items from DB if IDs provided, otherwise use embedded items
+    let inspiration = data.inspiration;
+    if (data.inspirationIds && data.inspirationIds.length > 0) {
+      inspiration = await fetchInspirationItems(data.inspirationIds, req.userId);
+    }
+
     const request: GenerationRequest = {
       projectId: data.projectId,
       prompt: data.prompt,
       grade: data.grade,
       subject: data.subject,
       options: data.options,
-      inspiration: data.inspiration,
+      inspiration,
       aiProvider,
     };
 

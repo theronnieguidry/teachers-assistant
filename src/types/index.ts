@@ -44,11 +44,13 @@ export interface ProjectOptions {
 
 export interface InspirationItem {
   id: string;
+  userId?: string; // For persisted items in library
   type: "url" | "pdf" | "image" | "text";
   title: string;
   sourceUrl?: string;
   content?: string;
   storagePath?: string;
+  createdAt?: Date; // For persisted items
 }
 
 // Generation-related types

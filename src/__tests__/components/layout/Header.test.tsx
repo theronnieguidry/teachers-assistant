@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Header } from "@/components/layout/Header";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 // Mock useAuth hook
 const mockSignOut = vi.fn();
@@ -13,7 +14,7 @@ vi.mock("@/hooks/useAuth", () => ({
   }),
 }));
 
-// Mock OllamaSetup component
+// Mock settings components
 vi.mock("@/components/settings", () => ({
   OllamaSetup: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
     return open ? (
@@ -22,11 +23,16 @@ vi.mock("@/components/settings", () => ({
       </div>
     ) : null;
   },
+  UpdateDialog: ({ open }: { open: boolean }) => {
+    return open ? <div data-testid="update-dialog" role="dialog">Update Dialog</div> : null;
+  },
 }));
 
 describe("Header", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default to Claude so credits are shown (not Ollama)
+    useSettingsStore.setState({ defaultAiProvider: "claude" });
   });
 
   describe("branding", () => {
@@ -44,27 +50,32 @@ describe("Header", () => {
   });
 
   describe("credits display", () => {
-    it("shows credits balance when credits are available", () => {
+    it("shows credits balance when using Claude provider", () => {
+      useSettingsStore.setState({ defaultAiProvider: "claude" });
       render(<Header />);
 
       expect(screen.getByText("50")).toBeInTheDocument();
     });
 
-    it("does not show credits badge when credits are null", () => {
-      // Override the mock for this specific test
-      vi.doMock("@/hooks/useAuth", () => ({
-        useAuth: () => ({
-          profile: { email: "test@example.com" },
-          credits: null,
-          signOut: mockSignOut,
-        }),
-      }));
-
-      // Note: In a real scenario, we'd need to re-import the component
-      // For this test, we verify the conditional rendering pattern
+    it("shows credits balance when using OpenAI provider", () => {
+      useSettingsStore.setState({ defaultAiProvider: "openai" });
       render(<Header />);
-      // The credits badge should still be present from the default mock
+
       expect(screen.getByText("50")).toBeInTheDocument();
+    });
+
+    it("hides credits badge when using Ollama provider", () => {
+      useSettingsStore.setState({ defaultAiProvider: "ollama" });
+      render(<Header />);
+
+      expect(screen.queryByText("50")).not.toBeInTheDocument();
+    });
+
+    it("has accessible aria-label on credits badge", () => {
+      useSettingsStore.setState({ defaultAiProvider: "claude" });
+      render(<Header />);
+
+      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "API credits: 50");
     });
   });
 

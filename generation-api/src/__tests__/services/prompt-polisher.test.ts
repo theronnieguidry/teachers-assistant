@@ -32,7 +32,9 @@ describe("Prompt Polisher", () => {
 
       const result = await polishPrompt(baseContext);
 
-      expect(result).toBe(polishedText);
+      expect(result.polished).toBe(polishedText);
+      expect(result.wasPolished).toBe(true);
+      expect(result.skipReason).toBeUndefined();
       expect(fetch).toHaveBeenCalledWith(
         "http://localhost:11434/api/generate",
         expect.objectContaining({
@@ -47,7 +49,9 @@ describe("Prompt Polisher", () => {
 
       const result = await polishPrompt(baseContext);
 
-      expect(result).toBe(baseContext.prompt);
+      expect(result.polished).toBe(baseContext.prompt);
+      expect(result.wasPolished).toBe(false);
+      expect(result.skipReason).toBe("disabled");
       expect(fetch).not.toHaveBeenCalled();
     });
 
@@ -56,7 +60,9 @@ describe("Prompt Polisher", () => {
 
       const result = await polishPrompt(baseContext);
 
-      expect(result).toBe(baseContext.prompt);
+      expect(result.polished).toBe(baseContext.prompt);
+      expect(result.wasPolished).toBe(false);
+      expect(result.skipReason).toBe("ollama_unavailable");
     });
 
     it("should return original prompt when Ollama returns error status", async () => {
@@ -67,7 +73,9 @@ describe("Prompt Polisher", () => {
 
       const result = await polishPrompt(baseContext);
 
-      expect(result).toBe(baseContext.prompt);
+      expect(result.polished).toBe(baseContext.prompt);
+      expect(result.wasPolished).toBe(false);
+      expect(result.skipReason).toBe("ollama_error");
     });
 
     it("should return original prompt when Ollama returns empty response", async () => {
@@ -78,7 +86,9 @@ describe("Prompt Polisher", () => {
 
       const result = await polishPrompt(baseContext);
 
-      expect(result).toBe(baseContext.prompt);
+      expect(result.polished).toBe(baseContext.prompt);
+      expect(result.wasPolished).toBe(false);
+      expect(result.skipReason).toBe("invalid_response");
     });
 
     it("should return original prompt when Ollama returns too short response", async () => {
@@ -89,18 +99,22 @@ describe("Prompt Polisher", () => {
 
       const result = await polishPrompt(baseContext);
 
-      expect(result).toBe(baseContext.prompt);
+      expect(result.polished).toBe(baseContext.prompt);
+      expect(result.wasPolished).toBe(false);
+      expect(result.skipReason).toBe("invalid_response");
     });
 
-    it("should skip polishing for already detailed prompts (100+ chars)", async () => {
-      const detailedPrompt = "Create a comprehensive math worksheet about addition with two-digit numbers. Include problems that progress from easy to challenging, with word problems that relate to real-world scenarios.";
+    it("should skip polishing for already detailed prompts (300+ chars)", async () => {
+      const detailedPrompt = "Create a comprehensive math worksheet about addition with two-digit numbers. Include problems that progress from easy to challenging, with word problems that relate to real-world scenarios like shopping and counting money. The worksheet should have visual aids and be appropriate for second grade students who are just learning to add with regrouping. Include at least 15 problems.";
 
       const result = await polishPrompt({
         ...baseContext,
         prompt: detailedPrompt,
       });
 
-      expect(result).toBe(detailedPrompt);
+      expect(result.polished).toBe(detailedPrompt);
+      expect(result.wasPolished).toBe(false);
+      expect(result.skipReason).toBe("already_detailed");
       expect(fetch).not.toHaveBeenCalled();
     });
 

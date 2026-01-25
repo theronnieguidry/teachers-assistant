@@ -24,17 +24,27 @@ const mockItems = [
 ];
 
 // Mock inspirationStore
-const mockAddItem = vi.fn();
-const mockRemoveItem = vi.fn();
+const mockAddItem = vi.fn().mockResolvedValue({ id: "new-item" });
+const mockRemoveItem = vi.fn().mockResolvedValue(undefined);
+const mockFetchItems = vi.fn().mockResolvedValue(undefined);
 
 let mockStoreState = {
   items: [] as typeof mockItems,
+  isLoading: false,
   addItem: mockAddItem,
   removeItem: mockRemoveItem,
+  fetchItems: mockFetchItems,
 };
 
 vi.mock("@/stores/inspirationStore", () => ({
   useInspirationStore: () => mockStoreState,
+}));
+
+// Mock authStore
+vi.mock("@/stores/authStore", () => ({
+  useAuthStore: () => ({
+    user: { id: "user-123", email: "test@example.com" },
+  }),
 }));
 
 describe("InspirationPanel", () => {
@@ -42,8 +52,10 @@ describe("InspirationPanel", () => {
     vi.clearAllMocks();
     mockStoreState = {
       items: [],
+      isLoading: false,
       addItem: mockAddItem,
       removeItem: mockRemoveItem,
+      fetchItems: mockFetchItems,
     };
   });
 
