@@ -180,4 +180,80 @@ describe("AIProviderStep", () => {
 
     expect(mockSetOllamaModel).toHaveBeenCalledWith("llama3.2");
   });
+
+  describe("Image inspiration warning", () => {
+    const imageInspiration = [
+      { id: "img-1", type: "image" as const, title: "design.png", content: "base64..." },
+    ];
+    const textInspiration = [
+      { id: "text-1", type: "url" as const, title: "example.com", sourceUrl: "https://example.com" },
+    ];
+
+    it("does not show warning when Claude is selected with image inspiration", () => {
+      useWizardStore.setState({
+        aiProvider: "claude",
+        ollamaModel: null,
+        selectedInspiration: imageInspiration,
+      });
+      render(<AIProviderStep />);
+
+      expect(screen.queryByText(/Image inspiration won't be analyzed/i)).not.toBeInTheDocument();
+    });
+
+    it("does not show warning when OpenAI is selected with image inspiration", () => {
+      useWizardStore.setState({
+        aiProvider: "openai",
+        ollamaModel: null,
+        selectedInspiration: imageInspiration,
+      });
+      render(<AIProviderStep />);
+
+      expect(screen.queryByText(/Image inspiration won't be analyzed/i)).not.toBeInTheDocument();
+    });
+
+    it("does not show warning when Ollama is selected without image inspiration", () => {
+      useWizardStore.setState({
+        aiProvider: "ollama",
+        ollamaModel: "llama3.2",
+        selectedInspiration: textInspiration,
+      });
+      render(<AIProviderStep />);
+
+      expect(screen.queryByText(/Image inspiration won't be analyzed/i)).not.toBeInTheDocument();
+    });
+
+    it("does not show warning when Ollama is selected with no inspiration", () => {
+      useWizardStore.setState({
+        aiProvider: "ollama",
+        ollamaModel: "llama3.2",
+        selectedInspiration: [],
+      });
+      render(<AIProviderStep />);
+
+      expect(screen.queryByText(/Image inspiration won't be analyzed/i)).not.toBeInTheDocument();
+    });
+
+    it("shows warning when Ollama is selected with image inspiration", () => {
+      useWizardStore.setState({
+        aiProvider: "ollama",
+        ollamaModel: "llama3.2",
+        selectedInspiration: imageInspiration,
+      });
+      render(<AIProviderStep />);
+
+      expect(screen.getByText(/Image inspiration won't be analyzed/i)).toBeInTheDocument();
+      expect(screen.getByText(/Ollama cannot analyze images/i)).toBeInTheDocument();
+    });
+
+    it("shows warning when Ollama is selected with mixed inspiration including images", () => {
+      useWizardStore.setState({
+        aiProvider: "ollama",
+        ollamaModel: "llama3.2",
+        selectedInspiration: [...textInspiration, ...imageInspiration],
+      });
+      render(<AIProviderStep />);
+
+      expect(screen.getByText(/Image inspiration won't be analyzed/i)).toBeInTheDocument();
+    });
+  });
 });

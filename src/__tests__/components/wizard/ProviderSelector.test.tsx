@@ -54,7 +54,7 @@ describe("ProviderSelector", () => {
 
       expect(screen.getByText(/Anthropic's AI - recommended for educational content/)).toBeInTheDocument();
       expect(screen.getByText(/GPT-4 powered content generation/)).toBeInTheDocument();
-      expect(screen.getByText(/Run AI locally on your computer/)).toBeInTheDocument();
+      expect(screen.getByText(/Run AI locally - no image analysis/)).toBeInTheDocument();
     });
   });
 

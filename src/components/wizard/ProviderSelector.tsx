@@ -47,7 +47,7 @@ const providers: ProviderOption[] = [
   {
     id: "ollama",
     name: "Ollama",
-    description: "Run AI locally on your computer",
+    description: "Run AI locally - no image analysis",
     badge: "Free",
     badgeVariant: "secondary",
   },
