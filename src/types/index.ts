@@ -1,4 +1,5 @@
 export * from "./database";
+export * from "./learner";
 
 // Project-related types
 export interface Project {
@@ -29,9 +30,50 @@ export interface ProjectVersion {
   worksheetHtml: string | null;
   lessonPlanHtml: string | null;
   answerKeyHtml: string | null;
+  // New lesson plan artifacts (Issue #17)
+  teacherScriptHtml: string | null;
+  studentActivityHtml: string | null;
+  materialsListHtml: string | null;
+  lessonMetadata: LessonMetadata | null;
   aiProvider: string | null;
   aiModel: string | null;
   createdAt: Date;
+}
+
+// ============================================
+// Lesson Plan Types (Issue #17)
+// ============================================
+
+export type StudentProfileFlag =
+  | "needs_movement"
+  | "struggles_reading"
+  | "easily_frustrated"
+  | "advanced"
+  | "ell";
+
+export type TeachingConfidence = "novice" | "intermediate" | "experienced";
+
+export type LessonLength = 15 | 30 | 45 | 60;
+
+export interface LessonMetadata {
+  objective: string;
+  lessonLength: LessonLength;
+  teachingConfidence: TeachingConfidence;
+  studentProfile: StudentProfileFlag[];
+  sectionsGenerated: string[];
+}
+
+// Curriculum Pack Types (for "Help Me Choose" feature)
+export interface ObjectiveRecommendation {
+  id: string;
+  text: string;
+  difficulty: "easy" | "standard" | "challenge";
+  estimatedMinutes: number;
+  unitTitle: string;
+  whyRecommended: string;
+  vocabulary?: string[];
+  activities?: string[];
+  misconceptions?: string[];
 }
 
 export interface ProjectOptions {
@@ -40,6 +82,10 @@ export interface ProjectOptions {
   difficulty?: "easy" | "medium" | "hard";
   format?: "worksheet" | "lesson_plan" | "both";
   includeAnswerKey?: boolean;
+  // Lesson plan specific options (Issue #17)
+  lessonLength?: LessonLength;
+  studentProfile?: StudentProfileFlag[];
+  teachingConfidence?: TeachingConfidence;
 }
 
 export interface InspirationItem {
@@ -61,9 +107,13 @@ export interface GenerationRequest {
   subject: string;
   options: ProjectOptions;
   inspiration: InspirationItem[];
-  aiProvider?: "claude" | "openai" | "ollama";
+  // User-facing (premium, local) and legacy (claude, openai, ollama) provider types
+  aiProvider?: "premium" | "local" | "claude" | "openai" | "ollama";
   aiModel?: string;
   prePolished?: boolean; // Skip prompt polishing if already done client-side
+  // Premium pipeline parameters
+  generationMode?: GenerationMode;
+  visualSettings?: VisualSettings;
 }
 
 export interface GenerationProgress {
@@ -78,6 +128,11 @@ export interface GenerationResult {
   worksheetHtml: string;
   lessonPlanHtml: string;
   answerKeyHtml: string;
+  // New lesson plan artifacts (Issue #17)
+  teacherScriptHtml?: string;
+  studentActivityHtml?: string;
+  materialsListHtml?: string;
+  lessonMetadata?: LessonMetadata;
   creditsUsed: number;
 }
 
@@ -97,3 +152,68 @@ export interface UserCredits {
 
 // Import Grade and ProjectStatus from database types
 import type { Grade, ProjectStatus } from "./database";
+
+// ============================================
+// Premium Pipeline Types
+// ============================================
+
+export type GenerationMode = "standard" | "premium_plan_pipeline" | "premium_lesson_plan_pipeline";
+export type VisualRichness = "minimal" | "standard" | "rich";
+export type VisualStyle = "friendly_cartoon" | "simple_icons" | "black_white";
+
+export interface VisualSettings {
+  includeVisuals: boolean;
+  richness: VisualRichness;
+  style: VisualStyle;
+  theme?: string;
+}
+
+export const DEFAULT_VISUAL_SETTINGS: VisualSettings = {
+  includeVisuals: true,
+  richness: "minimal",
+  style: "friendly_cartoon",
+};
+
+export interface EstimateRequest {
+  grade: Grade;
+  subject: string;
+  options: ProjectOptions;
+  visualSettings?: VisualSettings;
+  generationMode?: GenerationMode;
+}
+
+export interface EstimateResponse {
+  estimate: {
+    minCredits: number;
+    maxCredits: number;
+    expectedCredits: number;
+    breakdown?: {
+      textGeneration: number;
+      imageGeneration: number;
+      qualityGate: number;
+    };
+  };
+  disclaimer: string;
+}
+
+export type ImprovementType =
+  | "fix_confusing"
+  | "simplify"
+  | "add_questions"
+  | "add_visuals"
+  | "make_harder"
+  | "make_easier";
+
+export interface ImprovementRequest {
+  projectId: string;
+  versionId: string;
+  improvementType: ImprovementType;
+  targetDocument: "worksheet" | "lesson_plan" | "answer_key";
+  additionalInstructions?: string;
+}
+
+export interface ImprovementResponse {
+  newVersionId: string;
+  creditsUsed: number;
+  changes: string[];
+}

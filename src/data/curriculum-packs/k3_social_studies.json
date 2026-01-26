@@ -1,0 +1,127 @@
+{
+  "subject": "Social Studies",
+  "gradeRange": "K-3",
+  "version": "1.0",
+  "units": [
+    {
+      "unitId": "self_k",
+      "title": "All About Me and My Family",
+      "grade": "K",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "ss_k_01",
+          "text": "Describe personal characteristics and family members",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["All families look the same", "Not recognizing diverse family structures"],
+          "vocabulary": ["family", "mom", "dad", "brother", "sister", "grandparent"],
+          "activities": ["Family tree", "All about me", "Family traditions"]
+        }
+      ]
+    },
+    {
+      "unitId": "community_1",
+      "title": "My Community",
+      "grade": "1",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "ss_1_01",
+          "text": "Identify community helpers and their roles",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Not understanding all jobs help the community", "Stereotyping job roles"],
+          "vocabulary": ["community", "helper", "firefighter", "police", "doctor", "teacher", "mail carrier"],
+          "activities": ["Helper matching", "Community walk", "Helper interview"]
+        },
+        {
+          "id": "ss_1_02",
+          "text": "Follow rules in different settings",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Rules are punishment", "Not understanding why rules exist"],
+          "vocabulary": ["rule", "safety", "fair", "respect"],
+          "activities": ["Rule sort", "Create class rules", "Rules in action"]
+        }
+      ]
+    },
+    {
+      "unitId": "maps_2",
+      "title": "Maps and Geography",
+      "grade": "2",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "ss_2_01",
+          "text": "Read and use simple maps",
+          "prereqs": [],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Maps are always north-up", "Not understanding scale"],
+          "vocabulary": ["map", "key", "legend", "symbol", "north", "south", "east", "west"],
+          "activities": ["Classroom map", "Map symbols", "Treasure hunt"]
+        },
+        {
+          "id": "ss_2_02",
+          "text": "Identify continents and oceans",
+          "prereqs": ["ss_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing continents and countries", "Not understanding relative size"],
+          "vocabulary": ["continent", "ocean", "Africa", "Antarctica", "Asia", "Australia", "Europe", "North America", "South America"],
+          "activities": ["Globe exploration", "Continent puzzle", "Ocean labels"]
+        }
+      ]
+    },
+    {
+      "unitId": "history_3",
+      "title": "Understanding the Past",
+      "grade": "3",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "ss_3_01",
+          "text": "Understand the concept of past, present, and future",
+          "prereqs": [],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Long ago means same thing to everyone", "Not understanding historical context"],
+          "vocabulary": ["past", "present", "future", "history", "timeline", "long ago"],
+          "activities": ["Personal timeline", "Then and now", "Time capsule"]
+        },
+        {
+          "id": "ss_3_02",
+          "text": "Describe how communities change over time",
+          "prereqs": ["ss_3_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Change is always good or bad", "Not connecting past to present"],
+          "vocabulary": ["change", "community", "technology", "transportation"],
+          "activities": ["Old photos comparison", "Interview elders", "Community history"]
+        }
+      ]
+    },
+    {
+      "unitId": "government_3",
+      "title": "Basic Civics",
+      "grade": "3",
+      "sequence": 2,
+      "objectives": [
+        {
+          "id": "ss_3_03",
+          "text": "Understand the role of government in communities",
+          "prereqs": ["ss_1_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Government only makes rules", "Not understanding services"],
+          "vocabulary": ["government", "mayor", "law", "citizen", "vote"],
+          "activities": ["Class election", "Government services", "Laws we know"]
+        }
+      ]
+    }
+  ]
+}

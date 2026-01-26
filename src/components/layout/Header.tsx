@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -10,14 +9,17 @@ import {
 } from "@/components/ui/tooltip";
 import { LogOut, Coins, GraduationCap, User, Settings } from "lucide-react";
 import { OllamaSetup } from "@/components/settings";
+import { FeedbackButton } from "@/components/feedback";
+import { PurchaseDialog } from "@/components/purchase";
+import { LearnerSwitcher } from "@/components/learner";
 
 export function Header() {
   const { profile, credits, signOut } = useAuth();
-  const { defaultAiProvider } = useSettingsStore();
   const [ollamaSetupOpen, setOllamaSetupOpen] = useState(false);
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
-  // Only show credits when using paid providers (Claude/OpenAI)
-  const showCredits = defaultAiProvider !== "ollama" && credits;
+  // Always show credits badge when available (users may switch between Premium and Local AI)
+  const showCredits = credits !== null;
 
   return (
     <header className="h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -35,34 +37,38 @@ export function Header() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
-          {/* Credits badge - only shown when using Claude/OpenAI */}
+          {/* Credits badge - clickable to open purchase dialog */}
           {showCredits && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary rounded-full cursor-help"
-                    aria-label={`API credits: ${credits.balance}`}
-                    role="status"
+                  <Button
+                    variant="ghost"
+                    className="flex items-center gap-1.5 px-3 py-1.5 h-auto bg-secondary hover:bg-secondary/80 rounded-full"
+                    onClick={() => setPurchaseDialogOpen(true)}
+                    aria-label={`Premium AI credits: ${credits.balance}. Click to buy more.`}
                   >
                     <Coins className="h-4 w-4 text-amber-500" />
                     <span className="text-sm font-medium">{credits.balance}</span>
-                  </div>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-[200px]">
                   <div className="text-sm space-y-1">
-                    <p className="font-medium">API Credits: {credits.balance}</p>
+                    <p className="font-medium">Premium AI Credits: {credits.balance}</p>
                     <p className="text-primary-foreground/80">
                       Used: {credits.lifetimeUsed} of {credits.lifetimeGranted}
                     </p>
                     <p className="text-xs text-primary-foreground/70 pt-1">
-                      Credits are consumed when generating with Claude or OpenAI.
+                      Click to buy more credits
                     </p>
                   </div>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
+
+          {/* Learner Switcher */}
+          <LearnerSwitcher compact />
 
           {/* Settings */}
           <Button
@@ -73,6 +79,9 @@ export function Header() {
           >
             <Settings className="h-4 w-4" />
           </Button>
+
+          {/* Feedback */}
+          <FeedbackButton />
 
           {/* User info */}
           <div className="flex items-center gap-2 pl-2 border-l">
@@ -96,6 +105,12 @@ export function Header() {
 
       {/* Ollama Setup Dialog */}
       <OllamaSetup open={ollamaSetupOpen} onOpenChange={setOllamaSetupOpen} />
+
+      {/* Purchase Dialog */}
+      <PurchaseDialog
+        open={purchaseDialogOpen}
+        onOpenChange={setPurchaseDialogOpen}
+      />
     </header>
   );
 }

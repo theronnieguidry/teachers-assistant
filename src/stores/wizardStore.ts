@@ -1,7 +1,20 @@
 import { create } from "zustand";
-import type { Grade, InspirationItem, ProjectOptions, Project } from "@/types";
+import type {
+  Grade,
+  InspirationItem,
+  ProjectOptions,
+  Project,
+  VisualSettings,
+  GenerationMode,
+  StudentProfileFlag,
+  TeachingConfidence,
+  LessonLength,
+  ObjectiveRecommendation,
+  LearnerProfile,
+} from "@/types";
+import { DEFAULT_VISUAL_SETTINGS } from "@/types";
 import { useProjectStore } from "@/stores/projectStore";
-import { useSettingsStore } from "@/stores/settingsStore";
+import { useSettingsStore, type AiProvider } from "@/stores/settingsStore";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -13,9 +26,11 @@ interface ClassDetails {
   includeVisuals: boolean;
   difficulty: "easy" | "medium" | "hard";
   includeAnswerKey: boolean;
+  // Lesson plan specific options (Issue #17)
+  lessonLength: LessonLength;
+  studentProfile: StudentProfileFlag[];
+  teachingConfidence: TeachingConfidence;
 }
-
-type AiProvider = "claude" | "openai" | "ollama";
 
 interface WizardState {
   isOpen: boolean;
@@ -29,6 +44,10 @@ interface WizardState {
   // AI Provider state
   aiProvider: AiProvider;
   ollamaModel: string | null;
+
+  // Premium pipeline state
+  generationMode: GenerationMode;
+  visualSettings: VisualSettings;
 
   // Polished prompt state
   polishedPrompt: string | null;
@@ -46,6 +65,11 @@ interface WizardState {
   // Actions
   openWizard: (prompt: string) => void;
   openWizardForRegeneration: (project: Project) => Promise<void>;
+  openWizardFromObjective: (
+    objective: ObjectiveRecommendation,
+    learner: LearnerProfile,
+    format?: "worksheet" | "lesson_plan" | "both"
+  ) => void;
   closeWizard: () => void;
   setStep: (step: WizardStep) => void;
   nextStep: () => void;
@@ -57,6 +81,8 @@ interface WizardState {
   setOutputPath: (path: string) => void;
   setAiProvider: (provider: AiProvider) => void;
   setOllamaModel: (model: string | null) => void;
+  setGenerationMode: (mode: GenerationMode) => void;
+  setVisualSettings: (settings: Partial<VisualSettings>) => void;
   setPolishedPrompt: (prompt: string | null) => void;
   setUsePolishedPrompt: (use: boolean) => void;
   setGenerationState: (state: {
@@ -76,6 +102,10 @@ const defaultClassDetails: ClassDetails = {
   includeVisuals: true,
   difficulty: "medium",
   includeAnswerKey: true,
+  // Lesson plan defaults (Issue #17)
+  lessonLength: 30,
+  studentProfile: [],
+  teachingConfidence: "intermediate",
 };
 
 export const useWizardStore = create<WizardState>((set, get) => ({
@@ -86,8 +116,10 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   classDetails: null,
   selectedInspiration: [],
   outputPath: null,
-  aiProvider: "claude",
+  aiProvider: "local",
   ollamaModel: null,
+  generationMode: "standard",
+  visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
   polishedPrompt: null,
   usePolishedPrompt: true,
   regeneratingProjectId: null,
@@ -102,6 +134,9 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       prompt.length > 50 ? prompt.substring(0, 50) + "..." : prompt;
     // Use the user's default AI provider from settings
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
+    // Use premium pipeline for premium provider
+    const defaultMode: GenerationMode =
+      defaultProvider === "premium" ? "premium_plan_pipeline" : "standard";
     set({
       isOpen: true,
       currentStep: 1,
@@ -112,6 +147,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       outputPath: null,
       aiProvider: defaultProvider,
       ollamaModel: null,
+      generationMode: defaultMode,
+      visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
@@ -136,6 +173,9 @@ export const useWizardStore = create<WizardState>((set, get) => ({
 
     // Use the user's default AI provider from settings
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
+    // Use premium pipeline for premium provider
+    const defaultMode: GenerationMode =
+      defaultProvider === "premium" ? "premium_plan_pipeline" : "standard";
 
     set({
       isOpen: true,
@@ -150,14 +190,76 @@ export const useWizardStore = create<WizardState>((set, get) => ({
         includeVisuals: options.includeVisuals ?? true,
         difficulty: (options.difficulty as ClassDetails["difficulty"]) || "medium",
         includeAnswerKey: options.includeAnswerKey ?? true,
+        // Lesson plan fields (Issue #17)
+        lessonLength: (options.lessonLength as LessonLength) || 30,
+        studentProfile: (options.studentProfile as StudentProfileFlag[]) || [],
+        teachingConfidence: (options.teachingConfidence as TeachingConfidence) || "intermediate",
       },
       selectedInspiration: inspiration,
       outputPath: project.outputPath || null,
       aiProvider: defaultProvider,
       ollamaModel: null,
+      generationMode: defaultMode,
+      visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: project.id,
+      isGenerating: false,
+      generationProgress: 0,
+      generationMessage: "",
+      generationError: null,
+    });
+  },
+
+  openWizardFromObjective: (objective, learner, format = "both") => {
+    // Create a prompt from the objective
+    const prompt = `Create a ${objective.estimatedMinutes}-minute ${format === "worksheet" ? "practice worksheet" : "lesson"} about: ${objective.text}`;
+    const title = objective.text.length > 50
+      ? objective.text.substring(0, 50) + "..."
+      : objective.text;
+
+    // Map objective difficulty to wizard difficulty
+    const difficultyMap: Record<string, "easy" | "medium" | "hard"> = {
+      easy: "easy",
+      standard: "medium",
+      challenge: "hard",
+    };
+
+    // Use the user's default AI provider from settings
+    const defaultProvider = useSettingsStore.getState().defaultAiProvider;
+    const defaultMode: GenerationMode =
+      defaultProvider === "premium" ? "premium_plan_pipeline" : "standard";
+
+    // Extract subject from unit title (first word typically)
+    const subjectMatch = objective.unitTitle.match(/^(Math|Reading|Writing|Science|Social Studies)/i);
+    const subject = subjectMatch ? subjectMatch[1] : objective.unitTitle.split(" ")[0];
+
+    set({
+      isOpen: true,
+      currentStep: 1,
+      prompt,
+      title,
+      classDetails: {
+        grade: learner.grade,
+        subject: subject,
+        format: format,
+        questionCount: format === "worksheet" ? 10 : 5,
+        includeVisuals: true,
+        difficulty: difficultyMap[objective.difficulty] || "medium",
+        includeAnswerKey: true,
+        lessonLength: objective.estimatedMinutes as LessonLength,
+        studentProfile: [],
+        teachingConfidence: learner.adultConfidence,
+      },
+      selectedInspiration: [],
+      outputPath: null,
+      aiProvider: defaultProvider,
+      ollamaModel: null,
+      generationMode: defaultMode,
+      visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
+      polishedPrompt: null,
+      usePolishedPrompt: true,
+      regeneratingProjectId: null,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -208,11 +310,24 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   },
 
   setAiProvider: (provider) => {
-    set({ aiProvider: provider });
+    // Also update generation mode based on provider
+    const generationMode: GenerationMode =
+      provider === "premium" ? "premium_plan_pipeline" : "standard";
+    set({ aiProvider: provider, generationMode });
   },
 
   setOllamaModel: (model) => {
     set({ ollamaModel: model });
+  },
+
+  setGenerationMode: (mode) => {
+    set({ generationMode: mode });
+  },
+
+  setVisualSettings: (settings) => {
+    set((state) => ({
+      visualSettings: { ...state.visualSettings, ...settings },
+    }));
   },
 
   setPolishedPrompt: (prompt) => {
@@ -234,6 +349,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
 
   reset: () => {
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
+    const defaultMode: GenerationMode =
+      defaultProvider === "premium" ? "premium_plan_pipeline" : "standard";
     set({
       isOpen: false,
       currentStep: 1,
@@ -244,6 +361,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       outputPath: null,
       aiProvider: defaultProvider,
       ollamaModel: null,
+      generationMode: defaultMode,
+      visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
@@ -266,5 +385,9 @@ export function getProjectOptions(state: WizardState): ProjectOptions {
     difficulty: classDetails.difficulty,
     format: classDetails.format,
     includeAnswerKey: classDetails.includeAnswerKey,
+    // Lesson plan fields (Issue #17)
+    lessonLength: classDetails.lessonLength,
+    studentProfile: classDetails.studentProfile,
+    teachingConfidence: classDetails.teachingConfidence,
   };
 }

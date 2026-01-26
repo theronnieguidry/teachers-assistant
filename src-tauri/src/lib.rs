@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{file_system, dialog, ollama};
+use commands::{file_system, dialog, ollama, learner_storage};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,6 +21,14 @@ pub fn run() {
             ollama::pull_ollama_model,
             ollama::list_ollama_models,
             ollama::get_recommended_models,
+            learner_storage::get_learner_profiles,
+            learner_storage::save_learner_profile,
+            learner_storage::delete_learner_profile,
+            learner_storage::get_learner_mastery,
+            learner_storage::save_objective_mastery,
+            learner_storage::save_learner_mastery,
+            learner_storage::get_quick_check_history,
+            learner_storage::save_quick_check_result,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

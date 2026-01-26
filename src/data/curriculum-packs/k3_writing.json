@@ -1,0 +1,119 @@
+{
+  "subject": "Writing",
+  "gradeRange": "K-3",
+  "version": "1.0",
+  "units": [
+    {
+      "unitId": "handwriting_k",
+      "title": "Handwriting Basics",
+      "grade": "K",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "write_k_01",
+          "text": "Hold a pencil correctly",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 15,
+          "misconceptions": ["Gripping too tightly", "Using fist grip"],
+          "vocabulary": ["pencil", "grip", "hold"],
+          "activities": ["Pencil grip practice", "Finger strengthening", "Tracing lines"]
+        },
+        {
+          "id": "write_k_02",
+          "text": "Write first name",
+          "prereqs": ["write_k_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Reversing letters", "Inconsistent size"],
+          "vocabulary": ["name", "capital letter", "write"],
+          "activities": ["Name tracing", "Name writing practice", "Name art"]
+        }
+      ]
+    },
+    {
+      "unitId": "sentences_1",
+      "title": "Writing Simple Sentences",
+      "grade": "1",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "write_1_01",
+          "text": "Write a complete sentence with capital and period",
+          "prereqs": ["write_k_02"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Forgetting punctuation", "Run-on sentences"],
+          "vocabulary": ["sentence", "capital letter", "period", "complete"],
+          "activities": ["Fix the sentence", "Picture prompts", "Sentence building"]
+        },
+        {
+          "id": "write_1_02",
+          "text": "Use question marks and exclamation points",
+          "prereqs": ["write_1_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Using wrong punctuation", "Not recognizing sentence types"],
+          "vocabulary": ["question mark", "exclamation point", "asking", "telling", "exciting"],
+          "activities": ["Sort sentences", "Add punctuation", "Punctuation hunt"]
+        }
+      ]
+    },
+    {
+      "unitId": "paragraphs_2",
+      "title": "Writing Paragraphs",
+      "grade": "2",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "write_2_01",
+          "text": "Write a paragraph with topic sentence and details",
+          "prereqs": ["write_1_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 45,
+          "misconceptions": ["No clear topic", "Details don't support topic"],
+          "vocabulary": ["paragraph", "topic sentence", "detail", "indent"],
+          "activities": ["Topic sentence practice", "Detail brainstorm", "Paragraph frames"]
+        },
+        {
+          "id": "write_2_02",
+          "text": "Write a personal narrative about an experience",
+          "prereqs": ["write_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 45,
+          "misconceptions": ["Not enough detail", "Events out of order"],
+          "vocabulary": ["narrative", "experience", "happened", "felt"],
+          "activities": ["Story map", "Sensory details", "Time order words"]
+        }
+      ]
+    },
+    {
+      "unitId": "essays_3",
+      "title": "Introduction to Essays",
+      "grade": "3",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "write_3_01",
+          "text": "Write an opinion piece with reasons",
+          "prereqs": ["write_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 45,
+          "misconceptions": ["Opinion stated as fact", "Weak reasons"],
+          "vocabulary": ["opinion", "reason", "because", "I think", "I believe"],
+          "activities": ["Opinion brainstorm", "Reasons web", "Opinion sandwich"]
+        },
+        {
+          "id": "write_3_02",
+          "text": "Write an informational paragraph",
+          "prereqs": ["write_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 45,
+          "misconceptions": ["Including opinions in informational text", "Not organized by topic"],
+          "vocabulary": ["informational", "facts", "explain"],
+          "activities": ["Fact gathering", "Topic organization", "Informational frame"]
+        }
+      ]
+    }
+  ]
+}
