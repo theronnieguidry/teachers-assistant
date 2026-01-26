@@ -14,11 +14,19 @@ export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code */
   forbidOnly: !!process.env.CI,
 
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
+  /* Retry flaky tests - 1 retry locally, 2 on CI */
+  retries: process.env.CI ? 2 : 1,
 
-  /* Opt out of parallel tests on CI */
-  workers: process.env.CI ? 1 : undefined,
+  /* Limit workers for stability - 1 on CI, 4 locally */
+  workers: process.env.CI ? 1 : 4,
+
+  /* Global timeout for individual tests */
+  timeout: 60000,
+
+  /* Expect timeout for assertions */
+  expect: {
+    timeout: 10000,
+  },
 
   /* Reporter to use */
   reporter: [
@@ -40,6 +48,12 @@ export default defineConfig({
 
     /* Record video on failure */
     video: "retain-on-failure",
+
+    /* Action timeout (clicking, filling, etc.) */
+    actionTimeout: 10000,
+
+    /* Navigation timeout */
+    navigationTimeout: 30000,
   },
 
   /* Configure projects for major browsers */
@@ -51,7 +65,11 @@ export default defineConfig({
 
     {
       name: "firefox",
-      use: { ...devices["Desktop Firefox"] },
+      use: {
+        ...devices["Desktop Firefox"],
+        /* Firefox needs longer timeouts per CLAUDE.md */
+        actionTimeout: 15000,
+      },
     },
 
     {

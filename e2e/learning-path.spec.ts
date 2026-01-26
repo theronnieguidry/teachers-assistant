@@ -110,8 +110,7 @@ test.describe("Learning Path Feature", () => {
   test.describe("Today View - No Learner", () => {
     test("LP-006: should show welcome message when no learner profiles exist", async ({ page }) => {
       // Today view should show welcome for first-time users
-      const welcomeText = page.getByText(/welcome|add.*learner|first learner/i);
-      await expect(welcomeText).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("Welcome to Learning Path!")).toBeVisible({ timeout: 5000 });
     });
 
     test("LP-007: should show Add Learner button when no profiles exist", async ({ page }) => {
@@ -155,15 +154,14 @@ test.describe("Learning Path Feature", () => {
       const nameInput = page.getByPlaceholder(/emma|nickname|name/i);
       await nameInput.fill("Test Student");
 
-      // Submit form
-      const submitButton = page.getByRole("button", { name: /add learner/i }).last();
-      await submitButton.click();
+      // Submit form using keyboard (button may be outside viewport)
+      await nameInput.press("Enter");
 
       // Dialog should close and learner should be created
       await expect(page.getByRole("dialog")).toBeHidden({ timeout: 5000 });
 
-      // Should see greeting with learner name
-      await expect(page.getByText(/test student/i)).toBeVisible({ timeout: 5000 });
+      // Should see greeting with learner name (in heading)
+      await expect(page.getByRole("heading", { name: /test student/i })).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -176,15 +174,14 @@ test.describe("Learning Path Feature", () => {
       const nameInput = page.getByPlaceholder(/emma|nickname|name/i);
       await nameInput.fill("Emma");
 
-      const submitButton = page.getByRole("button", { name: /add learner/i }).last();
-      await submitButton.click();
+      await nameInput.press("Enter");
 
       // Wait for dialog to close
       await expect(page.getByRole("dialog")).toBeHidden({ timeout: 5000 });
     });
 
     test("LP-012: should show greeting with learner name", async ({ page }) => {
-      await expect(page.getByText(/emma/i)).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole("heading", { name: /emma/i })).toBeVisible({ timeout: 5000 });
     });
 
     test("LP-013: should show Next Up section", async ({ page }) => {
@@ -197,7 +194,7 @@ test.describe("Learning Path Feature", () => {
     });
 
     test("LP-015: should show Progress section", async ({ page }) => {
-      await expect(page.getByText(/progress/i)).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("Overall Progress")).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -210,8 +207,7 @@ test.describe("Learning Path Feature", () => {
       const nameInput = page.getByPlaceholder(/emma|nickname|name/i);
       await nameInput.fill("Emma");
 
-      const submitButton = page.getByRole("button", { name: /add learner/i }).last();
-      await submitButton.click();
+      await nameInput.press("Enter");
 
       await expect(page.getByRole("dialog")).toBeHidden({ timeout: 5000 });
 
@@ -244,12 +240,11 @@ test.describe("Learning Path Feature", () => {
   test.describe("Learner Switcher", () => {
     test.beforeEach(async ({ page }) => {
       // Create first learner
-      let addButton = page.getByRole("button", { name: /add.*learner/i });
+      const addButton = page.getByRole("button", { name: /add.*learner/i });
       await addButton.click();
-      let nameInput = page.getByPlaceholder(/emma|nickname|name/i);
+      const nameInput = page.getByPlaceholder(/emma|nickname|name/i);
       await nameInput.fill("Emma");
-      let submitButton = page.getByRole("button", { name: /add learner/i }).last();
-      await submitButton.click();
+      await nameInput.press("Enter");
       await expect(page.getByRole("dialog")).toBeHidden({ timeout: 5000 });
     });
 
@@ -275,8 +270,7 @@ test.describe("Learning Path Feature", () => {
       await addButton.click();
       const nameInput = page.getByPlaceholder(/emma|nickname|name/i);
       await nameInput.fill("Emma");
-      const submitButton = page.getByRole("button", { name: /add learner/i }).last();
-      await submitButton.click();
+      await nameInput.press("Enter");
       await expect(page.getByRole("dialog")).toBeHidden({ timeout: 5000 });
     });
 

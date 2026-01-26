@@ -36,12 +36,30 @@ test.describe("Settings - Ollama Setup", () => {
       });
     });
 
-    // Mock credits endpoint
+    // Mock profiles endpoint
+    await page.route("**/rest/v1/profiles**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "test-user-id",
+          email: "test@example.com",
+          display_name: null,
+          avatar_url: null,
+        }),
+      });
+    });
+
+    // Mock credits endpoint (single object for .single() query)
     await page.route("**/rest/v1/credits**", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([{ balance: 50, lifetime_granted: 50, lifetime_used: 0 }]),
+        body: JSON.stringify({
+          balance: 50,
+          lifetime_granted: 50,
+          lifetime_used: 0,
+        }),
       });
     });
 
@@ -96,8 +114,8 @@ test.describe("Settings - Ollama Setup", () => {
 
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Should see status information about Ollama
-    await expect(page.getByText(/ollama/i)).toBeVisible();
+    // Should see status information about Ollama (use first() to handle multiple matches)
+    await expect(page.getByText(/ollama/i).first()).toBeVisible();
   });
 
   test("SET-004: Close button closes the dialog", async ({ page }) => {
@@ -106,8 +124,8 @@ test.describe("Settings - Ollama Setup", () => {
 
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Click close button
-    const closeButton = page.getByRole("button", { name: "Close" });
+    // Click close button (use first() to select the visible text button, not the X icon)
+    const closeButton = page.getByRole("button", { name: "Close" }).first();
     await closeButton.click();
 
     // Dialog should be closed
@@ -133,8 +151,8 @@ test.describe("Settings - Ollama Setup", () => {
 
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Should see helpful content about local AI
-    await expect(page.getByText(/local/i)).toBeVisible();
+    // Should see helpful content about local AI (use first() to handle multiple matches)
+    await expect(page.getByText(/local/i).first()).toBeVisible();
   });
 });
 
@@ -157,11 +175,30 @@ test.describe("Settings - User Menu", () => {
       });
     });
 
+    // Mock profiles endpoint
+    await page.route("**/rest/v1/profiles**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "test-user-id",
+          email: "test@example.com",
+          display_name: null,
+          avatar_url: null,
+        }),
+      });
+    });
+
+    // Mock credits endpoint (single object for .single() query)
     await page.route("**/rest/v1/credits**", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([{ balance: 50, lifetime_granted: 50, lifetime_used: 0 }]),
+        body: JSON.stringify({
+          balance: 50,
+          lifetime_granted: 50,
+          lifetime_used: 0,
+        }),
       });
     });
 

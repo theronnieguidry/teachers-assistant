@@ -95,12 +95,12 @@ test.describe("Project Preview", () => {
       }
     });
 
-    // Mock project versions endpoint
+    // Mock project versions endpoint - single() expects an object, not array
     await page.route("**/rest/v1/project_versions**", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([mockProjectVersion]),
+        body: JSON.stringify(mockProjectVersion),
       });
     });
 
@@ -132,22 +132,27 @@ test.describe("Project Preview", () => {
   });
 
   test("PRV-002: Clicking project shows preview panel", async ({ page }) => {
-    // Click on the project
+    // Click on the project in sidebar to select it
     await page.getByText("Addition Worksheet").click();
 
-    // Should see project preview with title
-    await expect(page.getByRole("heading", { name: "Addition Worksheet" })).toBeVisible();
+    // Switch to Projects tab to see the preview
+    await page.getByRole("tab", { name: "Projects" }).click();
+
+    // Should see project preview with title (h1 in main content area)
+    await expect(page.locator("h1", { hasText: "Addition Worksheet" })).toBeVisible();
   });
 
   test("PRV-003: Preview shows project status", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
     // Should see completed status badge
-    await expect(page.getByText(/completed/i)).toBeVisible();
+    await expect(page.getByText("Completed", { exact: true })).toBeVisible();
   });
 
   test("PRV-004: Preview shows prompt", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
     // Should see the original prompt
     await expect(page.getByText(/create a math worksheet about addition/i)).toBeVisible();
@@ -155,20 +160,22 @@ test.describe("Project Preview", () => {
 
   test("PRV-005: Preview shows View Materials button for completed project", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
     // Should see View & Print Materials button
     await expect(page.getByRole("button", { name: /view.*materials|print/i })).toBeVisible();
   });
 
-  test("PRV-006: View Materials opens preview tabs dialog", async ({ page }) => {
+  test("PRV-006: View Materials opens preview tabs", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
     // Click View & Print Materials button
-    const viewButton = page.getByRole("button", { name: /view.*materials|print/i });
+    const viewButton = page.getByRole("button", { name: /view.*materials/i });
     await viewButton.click();
 
-    // Should see preview dialog with tabs
-    await expect(page.getByRole("dialog")).toBeVisible();
+    // Should see Back to Details button (indicates preview mode)
+    await expect(page.getByRole("button", { name: /back to details/i })).toBeVisible();
 
     // Should see tab for worksheet
     await expect(page.getByRole("tab", { name: /worksheet/i })).toBeVisible();
@@ -176,13 +183,12 @@ test.describe("Project Preview", () => {
 
   test("PRV-007: Preview tabs shows all three tabs", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
-    const viewButton = page.getByRole("button", { name: /view.*materials|print/i });
+    const viewButton = page.getByRole("button", { name: /view.*materials/i });
     await viewButton.click();
 
-    await expect(page.getByRole("dialog")).toBeVisible();
-
-    // Should see all three tabs
+    // Should see all three main tabs
     await expect(page.getByRole("tab", { name: /worksheet/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /lesson plan/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /answer key/i })).toBeVisible();
@@ -190,11 +196,10 @@ test.describe("Project Preview", () => {
 
   test("PRV-008: Worksheet tab is active by default", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
-    const viewButton = page.getByRole("button", { name: /view.*materials|print/i });
+    const viewButton = page.getByRole("button", { name: /view.*materials/i });
     await viewButton.click();
-
-    await expect(page.getByRole("dialog")).toBeVisible();
 
     // Worksheet tab should be active
     const worksheetTab = page.getByRole("tab", { name: /worksheet/i });
@@ -203,11 +208,10 @@ test.describe("Project Preview", () => {
 
   test("PRV-009: Can switch between tabs", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
-    const viewButton = page.getByRole("button", { name: /view.*materials|print/i });
+    const viewButton = page.getByRole("button", { name: /view.*materials/i });
     await viewButton.click();
-
-    await expect(page.getByRole("dialog")).toBeVisible();
 
     // Click lesson plan tab
     const lessonPlanTab = page.getByRole("tab", { name: /lesson plan/i });
@@ -219,42 +223,42 @@ test.describe("Project Preview", () => {
 
   test("PRV-010: Print button is visible", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
-    const viewButton = page.getByRole("button", { name: /view.*materials|print/i });
+    const viewButton = page.getByRole("button", { name: /view.*materials/i });
     await viewButton.click();
 
-    await expect(page.getByRole("dialog")).toBeVisible();
-
-    // Should see print button
+    // Should see print button in preview mode
     await expect(page.getByRole("button", { name: /print/i })).toBeVisible();
   });
 
   test("PRV-011: PDF button is visible", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
-    const viewButton = page.getByRole("button", { name: /view.*materials|print/i });
+    const viewButton = page.getByRole("button", { name: /view.*materials/i });
     await viewButton.click();
-
-    await expect(page.getByRole("dialog")).toBeVisible();
 
     // Should see PDF download button
     await expect(page.getByRole("button", { name: /pdf/i })).toBeVisible();
   });
 
-  test("PRV-012: Close preview tabs dialog", async ({ page }) => {
+  test("PRV-012: Back to Details returns to project details", async ({ page }) => {
     await page.getByText("Addition Worksheet").click();
+    await page.getByRole("tab", { name: "Projects" }).click();
 
-    const viewButton = page.getByRole("button", { name: /view.*materials|print/i });
+    const viewButton = page.getByRole("button", { name: /view.*materials/i });
     await viewButton.click();
 
-    await expect(page.getByRole("dialog")).toBeVisible();
+    // Should see Back to Details button
+    await expect(page.getByRole("button", { name: /back to details/i })).toBeVisible();
 
-    // Close the dialog
-    const closeButton = page.getByRole("button", { name: "Close" });
-    await closeButton.click();
+    // Click Back to Details to return to project view
+    const backButton = page.getByRole("button", { name: /back to details/i });
+    await backButton.click();
 
-    // Dialog should be closed
-    await expect(page.getByRole("dialog")).not.toBeVisible();
+    // Should see View & Print Materials button again (details view)
+    await expect(page.getByRole("button", { name: /view.*materials/i })).toBeVisible();
   });
 });
 
@@ -316,8 +320,8 @@ test.describe("Project Preview - Empty State", () => {
   });
 
   test("PRV-013: Shows welcome screen when no project selected", async ({ page }) => {
-    // Should see welcome message when no projects
-    await expect(page.getByText(/no projects yet|welcome|get started/i)).toBeVisible();
+    // Should see welcome message when no projects (in the sidebar panel)
+    await expect(page.getByText("No projects yet")).toBeVisible();
   });
 
   test("PRV-014: Shows empty state message in projects panel", async ({ page }) => {

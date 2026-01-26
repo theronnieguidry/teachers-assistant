@@ -1,72 +1,7 @@
-import { test, expect } from "@playwright/test";
-
-const mockUser = {
-  id: "test-user-id",
-  email: "test@example.com",
-  aud: "authenticated",
-  role: "authenticated",
-  created_at: new Date().toISOString(),
-};
-
-const mockSession = {
-  access_token: "test-access-token",
-  refresh_token: "test-refresh-token",
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  token_type: "bearer",
-  user: mockUser,
-};
+import { test, expect } from "./fixtures";
 
 test.describe("Creation Wizard", () => {
-  test.beforeEach(async ({ page }) => {
-    // Intercept Supabase auth API calls
-    await page.route("**/auth/v1/token**", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockSession),
-      });
-    });
-
-    await page.route("**/auth/v1/user", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockUser),
-      });
-    });
-
-    // Mock credits endpoint
-    await page.route("**/rest/v1/credits**", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([{ balance: 50, lifetime_granted: 50, lifetime_used: 0 }]),
-      });
-    });
-
-    // Set up mock auth state in localStorage
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        "sb-ugvrangptgrojipazqxh-auth-token",
-        JSON.stringify({
-          access_token: "test-access-token",
-          refresh_token: "test-refresh-token",
-          expires_at: Date.now() + 3600000,
-          user: {
-            id: "test-user-id",
-            email: "test@example.com",
-            aud: "authenticated",
-            role: "authenticated",
-          },
-        })
-      );
-    });
-    await page.goto("/");
-    await page.waitForSelector("main", { timeout: 10000 });
-  });
-
-  test("WIZ-001: should open wizard when Create is clicked", async ({ page }) => {
+  test("WIZ-001: should open wizard when Create is clicked", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -77,7 +12,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByRole("dialog")).toBeVisible();
   });
 
-  test("WIZ-002: should display progress indicator with step labels", async ({ page }) => {
+  test("WIZ-002: should display progress indicator with step labels", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -95,7 +30,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByText("Generate", { exact: true })).toBeVisible();
   });
 
-  test("WIZ-003: Step 1 should show all form fields", async ({ page }) => {
+  test("WIZ-003: Step 1 should show all form fields", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -114,7 +49,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByText("Number of Questions")).toBeVisible();
   });
 
-  test("WIZ-004: should show project title field", async ({ page }) => {
+  test("WIZ-004: should show project title field", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -124,7 +59,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByLabel("Project Title")).toBeVisible();
   });
 
-  test("WIZ-005: should show Next button on step 1", async ({ page }) => {
+  test("WIZ-005: should show Next button on step 1", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -134,7 +69,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByRole("button", { name: "Next" })).toBeVisible();
   });
 
-  test("WIZ-006: should advance to step 2 when Next is clicked", async ({ page }) => {
+  test("WIZ-006: should advance to step 2 when Next is clicked", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -159,7 +94,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByText(/select inspiration items/i)).toBeVisible();
   });
 
-  test("WIZ-007: Step 2 should show Back button", async ({ page }) => {
+  test("WIZ-007: Step 2 should show Back button", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -179,7 +114,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
   });
 
-  test("WIZ-008: Back button returns to step 1", async ({ page }) => {
+  test("WIZ-008: Back button returns to step 1", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -205,7 +140,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByLabel("Project Title")).toBeVisible();
   });
 
-  test("WIZ-009: can close wizard via close button", async ({ page }) => {
+  test("WIZ-009: can close wizard via close button", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -223,7 +158,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByRole("dialog")).not.toBeVisible();
   });
 
-  test("WIZ-010: Step 2 shows Skip button when no inspiration", async ({ page }) => {
+  test("WIZ-010: Step 2 shows Skip button when no inspiration", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -246,7 +181,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
   });
 
-  test("WIZ-011: Step 3 shows AI provider selection", async ({ page }) => {
+  test("WIZ-011: Step 3 shows AI provider selection", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -269,13 +204,12 @@ test.describe("Creation Wizard", () => {
     // Wait for step 3 (Output)
     await expect(page.getByText("AI Provider")).toBeVisible();
 
-    // Should see all three provider options
-    await expect(page.getByText("Claude")).toBeVisible();
-    await expect(page.getByText("OpenAI")).toBeVisible();
-    await expect(page.getByText("Ollama")).toBeVisible();
+    // Should see both provider options (Premium AI and Local AI)
+    await expect(page.getByText("Premium AI")).toBeVisible();
+    await expect(page.getByText("Local AI", { exact: true }).first()).toBeVisible();
   });
 
-  test("WIZ-012: Claude is selected by default", async ({ page }) => {
+  test("WIZ-012: Local AI is selected by default", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -298,12 +232,12 @@ test.describe("Creation Wizard", () => {
     // Wait for step 3 (Output)
     await expect(page.getByText("AI Provider")).toBeVisible();
 
-    // Claude should be selected (has aria-pressed="true")
-    const claudeCard = page.getByText("Claude").locator("xpath=ancestor::*[@role='button']");
-    await expect(claudeCard).toHaveAttribute("aria-pressed", "true");
+    // Local AI should be selected by default (has aria-pressed="true")
+    const localCard = page.getByText("Local AI").locator("xpath=ancestor::*[@role='button']");
+    await expect(localCard).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("WIZ-013: Can select different provider", async ({ page }) => {
+  test("WIZ-013: Can select different provider", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -326,19 +260,19 @@ test.describe("Creation Wizard", () => {
     // Wait for step 3 (Output)
     await expect(page.getByText("AI Provider")).toBeVisible();
 
-    // Click OpenAI provider card
-    const openaiCard = page.getByText("OpenAI").locator("xpath=ancestor::*[@role='button']");
-    await openaiCard.click();
+    // Click Premium AI provider card
+    const premiumCard = page.getByText("Premium AI").locator("xpath=ancestor::*[@role='button']");
+    await premiumCard.click();
 
-    // OpenAI should now be selected
-    await expect(openaiCard).toHaveAttribute("aria-pressed", "true");
+    // Premium AI should now be selected
+    await expect(premiumCard).toHaveAttribute("aria-pressed", "true");
 
-    // Claude should no longer be selected
-    const claudeCard = page.getByText("Claude").locator("xpath=ancestor::*[@role='button']");
-    await expect(claudeCard).toHaveAttribute("aria-pressed", "false");
+    // Local AI should no longer be selected
+    const localCard = page.getByText("Local AI").locator("xpath=ancestor::*[@role='button']");
+    await expect(localCard).toHaveAttribute("aria-pressed", "false");
   });
 
-  test("WIZ-014: Recommended badge on Claude", async ({ page }) => {
+  test("WIZ-014: Best Quality badge on Premium AI", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -361,14 +295,14 @@ test.describe("Creation Wizard", () => {
     // Wait for step 3 (Output)
     await expect(page.getByText("AI Provider")).toBeVisible();
 
-    // Should see Recommended badge (exact match to avoid matching description text)
-    await expect(page.getByText("Recommended", { exact: true })).toBeVisible();
+    // Should see Best Quality badge on Premium AI (exact match to avoid matching description text)
+    await expect(page.getByText("Best Quality", { exact: true })).toBeVisible();
 
-    // Should see Free badge on Ollama
+    // Should see Free badge on Local AI
     await expect(page.getByText("Free", { exact: true })).toBeVisible();
   });
 
-  test("WIZ-015: Dialog maintains minimum height across steps", async ({ page }) => {
+  test("WIZ-015: Dialog maintains minimum height across steps", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -460,14 +394,14 @@ test.describe("Creation Wizard", () => {
       await page.waitForSelector('[data-testid="final-prompt-display"], [data-testid="final-prompt-textarea"]', { timeout: 10000 });
     }
 
-    test("WIZ-016: Step 5 shows 'What will be sent to AI' label", async ({ page }) => {
+    test("WIZ-016: Step 5 shows 'What will be sent to AI' label", async ({ authenticatedPage: page }) => {
       await navigateToStep5(page);
 
       // Should show the "What will be sent to AI" label
       await expect(page.getByText(/what will be sent to ai/i)).toBeVisible();
     });
 
-    test("WIZ-017: Step 5 displays polished prompt by default", async ({ page }) => {
+    test("WIZ-017: Step 5 displays polished prompt by default", async ({ authenticatedPage: page }) => {
       const polishedText = "Create a comprehensive 2nd grade math worksheet focusing on addition with sums up to 20, including visual aids and real-world scenarios.";
 
       await navigateToStep5(page, {
@@ -481,7 +415,7 @@ test.describe("Creation Wizard", () => {
       await expect(finalPromptDisplay).toContainText(polishedText);
     });
 
-    test("WIZ-018: Step 5 shows original as reference when polished differs", async ({ page }) => {
+    test("WIZ-018: Step 5 shows original as reference when polished differs", async ({ authenticatedPage: page }) => {
       await navigateToStep5(page, {
         original: "Create a math worksheet about addition",
         polished: "Enhanced prompt with more details...",
@@ -494,7 +428,7 @@ test.describe("Creation Wizard", () => {
       await expect(page.locator('.bg-muted\\/30').getByText("Create a math worksheet about addition")).toBeVisible();
     });
 
-    test("WIZ-019: Step 5 updates display when user selects original", async ({ page }) => {
+    test("WIZ-019: Step 5 updates display when user selects original", async ({ authenticatedPage: page }) => {
       await navigateToStep5(page, {
         original: "Create a math worksheet about addition",
         polished: "Enhanced version of the prompt",
@@ -509,7 +443,7 @@ test.describe("Creation Wizard", () => {
       await expect(finalPromptDisplay).toContainText("Create a math worksheet about addition");
     });
 
-    test("WIZ-020: Step 5 shows radio options when polishing occurred", async ({ page }) => {
+    test("WIZ-020: Step 5 shows radio options when polishing occurred", async ({ authenticatedPage: page }) => {
       await navigateToStep5(page, {
         original: "Original prompt",
         polished: "Polished prompt",
@@ -522,7 +456,7 @@ test.describe("Creation Wizard", () => {
       await expect(page.getByLabel(/edit the prompt/i)).toBeVisible();
     });
 
-    test("WIZ-021: Step 5 allows editing the prompt", async ({ page }) => {
+    test("WIZ-021: Step 5 allows editing the prompt", async ({ authenticatedPage: page }) => {
       await navigateToStep5(page, {
         original: "Original",
         polished: "Polished prompt text",
