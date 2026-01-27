@@ -3,10 +3,11 @@ import { useProjectStore } from "@/stores/projectStore";
 import { ProjectPreview } from "@/components/preview/ProjectPreview";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { TodayView, LearningPathView } from "@/components/learning-path";
+import { LibraryView } from "@/components/library";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, Map, FolderOpen } from "lucide-react";
+import { CalendarDays, Map, FolderOpen, BookOpen } from "lucide-react";
 
-type MainTab = "today" | "learning-path" | "projects";
+type MainTab = "today" | "learning-path" | "library" | "projects";
 
 export function MainContent() {
   const [activeTab, setActiveTab] = useState<MainTab>("today");
@@ -40,6 +41,13 @@ export function MainContent() {
               Learning Path
             </TabsTrigger>
             <TabsTrigger
+              value="library"
+              className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary gap-2"
+            >
+              <BookOpen className="h-4 w-4" />
+              Library
+            </TabsTrigger>
+            <TabsTrigger
               value="projects"
               className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary gap-2"
             >
@@ -58,6 +66,7 @@ export function MainContent() {
         {activeTab === "learning-path" && (
           <LearningPathView initialSubject={selectedSubject} />
         )}
+        {activeTab === "library" && <LibraryView />}
         {activeTab === "projects" && (
           currentProject ? (
             <ProjectPreview project={currentProject} />

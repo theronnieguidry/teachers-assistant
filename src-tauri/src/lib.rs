@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{file_system, dialog, ollama, learner_storage};
+use commands::{file_system, dialog, ollama, learner_storage, library_storage, design_pack_storage, project_storage};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -29,6 +29,25 @@ pub fn run() {
             learner_storage::save_learner_mastery,
             learner_storage::get_quick_check_history,
             learner_storage::save_quick_check_result,
+            // Library storage commands (Issue #20)
+            library_storage::get_library_index,
+            library_storage::save_library_index,
+            library_storage::get_artifact,
+            library_storage::save_artifact,
+            library_storage::delete_artifact,
+            library_storage::search_artifacts,
+            // Design pack storage commands (Issue #20)
+            design_pack_storage::get_design_packs,
+            design_pack_storage::get_design_pack,
+            design_pack_storage::save_design_pack,
+            design_pack_storage::delete_design_pack,
+            // Local project storage commands (Issue #20)
+            project_storage::get_local_projects,
+            project_storage::get_local_project,
+            project_storage::save_local_project,
+            project_storage::delete_local_project,
+            project_storage::get_projects_by_type,
+            project_storage::add_artifact_to_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
