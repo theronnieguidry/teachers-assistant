@@ -1,4 +1,5 @@
 import { useWizardStore } from "@/stores/wizardStore";
+import { ProjectSelectionStep } from "./ProjectSelectionStep";
 import { ClassDetailsStep } from "./ClassDetailsStep";
 import { InspirationStep } from "./InspirationStep";
 import { AIProviderStep } from "./AIProviderStep";
@@ -11,16 +12,18 @@ export function WizardSteps() {
 
   switch (currentStep) {
     case 1:
-      return <ClassDetailsStep />;
+      return <ProjectSelectionStep />;
     case 2:
-      return <InspirationStep />;
+      return <ClassDetailsStep />;
     case 3:
-      return <AIProviderStep />;
+      return <InspirationStep />;
     case 4:
-      return <OutputStep />;
+      return <AIProviderStep />;
     case 5:
-      return <PromptReviewStep />;
+      return <OutputStep />;
     case 6:
+      return <PromptReviewStep />;
+    case 7:
       return <GenerationStep />;
     default:
       return null;

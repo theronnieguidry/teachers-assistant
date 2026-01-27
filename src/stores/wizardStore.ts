@@ -11,12 +11,14 @@ import type {
   LessonLength,
   ObjectiveRecommendation,
   LearnerProfile,
+  ProjectType,
+  UnifiedProject,
 } from "@/types";
 import { DEFAULT_VISUAL_SETTINGS } from "@/types";
 import { useProjectStore } from "@/stores/projectStore";
 import { useSettingsStore, type AiProvider } from "@/stores/settingsStore";
 
-type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 interface ClassDetails {
   grade: Grade;
@@ -40,6 +42,14 @@ interface WizardState {
   classDetails: ClassDetails | null;
   selectedInspiration: InspirationItem[];
   outputPath: string | null;
+
+  // Project selection state (Issue #20)
+  selectedProjectId: string | null;
+  selectedProjectType: ProjectType;
+  createNewProject: boolean;
+  newProjectName: string;
+  linkedObjectiveId: string | null;
+  selectedDesignPackId: string | null;
 
   // AI Provider state
   aiProvider: AiProvider;
@@ -91,6 +101,13 @@ interface WizardState {
     message?: string;
     error?: string | null;
   }) => void;
+  // Project selection actions (Issue #20)
+  setSelectedProject: (projectId: string | null) => void;
+  setSelectedProjectType: (type: ProjectType) => void;
+  setCreateNewProject: (create: boolean) => void;
+  setNewProjectName: (name: string) => void;
+  setLinkedObjective: (objectiveId: string | null) => void;
+  setSelectedDesignPack: (packId: string | null) => void;
   reset: () => void;
 }
 
@@ -116,6 +133,14 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   classDetails: null,
   selectedInspiration: [],
   outputPath: null,
+  // Project selection state (Issue #20)
+  selectedProjectId: null,
+  selectedProjectType: "quick_create",
+  createNewProject: true,
+  newProjectName: "",
+  linkedObjectiveId: null,
+  selectedDesignPackId: null,
+  // AI Provider state
   aiProvider: "local",
   ollamaModel: null,
   generationMode: "standard",
@@ -145,6 +170,14 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       classDetails: { ...defaultClassDetails },
       selectedInspiration: [],
       outputPath: null,
+      // Project selection defaults (Issue #20)
+      selectedProjectId: null,
+      selectedProjectType: "quick_create",
+      createNewProject: true,
+      newProjectName: title,
+      linkedObjectiveId: null,
+      selectedDesignPackId: null,
+      // AI Provider
       aiProvider: defaultProvider,
       ollamaModel: null,
       generationMode: defaultMode,
@@ -197,6 +230,14 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       },
       selectedInspiration: inspiration,
       outputPath: project.outputPath || null,
+      // Project selection - use existing project (Issue #20)
+      selectedProjectId: project.id,
+      selectedProjectType: "quick_create",
+      createNewProject: false,
+      newProjectName: project.title,
+      linkedObjectiveId: null,
+      selectedDesignPackId: null,
+      // AI Provider
       aiProvider: defaultProvider,
       ollamaModel: null,
       generationMode: defaultMode,
@@ -253,6 +294,14 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       },
       selectedInspiration: [],
       outputPath: null,
+      // Project selection - learning path project (Issue #20)
+      selectedProjectId: null,
+      selectedProjectType: "learning_path",
+      createNewProject: true,
+      newProjectName: `${subject} - ${title}`,
+      linkedObjectiveId: objective.id,
+      selectedDesignPackId: null,
+      // AI Provider
       aiProvider: defaultProvider,
       ollamaModel: null,
       generationMode: defaultMode,
@@ -277,7 +326,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
 
   nextStep: () => {
     const { currentStep } = get();
-    if (currentStep < 6) {
+    if (currentStep < 7) {
       set({ currentStep: (currentStep + 1) as WizardStep });
     }
   },
@@ -347,6 +396,31 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     }));
   },
 
+  // Project selection actions (Issue #20)
+  setSelectedProject: (projectId) => {
+    set({ selectedProjectId: projectId, createNewProject: projectId === null });
+  },
+
+  setSelectedProjectType: (type) => {
+    set({ selectedProjectType: type });
+  },
+
+  setCreateNewProject: (create) => {
+    set({ createNewProject: create, selectedProjectId: create ? null : get().selectedProjectId });
+  },
+
+  setNewProjectName: (name) => {
+    set({ newProjectName: name });
+  },
+
+  setLinkedObjective: (objectiveId) => {
+    set({ linkedObjectiveId: objectiveId });
+  },
+
+  setSelectedDesignPack: (packId) => {
+    set({ selectedDesignPackId: packId });
+  },
+
   reset: () => {
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
     const defaultMode: GenerationMode =
@@ -359,6 +433,14 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       classDetails: null,
       selectedInspiration: [],
       outputPath: null,
+      // Project selection reset (Issue #20)
+      selectedProjectId: null,
+      selectedProjectType: "quick_create",
+      createNewProject: true,
+      newProjectName: "",
+      linkedObjectiveId: null,
+      selectedDesignPackId: null,
+      // AI Provider
       aiProvider: defaultProvider,
       ollamaModel: null,
       generationMode: defaultMode,

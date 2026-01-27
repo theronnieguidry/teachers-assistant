@@ -73,6 +73,10 @@ describe("wizardStore", () => {
         includeVisuals: true,
         difficulty: "medium",
         includeAnswerKey: true,
+        // Lesson plan defaults (Issue #17)
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
       });
     });
 
@@ -127,13 +131,13 @@ describe("wizardStore", () => {
         expect(useWizardStore.getState().currentStep).toBe(2);
       });
 
-      it("should not go beyond step 6", () => {
-        useWizardStore.setState({ currentStep: 6 });
+      it("should not go beyond step 7", () => {
+        useWizardStore.setState({ currentStep: 7 });
         const { nextStep } = useWizardStore.getState();
 
         nextStep();
 
-        expect(useWizardStore.getState().currentStep).toBe(6);
+        expect(useWizardStore.getState().currentStep).toBe(7);
       });
     });
 
@@ -319,6 +323,9 @@ describe("wizardStore", () => {
           includeVisuals: false,
           difficulty: "easy",
           includeAnswerKey: true,
+          lessonLength: 45,
+          studentProfile: ["visual_learner"],
+          teachingConfidence: "beginner",
         },
       });
 
@@ -331,6 +338,9 @@ describe("wizardStore", () => {
         difficulty: "easy",
         format: "worksheet",
         includeAnswerKey: true,
+        lessonLength: 45,
+        studentProfile: ["visual_learner"],
+        teachingConfidence: "beginner",
       });
     });
   });
@@ -402,6 +412,10 @@ describe("wizardStore", () => {
         includeVisuals: false,
         difficulty: "hard",
         includeAnswerKey: true,
+        // Lesson plan defaults (Issue #17)
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
       });
     });
 
@@ -487,6 +501,10 @@ describe("wizardStore", () => {
         includeVisuals: true,
         difficulty: "medium",
         includeAnswerKey: true,
+        // Lesson plan defaults (Issue #17)
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
       });
       expect(state.selectedInspiration).toEqual([]);
       expect(state.outputPath).toBeNull();
@@ -535,6 +553,108 @@ describe("wizardStore", () => {
       await openWizardForRegeneration(mockProject);
 
       expect(mockFetch).toHaveBeenCalledWith("project-123");
+    });
+  });
+
+  describe("project selection (Issue #20)", () => {
+    it("should initialize with project selection defaults", () => {
+      const { openWizard } = useWizardStore.getState();
+
+      openWizard("Test prompt");
+
+      const state = useWizardStore.getState();
+      expect(state.selectedProjectId).toBeNull();
+      expect(state.selectedProjectType).toBe("quick_create");
+      expect(state.createNewProject).toBe(true);
+      expect(state.newProjectName).toBe("Test prompt");
+      expect(state.linkedObjectiveId).toBeNull();
+      expect(state.selectedDesignPackId).toBeNull();
+    });
+
+    it("setSelectedProject should update projectId and createNewProject", () => {
+      const { setSelectedProject } = useWizardStore.getState();
+
+      setSelectedProject("project-123");
+
+      const state = useWizardStore.getState();
+      expect(state.selectedProjectId).toBe("project-123");
+      expect(state.createNewProject).toBe(false);
+    });
+
+    it("setSelectedProject with null should set createNewProject to true", () => {
+      useWizardStore.setState({ selectedProjectId: "project-123", createNewProject: false });
+      const { setSelectedProject } = useWizardStore.getState();
+
+      setSelectedProject(null);
+
+      const state = useWizardStore.getState();
+      expect(state.selectedProjectId).toBeNull();
+      expect(state.createNewProject).toBe(true);
+    });
+
+    it("setSelectedProjectType should update project type", () => {
+      const { setSelectedProjectType } = useWizardStore.getState();
+
+      setSelectedProjectType("learning_path");
+
+      expect(useWizardStore.getState().selectedProjectType).toBe("learning_path");
+    });
+
+    it("setCreateNewProject should toggle create mode", () => {
+      useWizardStore.setState({ selectedProjectId: "project-123" });
+      const { setCreateNewProject } = useWizardStore.getState();
+
+      setCreateNewProject(true);
+
+      const state = useWizardStore.getState();
+      expect(state.createNewProject).toBe(true);
+      expect(state.selectedProjectId).toBeNull();
+    });
+
+    it("setNewProjectName should update project name", () => {
+      const { setNewProjectName } = useWizardStore.getState();
+
+      setNewProjectName("My New Project");
+
+      expect(useWizardStore.getState().newProjectName).toBe("My New Project");
+    });
+
+    it("setLinkedObjective should update linked objective", () => {
+      const { setLinkedObjective } = useWizardStore.getState();
+
+      setLinkedObjective("K.MATH.COUNT.1_20");
+
+      expect(useWizardStore.getState().linkedObjectiveId).toBe("K.MATH.COUNT.1_20");
+    });
+
+    it("setSelectedDesignPack should update design pack", () => {
+      const { setSelectedDesignPack } = useWizardStore.getState();
+
+      setSelectedDesignPack("pack-123");
+
+      expect(useWizardStore.getState().selectedDesignPackId).toBe("pack-123");
+    });
+
+    it("reset should clear project selection state", () => {
+      useWizardStore.setState({
+        selectedProjectId: "project-123",
+        selectedProjectType: "learning_path",
+        createNewProject: false,
+        newProjectName: "Test Project",
+        linkedObjectiveId: "K.MATH.COUNT.1_20",
+        selectedDesignPackId: "pack-123",
+      });
+
+      const { reset } = useWizardStore.getState();
+      reset();
+
+      const state = useWizardStore.getState();
+      expect(state.selectedProjectId).toBeNull();
+      expect(state.selectedProjectType).toBe("quick_create");
+      expect(state.createNewProject).toBe(true);
+      expect(state.newProjectName).toBe("");
+      expect(state.linkedObjectiveId).toBeNull();
+      expect(state.selectedDesignPackId).toBeNull();
     });
   });
 

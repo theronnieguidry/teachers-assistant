@@ -16,7 +16,7 @@ export function WizardDialog() {
       <DialogContent className="max-w-3xl min-h-[500px] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-lg">
-            {currentStep === 6 ? "Generating..." : `Create: ${title}`}
+            {currentStep === 7 ? "Generating..." : `Create: ${title}`}
           </DialogTitle>
         </DialogHeader>
 

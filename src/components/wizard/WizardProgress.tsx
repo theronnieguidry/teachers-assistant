@@ -3,12 +3,13 @@ import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 
 const steps = [
-  { number: 1, label: "Details" },
-  { number: 2, label: "Inspiration" },
-  { number: 3, label: "AI" },
-  { number: 4, label: "Output" },
-  { number: 5, label: "Review" },
-  { number: 6, label: "Generate" },
+  { number: 1, label: "Project" },
+  { number: 2, label: "Details" },
+  { number: 3, label: "Inspiration" },
+  { number: 4, label: "AI" },
+  { number: 5, label: "Output" },
+  { number: 6, label: "Review" },
+  { number: 7, label: "Generate" },
 ];
 
 export function WizardProgress() {

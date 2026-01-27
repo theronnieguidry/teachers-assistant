@@ -22,15 +22,17 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog to be visible
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Should see step labels (from WizardProgress component)
-    // Use exact match to avoid matching "Design Inspiration" panel title
+    // Should see step labels (from WizardProgress component) - 7 steps now (Issue #20)
+    await expect(page.getByText("Project", { exact: true })).toBeVisible();
     await expect(page.getByText("Details", { exact: true })).toBeVisible();
     await expect(page.getByText("Inspiration", { exact: true })).toBeVisible();
+    await expect(page.getByText("AI", { exact: true })).toBeVisible();
     await expect(page.getByText("Output", { exact: true })).toBeVisible();
+    await expect(page.getByText("Review", { exact: true })).toBeVisible();
     await expect(page.getByText("Generate", { exact: true })).toBeVisible();
   });
 
-  test("WIZ-003: Step 1 should show all form fields", async ({ authenticatedPage: page }) => {
+  test("WIZ-003: Step 1 should show project selection options", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -40,8 +42,28 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
+    // Check for project selection content (Issue #20)
+    await expect(page.getByText("Project Type")).toBeVisible();
+    await expect(page.getByText("Quick Create")).toBeVisible();
+    await expect(page.getByText("Learning Path")).toBeVisible();
+    await expect(page.getByText("Add to Project")).toBeVisible();
+    await expect(page.getByText("Create new project")).toBeVisible();
+  });
+
+  test("WIZ-003b: Step 2 should show class details form fields", async ({ authenticatedPage: page }) => {
+    const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
+    const createButton = page.getByRole("button", { name: /create/i });
+
+    await promptArea.fill("Create a math worksheet about addition");
+    await createButton.click();
+
+    // Wait for dialog
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    // Step 1: Click Next to go to ClassDetails (Step 2)
+    await page.getByRole("button", { name: "Next" }).click();
+
     // Check for form field labels (required fields have *)
-    // Use exact text to avoid matching main content paragraphs
     await expect(page.getByText("Grade Level *")).toBeVisible();
     await expect(page.getByText("Subject *")).toBeVisible();
     await expect(page.getByText("Format", { exact: true })).toBeVisible();
@@ -49,12 +71,16 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByText("Number of Questions")).toBeVisible();
   });
 
-  test("WIZ-004: should show project title field", async ({ authenticatedPage: page }) => {
+  test("WIZ-004: should show project title field in step 2", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
     await promptArea.fill("Create a math worksheet about addition");
     await createButton.click();
+
+    // Wait for dialog and advance to step 2
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: "Next" }).click();
 
     await expect(page.getByLabel("Project Title")).toBeVisible();
   });
@@ -69,7 +95,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByRole("button", { name: "Next" })).toBeVisible();
   });
 
-  test("WIZ-006: should advance to step 2 when Next is clicked", async ({ authenticatedPage: page }) => {
+  test("WIZ-006: should advance through steps when Next is clicked", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -79,18 +105,18 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Click the Subject select trigger to open dropdown
-    // Subject is the second combobox (after Grade Level)
+    // Step 1 (Project Selection) - Click Next to go to Step 2 (ClassDetails)
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Now in Step 2 (ClassDetails) - select subject
     const subjectTrigger = page.locator('[role="combobox"]').nth(1);
     await subjectTrigger.click();
-
-    // Wait for and click the Math option in the dropdown
     await page.getByRole("option", { name: "Math" }).click();
 
     // Click Next
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Should see step 2 content (inspiration selection)
+    // Should see step 3 content (inspiration selection)
     await expect(page.getByText(/select inspiration items/i)).toBeVisible();
   });
 
@@ -104,17 +130,17 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Select subject and advance
-    const subjectTrigger = page.locator('[role="combobox"]').nth(1);
-    await subjectTrigger.click();
-    await page.getByRole("option", { name: "Math" }).click();
+    // Step 1 - advance to Step 2
     await page.getByRole("button", { name: "Next" }).click();
+
+    // Wait for Step 2 (ClassDetails)
+    await expect(page.getByText("Grade Level *")).toBeVisible();
 
     // Should see Back button
     await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
   });
 
-  test("WIZ-008: Back button returns to step 1", async ({ authenticatedPage: page }) => {
+  test("WIZ-008: Back button returns to previous step", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -124,20 +150,17 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Select subject and advance
-    const subjectTrigger = page.locator('[role="combobox"]').nth(1);
-    await subjectTrigger.click();
-    await page.getByRole("option", { name: "Math" }).click();
+    // Step 1 - advance to Step 2
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Wait for step 2
-    await expect(page.getByText(/select inspiration items/i)).toBeVisible();
+    // Wait for Step 2 (ClassDetails)
+    await expect(page.getByText("Grade Level *")).toBeVisible();
 
     // Click Back
     await page.getByRole("button", { name: "Back" }).click();
 
-    // Should see step 1 fields again
-    await expect(page.getByLabel("Project Title")).toBeVisible();
+    // Should see step 1 content (Project Selection)
+    await expect(page.getByText("Project Type")).toBeVisible();
   });
 
   test("WIZ-009: can close wizard via close button", async ({ authenticatedPage: page }) => {
@@ -158,7 +181,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByRole("dialog")).not.toBeVisible();
   });
 
-  test("WIZ-010: Step 2 shows Skip button when no inspiration", async ({ authenticatedPage: page }) => {
+  test("WIZ-010: Step 3 shows Skip button when no inspiration", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -168,20 +191,23 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Select subject and advance
+    // Step 1 - advance to Step 2
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Step 2 (ClassDetails) - select subject and advance
     const subjectTrigger = page.locator('[role="combobox"]').nth(1);
     await subjectTrigger.click();
     await page.getByRole("option", { name: "Math" }).click();
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Wait for step 2
+    // Wait for step 3 (Inspiration)
     await expect(page.getByText(/select inspiration items/i)).toBeVisible();
 
     // Should see Skip button (since no inspiration items)
     await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
   });
 
-  test("WIZ-011: Step 3 shows AI provider selection", async ({ authenticatedPage: page }) => {
+  test("WIZ-011: Step 4 shows AI provider selection", async ({ authenticatedPage: page }) => {
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 
@@ -191,17 +217,20 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Select subject and advance to step 2
+    // Step 1 - advance to Step 2
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Step 2 (ClassDetails) - select subject and advance
     const subjectTrigger = page.locator('[role="combobox"]').nth(1);
     await subjectTrigger.click();
     await page.getByRole("option", { name: "Math" }).click();
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Wait for step 2 and skip
+    // Wait for step 3 (Inspiration) and skip
     await expect(page.getByText(/select inspiration items/i)).toBeVisible();
     await page.getByRole("button", { name: "Skip" }).click();
 
-    // Wait for step 3 (Output)
+    // Wait for step 4 (AI Provider)
     await expect(page.getByText("AI Provider")).toBeVisible();
 
     // Should see both provider options (Premium AI and Local AI)
@@ -219,17 +248,20 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Select subject and advance to step 2
+    // Step 1 - advance to Step 2
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Step 2 (ClassDetails) - select subject and advance
     const subjectTrigger = page.locator('[role="combobox"]').nth(1);
     await subjectTrigger.click();
     await page.getByRole("option", { name: "Math" }).click();
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Wait for step 2 and skip
+    // Wait for step 3 (Inspiration) and skip
     await expect(page.getByText(/select inspiration items/i)).toBeVisible();
     await page.getByRole("button", { name: "Skip" }).click();
 
-    // Wait for step 3 (Output)
+    // Wait for step 4 (AI Provider)
     await expect(page.getByText("AI Provider")).toBeVisible();
 
     // Local AI should be selected by default (has aria-pressed="true")
@@ -247,17 +279,20 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Select subject and advance to step 2
+    // Step 1 - advance to Step 2
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Step 2 (ClassDetails) - select subject and advance
     const subjectTrigger = page.locator('[role="combobox"]').nth(1);
     await subjectTrigger.click();
     await page.getByRole("option", { name: "Math" }).click();
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Wait for step 2 and skip
+    // Wait for step 3 (Inspiration) and skip
     await expect(page.getByText(/select inspiration items/i)).toBeVisible();
     await page.getByRole("button", { name: "Skip" }).click();
 
-    // Wait for step 3 (Output)
+    // Wait for step 4 (AI Provider)
     await expect(page.getByText("AI Provider")).toBeVisible();
 
     // Click Premium AI provider card
@@ -282,17 +317,20 @@ test.describe("Creation Wizard", () => {
     // Wait for dialog
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Select subject and advance to step 2
+    // Step 1 - advance to Step 2
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Step 2 (ClassDetails) - select subject and advance
     const subjectTrigger = page.locator('[role="combobox"]').nth(1);
     await subjectTrigger.click();
     await page.getByRole("option", { name: "Math" }).click();
     await page.getByRole("button", { name: "Next" }).click();
 
-    // Wait for step 2 and skip
+    // Wait for step 3 (Inspiration) and skip
     await expect(page.getByText(/select inspiration items/i)).toBeVisible();
     await page.getByRole("button", { name: "Skip" }).click();
 
-    // Wait for step 3 (Output)
+    // Wait for step 4 (AI Provider)
     await expect(page.getByText("AI Provider")).toBeVisible();
 
     // Should see Best Quality badge on Premium AI (exact match to avoid matching description text)
@@ -313,26 +351,26 @@ test.describe("Creation Wizard", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
-    // Get step 1 height
+    // Get step 1 height (Project Selection)
     const step1Box = await dialog.boundingBox();
     expect(step1Box).not.toBeNull();
     const step1Height = step1Box!.height;
 
-    // Navigate to step 2
-    const subjectTrigger = page.locator('[role="combobox"]').nth(1);
-    await subjectTrigger.click();
-    await page.getByRole("option", { name: "Math" }).click();
+    // Navigate to step 2 (ClassDetails)
     await page.getByRole("button", { name: "Next" }).click();
-    await expect(page.getByText(/select inspiration items/i)).toBeVisible();
+    await expect(page.getByText("Grade Level *")).toBeVisible();
 
     // Get step 2 height
     const step2Box = await dialog.boundingBox();
     expect(step2Box).not.toBeNull();
     const step2Height = step2Box!.height;
 
-    // Navigate to step 3
-    await page.getByRole("button", { name: "Skip" }).click();
-    await expect(page.getByText("AI Provider")).toBeVisible();
+    // Navigate to step 3 (Inspiration)
+    const subjectTrigger = page.locator('[role="combobox"]').nth(1);
+    await subjectTrigger.click();
+    await page.getByRole("option", { name: "Math" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByText(/select inspiration items/i)).toBeVisible();
 
     // Get step 3 height
     const step3Box = await dialog.boundingBox();
@@ -345,9 +383,9 @@ test.describe("Creation Wizard", () => {
     expect(step3Height).toBeGreaterThanOrEqual(500);
   });
 
-  test.describe("Step 5 - Prompt Review", () => {
-    // Helper to navigate through steps to reach Step 5
-    async function navigateToStep5(page: import("@playwright/test").Page, mockPolishResponse?: object) {
+  test.describe("Step 6 - Prompt Review", () => {
+    // Helper to navigate through steps to reach Step 6 (Review)
+    async function navigateToStep6(page: import("@playwright/test").Page, mockPolishResponse?: object) {
       // Mock the polish endpoint
       await page.route("**/polish", async (route) => {
         await route.fulfill({
@@ -370,41 +408,44 @@ test.describe("Creation Wizard", () => {
       // Wait for dialog
       await expect(page.getByRole("dialog")).toBeVisible();
 
-      // Step 1: Select subject and advance
+      // Step 1: Project Selection - advance
+      await page.getByRole("button", { name: "Next" }).click();
+
+      // Step 2: ClassDetails - Select subject and advance
       const subjectTrigger = page.locator('[role="combobox"]').nth(1);
       await subjectTrigger.click();
       await page.getByRole("option", { name: "Math" }).click();
       await page.getByRole("button", { name: "Next" }).click();
 
-      // Step 2: Skip inspiration
+      // Step 3: Skip inspiration
       await expect(page.getByText(/select inspiration items/i)).toBeVisible();
       await page.getByRole("button", { name: "Skip" }).click();
 
-      // Step 3: AI Provider - continue
+      // Step 4: AI Provider - continue
       await expect(page.getByText("AI Provider")).toBeVisible();
       await page.getByRole("button", { name: "Next" }).click();
 
-      // Step 4: Output folder - fill in path and continue
+      // Step 5: Output folder - fill in path and continue
       await expect(page.getByText("Output Folder")).toBeVisible();
       // Fill in the output path input
       await page.getByPlaceholder(/select or enter a folder path/i).fill("C:\\TestOutput");
       await page.getByRole("button", { name: "Next" }).click();
 
-      // Wait for Step 5 (Review) to load - look for the loading text or final prompt display
+      // Wait for Step 6 (Review) to load - look for the loading text or final prompt display
       await page.waitForSelector('[data-testid="final-prompt-display"], [data-testid="final-prompt-textarea"]', { timeout: 10000 });
     }
 
-    test("WIZ-016: Step 5 shows 'What will be sent to AI' label", async ({ authenticatedPage: page }) => {
-      await navigateToStep5(page);
+    test("WIZ-016: Step 6 shows 'What will be sent to AI' label", async ({ authenticatedPage: page }) => {
+      await navigateToStep6(page);
 
       // Should show the "What will be sent to AI" label
       await expect(page.getByText(/what will be sent to ai/i)).toBeVisible();
     });
 
-    test("WIZ-017: Step 5 displays polished prompt by default", async ({ authenticatedPage: page }) => {
+    test("WIZ-017: Step 6 displays polished prompt by default", async ({ authenticatedPage: page }) => {
       const polishedText = "Create a comprehensive 2nd grade math worksheet focusing on addition with sums up to 20, including visual aids and real-world scenarios.";
 
-      await navigateToStep5(page, {
+      await navigateToStep6(page, {
         original: "Create a math worksheet about addition",
         polished: polishedText,
         wasPolished: true,
@@ -415,8 +456,8 @@ test.describe("Creation Wizard", () => {
       await expect(finalPromptDisplay).toContainText(polishedText);
     });
 
-    test("WIZ-018: Step 5 shows original as reference when polished differs", async ({ authenticatedPage: page }) => {
-      await navigateToStep5(page, {
+    test("WIZ-018: Step 6 shows original as reference when polished differs", async ({ authenticatedPage: page }) => {
+      await navigateToStep6(page, {
         original: "Create a math worksheet about addition",
         polished: "Enhanced prompt with more details...",
         wasPolished: true,
@@ -428,8 +469,8 @@ test.describe("Creation Wizard", () => {
       await expect(page.locator('.bg-muted\\/30').getByText("Create a math worksheet about addition")).toBeVisible();
     });
 
-    test("WIZ-019: Step 5 updates display when user selects original", async ({ authenticatedPage: page }) => {
-      await navigateToStep5(page, {
+    test("WIZ-019: Step 6 updates display when user selects original", async ({ authenticatedPage: page }) => {
+      await navigateToStep6(page, {
         original: "Create a math worksheet about addition",
         polished: "Enhanced version of the prompt",
         wasPolished: true,
@@ -443,8 +484,8 @@ test.describe("Creation Wizard", () => {
       await expect(finalPromptDisplay).toContainText("Create a math worksheet about addition");
     });
 
-    test("WIZ-020: Step 5 shows radio options when polishing occurred", async ({ authenticatedPage: page }) => {
-      await navigateToStep5(page, {
+    test("WIZ-020: Step 6 shows radio options when polishing occurred", async ({ authenticatedPage: page }) => {
+      await navigateToStep6(page, {
         original: "Original prompt",
         polished: "Polished prompt",
         wasPolished: true,
@@ -456,8 +497,8 @@ test.describe("Creation Wizard", () => {
       await expect(page.getByLabel(/edit the prompt/i)).toBeVisible();
     });
 
-    test("WIZ-021: Step 5 allows editing the prompt", async ({ authenticatedPage: page }) => {
-      await navigateToStep5(page, {
+    test("WIZ-021: Step 6 allows editing the prompt", async ({ authenticatedPage: page }) => {
+      await navigateToStep6(page, {
         original: "Original",
         polished: "Polished prompt text",
         wasPolished: true,
