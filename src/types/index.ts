@@ -1,5 +1,6 @@
 export * from "./database";
 export * from "./learner";
+export * from "./artifacts";
 
 // Project-related types
 export interface Project {
