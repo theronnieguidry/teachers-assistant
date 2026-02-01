@@ -16,8 +16,8 @@ import type {
   LocalArtifact,
   ArtifactType,
   MigrationStatus,
-  gradeToGradeBand,
 } from "@/types";
+import { gradeToGradeBand } from "@/types";
 
 const MIGRATION_KEY = "ta-migration-status";
 const CURRENT_MIGRATION_VERSION = 1;
@@ -79,7 +79,6 @@ export function mapLegacyArtifactType(legacyType: string): ArtifactType {
  */
 export function migrateProject(project: Project): UnifiedProject {
   const now = new Date().toISOString();
-  const { gradeToGradeBand } = require("@/types");
 
   return {
     projectId: project.id,
@@ -288,7 +287,7 @@ export function inferObjectiveTags(
   const tags: string[] = [];
 
   // Common patterns to detect
-  const patterns: Record<string, RegExp[]> = {
+  const patterns: Record<string, Record<string, RegExp[]>> = {
     MATH: {
       COUNT: [/count/i, /number.*1.*20/i, /counting/i],
       ADD: [/add/i, /addition/i, /sum/i, /plus/i],

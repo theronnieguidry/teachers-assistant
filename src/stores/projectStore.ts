@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { supabase } from "@/services/supabase";
 import { toast } from "@/stores/toastStore";
-import type { Project, ProjectStatus, Grade, InspirationItem, ProjectVersion } from "@/types";
+import type { Project, ProjectStatus, Grade, InspirationItem, ProjectVersion, LessonMetadata } from "@/types";
 
 interface ProjectState {
   projects: Project[];
@@ -13,6 +13,7 @@ interface ProjectState {
   fetchProjects: () => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
   fetchProjectVersion: (projectId: string) => Promise<ProjectVersion | null>;
+  fetchSpecificVersion: (projectId: string, versionId: string) => Promise<ProjectVersion | null>;
   fetchProjectInspiration: (projectId: string) => Promise<InspirationItem[]>;
   createProject: (data: CreateProjectData) => Promise<Project>;
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
@@ -62,6 +63,11 @@ interface DbProjectVersion {
   worksheet_html: string | null;
   lesson_plan_html: string | null;
   answer_key_html: string | null;
+  // New lesson plan fields (Issue #17)
+  teacher_script_html: string | null;
+  student_activity_html: string | null;
+  materials_list_html: string | null;
+  lesson_metadata: LessonMetadata | null;
   ai_provider: string | null;
   ai_model: string | null;
   created_at: string;
@@ -104,6 +110,11 @@ function mapDbVersionToVersion(v: DbProjectVersion): ProjectVersion {
     worksheetHtml: v.worksheet_html,
     lessonPlanHtml: v.lesson_plan_html,
     answerKeyHtml: v.answer_key_html,
+    // New lesson plan fields (Issue #17)
+    teacherScriptHtml: v.teacher_script_html,
+    studentActivityHtml: v.student_activity_html,
+    materialsListHtml: v.materials_list_html,
+    lessonMetadata: v.lesson_metadata,
     aiProvider: v.ai_provider,
     aiModel: v.ai_model,
     createdAt: new Date(v.created_at),
@@ -198,6 +209,40 @@ export const useProjectStore = create<ProjectState>((set) => ({
     }
   },
 
+  fetchSpecificVersion: async (projectId, versionId) => {
+    try {
+      const { data, error } = await supabase
+        .from("project_versions")
+        .select("*")
+        .eq("id", versionId)
+        .eq("project_id", projectId)
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST116") {
+          // No version found
+          return null;
+        }
+        throw error;
+      }
+
+      const version = mapDbVersionToVersion(data as DbProjectVersion);
+
+      // Update current project with this specific version
+      set((state) => ({
+        currentProject:
+          state.currentProject?.id === projectId
+            ? { ...state.currentProject, latestVersion: version }
+            : state.currentProject,
+      }));
+
+      return version;
+    } catch (error) {
+      console.error("Failed to fetch specific version:", error);
+      return null;
+    }
+  },
+
   fetchProjectInspiration: async (projectId) => {
     try {
       const { data, error } = await supabase
@@ -256,6 +301,11 @@ export const useProjectStore = create<ProjectState>((set) => ({
           worksheet_html: version.worksheetHtml,
           lesson_plan_html: version.lessonPlanHtml,
           answer_key_html: version.answerKeyHtml,
+          // New lesson plan fields (Issue #17)
+          teacher_script_html: version.teacherScriptHtml,
+          student_activity_html: version.studentActivityHtml,
+          materials_list_html: version.materialsListHtml,
+          lesson_metadata: version.lessonMetadata,
           ai_provider: version.aiProvider,
           ai_model: version.aiModel,
         } as never)

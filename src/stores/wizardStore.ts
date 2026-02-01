@@ -18,6 +18,17 @@ import { useSettingsStore, type AiProvider } from "@/stores/settingsStore";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
+/** Compute the correct generation mode based on AI provider and output format */
+function resolveGenerationMode(
+  provider: AiProvider,
+  format?: "worksheet" | "lesson_plan" | "both"
+): GenerationMode {
+  if (provider !== "premium") return "standard";
+  return format === "lesson_plan" || format === "both"
+    ? "premium_lesson_plan_pipeline"
+    : "premium_plan_pipeline";
+}
+
 interface ClassDetails {
   grade: Grade;
   subject: string;
@@ -56,6 +67,9 @@ interface WizardState {
   // Regeneration state
   regeneratingProjectId: string | null;
 
+  // Target unified project (Issue #20 — project selection)
+  targetProjectId: string | null;
+
   // Generation state
   isGenerating: boolean;
   generationProgress: number;
@@ -85,6 +99,7 @@ interface WizardState {
   setVisualSettings: (settings: Partial<VisualSettings>) => void;
   setPolishedPrompt: (prompt: string | null) => void;
   setUsePolishedPrompt: (use: boolean) => void;
+  setTargetProjectId: (projectId: string | null) => void;
   setGenerationState: (state: {
     isGenerating?: boolean;
     progress?: number;
@@ -123,6 +138,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   polishedPrompt: null,
   usePolishedPrompt: true,
   regeneratingProjectId: null,
+  targetProjectId: null,
   isGenerating: false,
   generationProgress: 0,
   generationMessage: "",
@@ -134,9 +150,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       prompt.length > 50 ? prompt.substring(0, 50) + "..." : prompt;
     // Use the user's default AI provider from settings
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
-    // Use premium pipeline for premium provider
-    const defaultMode: GenerationMode =
-      defaultProvider === "premium" ? "premium_plan_pipeline" : "standard";
+    const defaultMode = resolveGenerationMode(defaultProvider, defaultClassDetails.format);
     set({
       isOpen: true,
       currentStep: 1,
@@ -152,6 +166,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
+      targetProjectId: null,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -173,9 +188,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
 
     // Use the user's default AI provider from settings
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
-    // Use premium pipeline for premium provider
-    const defaultMode: GenerationMode =
-      defaultProvider === "premium" ? "premium_plan_pipeline" : "standard";
+    const projectFormat = (options.format as ClassDetails["format"]) || "both";
+    const defaultMode = resolveGenerationMode(defaultProvider, projectFormat);
 
     set({
       isOpen: true,
@@ -204,6 +218,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: project.id,
+      targetProjectId: null,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -227,8 +242,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
 
     // Use the user's default AI provider from settings
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
-    const defaultMode: GenerationMode =
-      defaultProvider === "premium" ? "premium_plan_pipeline" : "standard";
+    const defaultMode = resolveGenerationMode(defaultProvider, format);
 
     // Extract subject from unit title (first word typically)
     const subjectMatch = objective.unitTitle.match(/^(Math|Reading|Writing|Science|Social Studies)/i);
@@ -260,6 +274,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
+      targetProjectId: null,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -298,7 +313,9 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   },
 
   setClassDetails: (details) => {
-    set({ classDetails: details });
+    const { aiProvider } = get();
+    const generationMode = resolveGenerationMode(aiProvider, details?.format);
+    set({ classDetails: details, generationMode });
   },
 
   setSelectedInspiration: (items) => {
@@ -310,9 +327,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   },
 
   setAiProvider: (provider) => {
-    // Also update generation mode based on provider
-    const generationMode: GenerationMode =
-      provider === "premium" ? "premium_plan_pipeline" : "standard";
+    const { classDetails } = get();
+    const generationMode = resolveGenerationMode(provider, classDetails?.format);
     set({ aiProvider: provider, generationMode });
   },
 
@@ -338,6 +354,10 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     set({ usePolishedPrompt: use });
   },
 
+  setTargetProjectId: (projectId) => {
+    set({ targetProjectId: projectId });
+  },
+
   setGenerationState: (state) => {
     set((current) => ({
       isGenerating: state.isGenerating ?? current.isGenerating,
@@ -349,8 +369,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
 
   reset: () => {
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
-    const defaultMode: GenerationMode =
-      defaultProvider === "premium" ? "premium_plan_pipeline" : "standard";
+    const defaultMode = resolveGenerationMode(defaultProvider);
     set({
       isOpen: false,
       currentStep: 1,
@@ -366,6 +385,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
+      targetProjectId: null,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",

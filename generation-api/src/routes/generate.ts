@@ -4,11 +4,13 @@ import type { AuthenticatedRequest } from "../middleware/auth.js";
 import { generateTeacherPack } from "../services/generator.js";
 import { getSupabaseClient } from "../services/credits.js";
 import type { GenerationRequest, AIProvider, InspirationItem } from "../types.js";
+import type { VisualSettings, GenerationMode } from "../types/premium.js";
+import { DEFAULT_VISUAL_SETTINGS } from "../types/premium.js";
 
 const router = Router();
 
-// Default provider from environment, fallback to claude
-const DEFAULT_AI_PROVIDER = (process.env.AI_PROVIDER || "claude") as AIProvider;
+// Default provider from environment, fallback to openai (Claude removed)
+const DEFAULT_AI_PROVIDER = (process.env.AI_PROVIDER || "openai") as AIProvider;
 
 const generateRequestSchema = z.object({
   projectId: z.string().min(1),
@@ -22,6 +24,10 @@ const generateRequestSchema = z.object({
       difficulty: z.enum(["easy", "medium", "hard"]).optional(),
       format: z.enum(["worksheet", "lesson_plan", "both"]).optional(),
       includeAnswerKey: z.boolean().optional(),
+      // Lesson plan options (Issue #17)
+      lessonLength: z.union([z.literal(15), z.literal(30), z.literal(45), z.literal(60)]).optional(),
+      studentProfile: z.array(z.enum(["needs_movement", "struggles_reading", "easily_frustrated", "advanced", "ell"])).optional(),
+      teachingConfidence: z.enum(["novice", "intermediate", "experienced"]).optional(),
     })
     .optional()
     .default({}),
@@ -39,8 +45,20 @@ const generateRequestSchema = z.object({
     .optional()
     .default([]),
   inspirationIds: z.array(z.string()).optional(),
-  aiProvider: z.enum(["claude", "openai", "ollama"]).optional(),
+  // Accept both user-facing (premium, local) and legacy (claude, openai, ollama) provider values
+  aiProvider: z.enum(["premium", "local", "claude", "openai", "ollama"]).optional(),
   aiModel: z.string().optional(),
+  // Premium pipeline parameters
+  generationMode: z.enum(["standard", "premium_plan_pipeline", "premium_lesson_plan_pipeline"]).optional().default("standard"),
+  visualSettings: z
+    .object({
+      includeVisuals: z.boolean().optional().default(true),
+      richness: z.enum(["minimal", "standard", "rich"]).optional().default("minimal"),
+      style: z.enum(["friendly_cartoon", "simple_icons", "black_white"]).optional().default("friendly_cartoon"),
+      theme: z.string().optional(),
+    })
+    .optional(),
+  prePolished: z.boolean().optional().default(false),
 });
 
 // Fetch inspiration items by IDs from database
@@ -95,6 +113,16 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       inspiration = await fetchInspirationItems(data.inspirationIds, req.userId);
     }
 
+    // Build visual settings with defaults
+    const visualSettings: VisualSettings = {
+      includeVisuals: data.visualSettings?.includeVisuals ?? data.options.includeVisuals ?? true,
+      richness: data.visualSettings?.richness ?? "minimal",
+      style: data.visualSettings?.style ?? "friendly_cartoon",
+      theme: data.visualSettings?.theme,
+    };
+
+    const generationMode: GenerationMode = data.generationMode || "standard";
+
     const request: GenerationRequest = {
       projectId: data.projectId,
       prompt: data.prompt,
@@ -103,10 +131,14 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       options: data.options,
       inspiration,
       aiProvider,
+      prePolished: data.prePolished,
     };
 
     const aiModel = data.aiModel;
-    console.log(`[${request.projectId}] Using AI provider: ${aiProvider}${aiModel ? `, model: ${aiModel}` : ""}`);
+    console.log(
+      `[${request.projectId}] Using AI provider: ${aiProvider}${aiModel ? `, model: ${aiModel}` : ""}` +
+        ` (mode: ${generationMode})`
+    );
 
     // Set up SSE streaming for progress updates
     res.setHeader("Content-Type", "text/event-stream");
@@ -125,6 +157,8 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       {
         aiProvider,
         model: aiModel,
+        generationMode,
+        visualSettings,
       },
       sendProgress
     );

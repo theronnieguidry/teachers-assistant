@@ -183,6 +183,34 @@ export async function searchArtifacts(query: ArtifactSearchQuery): Promise<Omit<
 }
 
 /**
+ * Update the objective tags on an artifact
+ */
+export async function updateArtifactTags(artifactId: string, tags: string[]): Promise<void> {
+  // Update the full artifact
+  const artifact = await getArtifact(artifactId);
+  if (!artifact) throw new Error(`Artifact ${artifactId} not found`);
+
+  artifact.objectiveTags = tags;
+  await saveArtifact(artifact);
+}
+
+/**
+ * Get all artifacts from the same generation job
+ */
+export async function getArtifactsByJob(jobId: string): Promise<LocalArtifact[]> {
+  const index = await getLibraryIndex();
+  const jobArtifacts = index.artifacts.filter((a) => a.jobId === jobId);
+
+  // Load full content for each artifact
+  const fullArtifacts: LocalArtifact[] = [];
+  for (const meta of jobArtifacts) {
+    const full = await getArtifact(meta.artifactId);
+    if (full) fullArtifacts.push(full);
+  }
+  return fullArtifacts;
+}
+
+/**
  * Create multiple artifacts from a generation result
  */
 export async function saveArtifactsFromGeneration(

@@ -53,7 +53,7 @@ export async function reserveCredits(
   // Use a transaction to atomically check and deduct credits
   const { data: credits, error: fetchError } = await supabase
     .from("credits")
-    .select("balance")
+    .select("balance, lifetime_used")
     .eq("user_id", userId)
     .single();
 
@@ -65,12 +65,12 @@ export async function reserveCredits(
     return false; // Insufficient credits
   }
 
-  // Deduct credits
+  // Deduct credits and increment lifetime_used
   const { error: updateError } = await supabase
     .from("credits")
     .update({
       balance: credits.balance - amount,
-      lifetime_used: supabase.rpc("increment_lifetime_used", { amount }),
+      lifetime_used: credits.lifetime_used + amount,
     })
     .eq("user_id", userId);
 
@@ -82,7 +82,7 @@ export async function reserveCredits(
   const { error: logError } = await supabase.from("credit_transactions").insert({
     user_id: userId,
     amount: -amount,
-    type: "generation",
+    transaction_type: "generation",
     project_id: projectId,
     description: `Credits reserved for project generation`,
   });
@@ -118,7 +118,7 @@ export async function refundCredits(
   const { error: logError } = await supabase.from("credit_transactions").insert({
     user_id: userId,
     amount: amount,
-    type: "refund",
+    transaction_type: "refund",
     project_id: projectId,
     description: reason,
   });

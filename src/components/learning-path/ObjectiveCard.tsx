@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MasteryBadge } from "./MasteryBadge";
@@ -35,9 +36,18 @@ export function ObjectiveCard({
   const openWizardFromObjective = useWizardStore(
     (state) => state.openWizardFromObjective
   );
-  const activeProfile = useLearnerStore((state) => state.getActiveProfile());
+
+  // Select raw state to avoid infinite loop
+  const profiles = useLearnerStore((state) => state.profiles);
+  const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
   const markObjectiveStarted = useLearnerStore((state) => state.markObjectiveStarted);
   const markObjectiveMastered = useLearnerStore((state) => state.markObjectiveMastered);
+
+  // Compute activeProfile with useMemo
+  const activeProfile = useMemo(() => {
+    if (!activeLearnerId) return null;
+    return profiles.find((p) => p.learnerId === activeLearnerId) || null;
+  }, [profiles, activeLearnerId]);
 
   const handleStartLesson = async () => {
     if (!activeProfile) return;

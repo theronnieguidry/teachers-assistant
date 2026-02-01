@@ -27,7 +27,7 @@ import { useArtifactStore, useFilteredArtifacts } from "@/stores/artifactStore";
 import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
 import { ArtifactCard, ArtifactListItem } from "./ArtifactCard";
 import { LibraryFilters, ActiveFilterChips } from "./LibraryFilters";
-import { HTMLRenderer } from "@/components/preview/HTMLRenderer";
+import { StandardizedPreviewTabs } from "@/components/preview/PreviewTabs";
 import type { LibrarySortBy, LibraryViewMode, LocalArtifact } from "@/types";
 
 const SORT_OPTIONS: { value: LibrarySortBy; label: string }[] = [
@@ -60,6 +60,7 @@ export function LibraryView() {
 
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [siblingArtifacts, setSiblingArtifacts] = useState<LocalArtifact[]>([]);
 
   // Load artifacts and projects on mount
   useEffect(() => {
@@ -68,7 +69,13 @@ export function LibraryView() {
   }, [loadArtifacts, loadProjects]);
 
   const handleView = async (artifactId: string) => {
-    await loadArtifact(artifactId);
+    const artifact = await loadArtifact(artifactId);
+    if (artifact?.jobId) {
+      const siblings = await useArtifactStore.getState().loadArtifactsByJob(artifact.jobId);
+      setSiblingArtifacts(siblings);
+    } else {
+      setSiblingArtifacts(artifact ? [artifact] : []);
+    }
     setIsPreviewOpen(true);
   };
 
@@ -120,9 +127,14 @@ export function LibraryView() {
     }
   };
 
+  const handleEditTags = async (artifactId: string, tags: string[]) => {
+    await useArtifactStore.getState().updateTags(artifactId, tags);
+  };
+
   const handleClosePreview = () => {
     setIsPreviewOpen(false);
     setCurrentArtifact(null);
+    setSiblingArtifacts([]);
   };
 
   if (error) {
@@ -251,6 +263,7 @@ export function LibraryView() {
                   onView={handleView}
                   onPrint={handlePrint}
                   onDelete={handleDelete}
+                  onEditTags={handleEditTags}
                 />
               ))}
             </div>
@@ -276,14 +289,14 @@ export function LibraryView() {
           <DialogHeader>
             <DialogTitle>{currentArtifact?.title || "Preview"}</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto border rounded-lg">
-            {currentArtifact?.htmlContent ? (
-              <HTMLRenderer html={currentArtifact.htmlContent} />
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                No content available
-              </div>
-            )}
+          <div className="flex-1 overflow-hidden">
+            <StandardizedPreviewTabs
+              studentPageHtml={siblingArtifacts.find((a) => a.type === "student_page")?.htmlContent}
+              teacherScriptHtml={siblingArtifacts.find((a) => a.type === "teacher_script")?.htmlContent}
+              answerKeyHtml={siblingArtifacts.find((a) => a.type === "answer_key")?.htmlContent}
+              lessonPlanHtml={siblingArtifacts.find((a) => a.type === "lesson_plan")?.htmlContent}
+              projectTitle={currentArtifact?.title || "Preview"}
+            />
           </div>
         </DialogContent>
       </Dialog>

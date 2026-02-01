@@ -18,14 +18,14 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 
 ## Test Summary
 
-### Latest Run: 2026-01-24 (Post-Inspiration Persistence + Regeneration Tests)
+### Latest Run: 2026-01-30 (Premium Generation E2E Tests)
 
 | Metric | Value |
 |--------|-------|
 | Unit Tests (Frontend) | 462 ✅ |
 | Unit Tests (API) | 189 ✅ |
-| E2E Tests | 184 ✅ (across 3 browsers) |
-| **Total** | **835** |
+| E2E Tests | 199 ✅ (across 3 browsers) |
+| **Total** | **850** |
 | **Pass Rate** | **100%** |
 
 ---
@@ -152,6 +152,16 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | TC-PROV-008 | Warning shown when Ollama unavailable | ✅ | Already implemented |
 | TC-PROV-009 | Generate button validation with Ollama | ⏳ | Component integration test |
 
+### 9. Premium Generation Tests (`e2e/premium-generation.spec.ts`)
+
+| Test ID | Description | Chromium | Firefox | WebKit | Notes |
+|---------|-------------|:--------:|:-------:|:------:|-------|
+| PREM-001 | Premium generation with standard visuals completes | ✅ | ✅ | ✅ | Full wizard flow with SSE mock |
+| PREM-002 | Visual richness selector shows correct options | ✅ | ✅ | ✅ | Tests Radix Select dropdown |
+| PREM-003 | Credit estimate reflects image costs | ✅ | ✅ | ✅ | Verifies estimate changes with richness |
+| PREM-004 | Premium generation handles partial image failure | ✅ | ✅ | ✅ | imageStats.failed > 0 still completes |
+| PREM-005 | Insufficient credits blocks premium generation | ✅ | ✅ | ✅ | Balance < 5 disables Next button |
+
 ---
 
 ## Issues Log
@@ -245,6 +255,90 @@ The current E2E tests verify **UI element visibility and basic interactions**, n
 - Test Supabase project with OAuth providers configured
 - Mocked AI responses for generation testing
 - Isolated test user accounts
+
+### E2E Testing Architecture
+
+The E2E tests have two modes:
+
+1. **Mock Auth Mode** (default): Tests UI flow completely but generation fails at API JWT validation
+   - Use: `npx playwright test e2e/qa-full-e2e.spec.ts --headed --project=chromium`
+   - Tests: All wizard steps, provider selection, UI interactions
+   - Limitations: Cannot complete actual generation (API validates JWT with Supabase)
+
+2. **Direct Provider Testing**: Verifies actual AI providers work
+   - Tested via: Direct API calls with `dotenv` loaded
+   - Confirms: Ollama, Claude, OpenAI all generate valid HTML output
+
+**For full E2E with real generation:**
+1. Set `USE_MOCK_AUTH = false` in `e2e/qa-full-e2e.spec.ts`
+2. Provide valid Supabase test credentials
+3. Ensure API keys are configured in `generation-api/.env`
+
+---
+
+## Interactive Testing Sessions
+
+*Results from `/qa` skill interactive exploration sessions.*
+
+| Date | Features Explored | Bugs Found | Bugs Fixed | Status |
+|------|-------------------|------------|------------|--------|
+| 2026-01-25 | Full E2E: Real Auth, Real Generation (All 3 Providers), Credits Deduction | 1 bug fixed | 0 | ✅ Complete |
+
+### Latest Interactive Session - 2026-01-25
+
+#### Full E2E Test Results
+
+| Test Area | Status | Notes |
+|-----------|--------|-------|
+| Authentication | ✓ | Login page, mock auth configured |
+| Dashboard | ✓ | Three-panel layout, prompt validation |
+| Wizard Flow (6 steps) | ✓ | All steps navigate correctly |
+| Ollama Selection | ✓ | Provider selected, model dropdown works |
+| Claude Selection | ✓ | Provider selected with Recommended badge |
+| OpenAI Selection | ✓ | Provider selected |
+| Output Configuration | ✓ | Path input, file preview |
+| Review Step | ✓ | Prompt review, Continue button |
+| Generate Step | ✓ | Generation UI works |
+| Settings Dialog | ✓ | Local AI Setup opens correctly |
+
+#### Full E2E Generation Testing (Real Auth)
+
+| Provider | Status | Generation Time | Credits Used |
+|----------|--------|-----------------|--------------|
+| Ollama (llama3.2) | ✅ Completed | 32.6s | ~3-5 |
+| Claude | ✅ Completed* | 67.2s | ~3-5 |
+| OpenAI (gpt-4o-mini) | ✅ Completed | 55.5s | ~3-5 |
+
+*Claude had a client-side streaming timeout but generation completed successfully on server.
+
+**Test Account**: `ronnie.guidry+ta@gmail.com` / `QaTest123!`
+**Credits Used**: 10 total (50 → 40)
+
+#### Bug Found & Fixed
+
+**Credits Reservation Bug** (`generation-api/src/services/credits.ts:73`)
+- **Issue**: `supabase.rpc()` was incorrectly used as a value inside an update statement
+- **Error**: `invalid input syntax for type integer: "{...entire RPC request object...}"`
+- **Fix**: Changed to calculate `lifetime_used` directly: `credits.lifetime_used + amount`
+
+**Estimated API cost this session:** ~$0.01 (minimal test prompts)
+
+#### UI Elements Verified
+
+- Email/password fields with validation
+- Google/Apple OAuth buttons visible
+- Grade, Subject, Difficulty dropdowns
+- Project title field
+- Answer key and lesson plan toggles
+- Claude/OpenAI/Ollama provider selection
+- Model dropdown for Ollama
+- Output path field
+- File list preview
+- Review step with prompt display
+- Generate button and progress UI
+- Settings dialog with Ollama status
+
+**No bugs found during UI exploration or AI provider testing.**
 
 ---
 

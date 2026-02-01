@@ -6,7 +6,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-export type Grade = "K" | "1" | "2" | "3" | "4" | "5" | "6";
+import type { Grade } from "@shared/types";
+export type { Grade };
 
 export type ProjectStatus = "pending" | "generating" | "completed" | "failed";
 

@@ -2,7 +2,46 @@ export * from "./database";
 export * from "./learner";
 export * from "./artifacts";
 
-// Project-related types
+// Re-export shared types (single source of truth with generation-api)
+// Note: Grade comes through ./database, curriculum types through ./learner
+export type {
+  StudentProfileFlag,
+  TeachingConfidence,
+  LessonLength,
+  LessonMetadata,
+  GenerationMode,
+  VisualRichness,
+  VisualStyle,
+  VisualSettings,
+  ImageStats,
+  ProjectOptions,
+  InspirationItem,
+  GenerationProgress,
+  GenerationResult,
+  EstimateRequest,
+  EstimateResponse,
+  ImprovementType,
+  TargetDocument,
+  ImprovementRequest,
+  ImprovementResponse,
+  ObjectiveRecommendation,
+} from "@shared/types";
+export { DEFAULT_VISUAL_SETTINGS } from "@shared/types";
+
+// Import shared types used by local interfaces below
+import type {
+  ProjectOptions,
+  InspirationItem,
+  LessonMetadata,
+  GenerationMode,
+  VisualSettings,
+} from "@shared/types";
+import type { Grade, ProjectStatus } from "./database";
+
+// ============================================
+// Project Types (frontend-specific)
+// ============================================
+
 export interface Project {
   id: string;
   userId: string;
@@ -20,7 +59,6 @@ export interface Project {
   createdAt: Date;
   updatedAt: Date;
   completedAt: Date | null;
-  // Latest version content (optional, loaded separately)
   latestVersion?: ProjectVersion;
 }
 
@@ -31,7 +69,6 @@ export interface ProjectVersion {
   worksheetHtml: string | null;
   lessonPlanHtml: string | null;
   answerKeyHtml: string | null;
-  // New lesson plan artifacts (Issue #17)
   teacherScriptHtml: string | null;
   studentActivityHtml: string | null;
   materialsListHtml: string | null;
@@ -42,65 +79,9 @@ export interface ProjectVersion {
 }
 
 // ============================================
-// Lesson Plan Types (Issue #17)
+// Generation Request (frontend-specific)
 // ============================================
 
-export type StudentProfileFlag =
-  | "needs_movement"
-  | "struggles_reading"
-  | "easily_frustrated"
-  | "advanced"
-  | "ell";
-
-export type TeachingConfidence = "novice" | "intermediate" | "experienced";
-
-export type LessonLength = 15 | 30 | 45 | 60;
-
-export interface LessonMetadata {
-  objective: string;
-  lessonLength: LessonLength;
-  teachingConfidence: TeachingConfidence;
-  studentProfile: StudentProfileFlag[];
-  sectionsGenerated: string[];
-}
-
-// Curriculum Pack Types (for "Help Me Choose" feature)
-export interface ObjectiveRecommendation {
-  id: string;
-  text: string;
-  difficulty: "easy" | "standard" | "challenge";
-  estimatedMinutes: number;
-  unitTitle: string;
-  whyRecommended: string;
-  vocabulary?: string[];
-  activities?: string[];
-  misconceptions?: string[];
-}
-
-export interface ProjectOptions {
-  questionCount?: number;
-  includeVisuals?: boolean;
-  difficulty?: "easy" | "medium" | "hard";
-  format?: "worksheet" | "lesson_plan" | "both";
-  includeAnswerKey?: boolean;
-  // Lesson plan specific options (Issue #17)
-  lessonLength?: LessonLength;
-  studentProfile?: StudentProfileFlag[];
-  teachingConfidence?: TeachingConfidence;
-}
-
-export interface InspirationItem {
-  id: string;
-  userId?: string; // For persisted items in library
-  type: "url" | "pdf" | "image" | "text";
-  title: string;
-  sourceUrl?: string;
-  content?: string;
-  storagePath?: string;
-  createdAt?: Date; // For persisted items
-}
-
-// Generation-related types
 export interface GenerationRequest {
   projectId: string;
   prompt: string;
@@ -108,36 +89,17 @@ export interface GenerationRequest {
   subject: string;
   options: ProjectOptions;
   inspiration: InspirationItem[];
-  // User-facing (premium, local) and legacy (claude, openai, ollama) provider types
   aiProvider?: "premium" | "local" | "claude" | "openai" | "ollama";
   aiModel?: string;
-  prePolished?: boolean; // Skip prompt polishing if already done client-side
-  // Premium pipeline parameters
+  prePolished?: boolean;
   generationMode?: GenerationMode;
   visualSettings?: VisualSettings;
 }
 
-export interface GenerationProgress {
-  step: "worksheet" | "lesson_plan" | "answer_key" | "complete";
-  progress: number;
-  message: string;
-}
+// ============================================
+// User Types (frontend-specific)
+// ============================================
 
-export interface GenerationResult {
-  projectId: string;
-  versionId: string;
-  worksheetHtml: string;
-  lessonPlanHtml: string;
-  answerKeyHtml: string;
-  // New lesson plan artifacts (Issue #17)
-  teacherScriptHtml?: string;
-  studentActivityHtml?: string;
-  materialsListHtml?: string;
-  lessonMetadata?: LessonMetadata;
-  creditsUsed: number;
-}
-
-// User-related types
 export interface UserProfile {
   id: string;
   email: string;
@@ -149,72 +111,4 @@ export interface UserCredits {
   balance: number;
   lifetimeGranted: number;
   lifetimeUsed: number;
-}
-
-// Import Grade and ProjectStatus from database types
-import type { Grade, ProjectStatus } from "./database";
-
-// ============================================
-// Premium Pipeline Types
-// ============================================
-
-export type GenerationMode = "standard" | "premium_plan_pipeline" | "premium_lesson_plan_pipeline";
-export type VisualRichness = "minimal" | "standard" | "rich";
-export type VisualStyle = "friendly_cartoon" | "simple_icons" | "black_white";
-
-export interface VisualSettings {
-  includeVisuals: boolean;
-  richness: VisualRichness;
-  style: VisualStyle;
-  theme?: string;
-}
-
-export const DEFAULT_VISUAL_SETTINGS: VisualSettings = {
-  includeVisuals: true,
-  richness: "minimal",
-  style: "friendly_cartoon",
-};
-
-export interface EstimateRequest {
-  grade: Grade;
-  subject: string;
-  options: ProjectOptions;
-  visualSettings?: VisualSettings;
-  generationMode?: GenerationMode;
-}
-
-export interface EstimateResponse {
-  estimate: {
-    minCredits: number;
-    maxCredits: number;
-    expectedCredits: number;
-    breakdown?: {
-      textGeneration: number;
-      imageGeneration: number;
-      qualityGate: number;
-    };
-  };
-  disclaimer: string;
-}
-
-export type ImprovementType =
-  | "fix_confusing"
-  | "simplify"
-  | "add_questions"
-  | "add_visuals"
-  | "make_harder"
-  | "make_easier";
-
-export interface ImprovementRequest {
-  projectId: string;
-  versionId: string;
-  improvementType: ImprovementType;
-  targetDocument: "worksheet" | "lesson_plan" | "answer_key";
-  additionalInstructions?: string;
-}
-
-export interface ImprovementResponse {
-  newVersionId: string;
-  creditsUsed: number;
-  changes: string[];
 }

@@ -1,6 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
-import type { AIProvider } from "../types.js";
+import type { AIProvider, InternalAIProvider } from "../types.js";
 
 export interface AIResponse {
   content: string;
@@ -20,14 +19,43 @@ export interface VisionImage {
   base64Data: string;
 }
 
+// Default cloud provider for "premium" (OpenAI is now the only premium option)
+const DEFAULT_PREMIUM_PROVIDER: InternalAIProvider =
+  (process.env.PREMIUM_AI_PROVIDER as InternalAIProvider) || "openai";
+
+// Map user-facing provider to internal provider
+export function resolveProvider(provider: AIProvider): InternalAIProvider {
+  switch (provider) {
+    case "premium":
+      return DEFAULT_PREMIUM_PROVIDER;
+    case "local":
+      return "ollama";
+    // Legacy: remap "claude" to "openai" for backward compatibility (BR-3)
+    case "claude":
+      console.log("[ai-provider] Legacy provider 'claude' remapped to 'openai'");
+      return "openai";
+    case "openai":
+    case "ollama":
+      return provider;
+    default:
+      throw new Error(`Unsupported AI provider: ${provider}`);
+  }
+}
+
 // Check if a provider supports vision/image analysis
 export function supportsVision(provider: AIProvider): boolean {
-  return provider === "claude" || provider === "openai";
+  const resolved = resolveProvider(provider);
+  return resolved === "openai";
+}
+
+// Check if a provider requires credits (cloud providers)
+export function requiresCredits(provider: AIProvider): boolean {
+  const resolved = resolveProvider(provider);
+  return resolved === "openai";
 }
 
 // Default models
-const DEFAULT_MODELS: Record<AIProvider, string> = {
-  claude: "claude-sonnet-4-20250514",
+const DEFAULT_MODELS: Record<InternalAIProvider, string> = {
   openai: "gpt-4o",
   ollama: "llama3.2",
 };
@@ -36,20 +64,8 @@ const DEFAULT_MODELS: Record<AIProvider, string> = {
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 
 // Lazy initialization of clients
-let anthropicClient: Anthropic | null = null;
 let openaiClient: OpenAI | null = null;
 let ollamaClient: OpenAI | null = null;
-
-function getAnthropicClient(): Anthropic {
-  if (!anthropicClient) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is required");
-    }
-    anthropicClient = new Anthropic({ apiKey });
-  }
-  return anthropicClient;
-}
 
 function getOpenAIClient(): OpenAI {
   if (!openaiClient) {
@@ -98,32 +114,6 @@ export async function getOllamaModels(): Promise<string[]> {
   }
 }
 
-async function generateWithClaude(
-  prompt: string,
-  config: AIProviderConfig
-): Promise<AIResponse> {
-  const client = getAnthropicClient();
-  const model = config.model || DEFAULT_MODELS.claude;
-  const maxTokens = config.maxTokens || 8192;
-
-  const response = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const textContent = response.content.find((block) => block.type === "text");
-  if (!textContent || textContent.type !== "text") {
-    throw new Error("No text content in Claude response");
-  }
-
-  return {
-    content: textContent.text,
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-  };
-}
-
 async function generateWithOpenAI(
   prompt: string,
   config: AIProviderConfig
@@ -164,7 +154,7 @@ async function generateWithOllama(
 
   const client = getOllamaClient();
   const model = process.env.OLLAMA_MODEL || config.model || DEFAULT_MODELS.ollama;
-  const maxTokens = config.maxTokens || 8192; // Match Claude/OpenAI token limit
+  const maxTokens = config.maxTokens || 8192; // Match OpenAI token limit
 
   try {
     const response = await client.chat.completions.create({
@@ -192,43 +182,6 @@ async function generateWithOllama(
     }
     throw error;
   }
-}
-
-// Vision API: Analyze images with Claude
-async function analyzeWithClaudeVision(
-  prompt: string,
-  images: VisionImage[],
-  config: AIProviderConfig
-): Promise<AIResponse> {
-  const client = getAnthropicClient();
-  const model = config.model || DEFAULT_MODELS.claude;
-  const maxTokens = config.maxTokens || 1000;
-
-  // Build content array with text prompt and images
-  const content: Anthropic.MessageCreateParams["messages"][0]["content"] = [
-    { type: "text", text: prompt },
-    ...images.map((img) => ({
-      type: "image" as const,
-      source: {
-        type: "base64" as const,
-        media_type: img.mediaType,
-        data: img.base64Data,
-      },
-    })),
-  ];
-
-  const response = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    messages: [{ role: "user", content }],
-  });
-
-  const textContent = response.content.find((block) => block.type === "text");
-  return {
-    content: textContent?.type === "text" ? textContent.text : "",
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-  };
 }
 
 // Vision API: Analyze images with OpenAI
@@ -272,9 +225,8 @@ export async function analyzeImageWithVision(
   images: VisionImage[],
   config: AIProviderConfig
 ): Promise<AIResponse> {
-  switch (config.provider) {
-    case "claude":
-      return analyzeWithClaudeVision(prompt, images, config);
+  const resolved = resolveProvider(config.provider);
+  switch (resolved) {
     case "openai":
       return analyzeWithOpenAIVision(prompt, images, config);
     default:
@@ -286,9 +238,8 @@ export async function generateContent(
   prompt: string,
   config: AIProviderConfig
 ): Promise<AIResponse> {
-  switch (config.provider) {
-    case "claude":
-      return generateWithClaude(prompt, config);
+  const resolved = resolveProvider(config.provider);
+  switch (resolved) {
     case "openai":
       return generateWithOpenAI(prompt, config);
     case "ollama":
@@ -310,7 +261,6 @@ export function calculateCredits(
 
 // For testing: reset clients
 export function resetClients(): void {
-  anthropicClient = null;
   openaiClient = null;
   ollamaClient = null;
 }

@@ -1,9 +1,12 @@
-import { useForm, Controller } from "react-hook-form";
+import { useState } from "react";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { ChevronDown, ChevronUp, Clock, Users, GraduationCap, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -11,22 +14,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useWizardStore } from "@/stores/wizardStore";
 import { classDetailsSchema, type ClassDetailsFormData } from "@/lib/validators";
+import type { StudentProfileFlag, TeachingConfidence, LessonLength, ObjectiveRecommendation, Grade } from "@/types";
+import { ObjectiveChooser } from "./ObjectiveChooser";
 
 // Extended schema with title field (string, not enum)
 const classDetailsWithTitleSchema = classDetailsSchema.extend({
   title: z.string().optional(),
 });
 
-const grades = [
+// Standard grades (K-3) shown by default
+const standardGrades = [
   { value: "K", label: "Kindergarten" },
   { value: "1", label: "1st Grade" },
   { value: "2", label: "2nd Grade" },
   { value: "3", label: "3rd Grade" },
-  { value: "4", label: "4th Grade (Experimental)" },
-  { value: "5", label: "5th Grade (Experimental)" },
-  { value: "6", label: "6th Grade (Experimental)" },
+];
+
+// Advanced grades (4-6) shown when toggle is enabled
+const advancedGrades = [
+  { value: "4", label: "4th Grade" },
+  { value: "5", label: "5th Grade" },
+  { value: "6", label: "6th Grade" },
 ];
 
 const subjects = [
@@ -40,9 +51,43 @@ const subjects = [
   "Physical Education",
 ];
 
+// Lesson plan specific options (Issue #17)
+const lessonLengthOptions: { value: LessonLength; label: string }[] = [
+  { value: 15, label: "15 minutes (Quick)" },
+  { value: 30, label: "30 minutes (Standard)" },
+  { value: 45, label: "45 minutes" },
+  { value: 60, label: "60 minutes" },
+];
+
+const studentProfileOptions: { value: StudentProfileFlag; label: string; description: string }[] = [
+  { value: "needs_movement", label: "Needs movement breaks", description: "Student benefits from physical activity" },
+  { value: "struggles_reading", label: "Struggles with reading", description: "Needs simpler text and more visuals" },
+  { value: "easily_frustrated", label: "Easily frustrated", description: "Benefits from scaffolding and encouragement" },
+  { value: "advanced", label: "Advanced learner", description: "Ready for challenge activities" },
+  { value: "ell", label: "English language learner", description: "Needs vocabulary support" },
+];
+
+const teachingConfidenceOptions: { value: TeachingConfidence; label: string; description: string }[] = [
+  { value: "novice", label: "I'm new to teaching", description: "Include detailed teacher script" },
+  { value: "intermediate", label: "I've done some teaching", description: "Include helpful prompts" },
+  { value: "experienced", label: "I'm a teacher", description: "Standard lesson format" },
+];
+
 export function ClassDetailsStep() {
-  const { classDetails, setClassDetails, nextStep, title, setTitle } =
+  const { classDetails, setClassDetails, nextStep, title, setTitle, setPrompt, prompt } =
     useWizardStore();
+
+  // Check if current grade is advanced (4-6) to auto-show advanced toggle
+  const isAdvancedGrade = classDetails?.grade && ["4", "5", "6"].includes(classDetails.grade);
+  const [showAdvancedGrades, setShowAdvancedGrades] = useState(isAdvancedGrade);
+
+  // "Help me choose" state - only show for K-3 which has curriculum packs
+  const [needsObjectiveHelp, setNeedsObjectiveHelp] = useState(false);
+
+  // Combine grades based on toggle state
+  const grades = showAdvancedGrades
+    ? [...standardGrades, ...advancedGrades]
+    : standardGrades;
 
   const {
     control,
@@ -60,8 +105,29 @@ export function ClassDetailsStep() {
       includeVisuals: classDetails?.includeVisuals ?? true,
       difficulty: classDetails?.difficulty || "medium",
       includeAnswerKey: classDetails?.includeAnswerKey ?? true,
+      // Lesson plan defaults (Issue #17)
+      lessonLength: classDetails?.lessonLength || 30,
+      studentProfile: classDetails?.studentProfile || [],
+      teachingConfidence: classDetails?.teachingConfidence || "intermediate",
     },
   });
+
+  // Watch format to show/hide lesson plan options
+  const watchedFormat = useWatch({ control, name: "format" });
+  const showLessonPlanOptions = watchedFormat === "lesson_plan" || watchedFormat === "both";
+
+  // Watch grade and subject for ObjectiveChooser
+  const watchedGrade = useWatch({ control, name: "grade" });
+  const watchedSubject = useWatch({ control, name: "subject" });
+
+  // Check if grade is K-3 (curriculum packs only cover K-3)
+  const hasObjectivePacks = ["K", "1", "2", "3"].includes(watchedGrade);
+
+  // Handle objective selection from ObjectiveChooser
+  const handleObjectiveSelect = (objective: ObjectiveRecommendation) => {
+    setPrompt(objective.text);
+    setNeedsObjectiveHelp(false);
+  };
 
   const onSubmit = (data: ClassDetailsFormData & { title: string }) => {
     setTitle(data.title || title);
@@ -73,6 +139,10 @@ export function ClassDetailsStep() {
       includeVisuals: data.includeVisuals,
       difficulty: data.difficulty,
       includeAnswerKey: data.includeAnswerKey,
+      // Lesson plan fields (Issue #17)
+      lessonLength: data.lessonLength || 30,
+      studentProfile: data.studentProfile || [],
+      teachingConfidence: data.teachingConfidence || "intermediate",
     });
     nextStep();
   };
@@ -92,7 +162,26 @@ export function ClassDetailsStep() {
       <div className="grid grid-cols-2 gap-4">
         {/* Grade */}
         <div className="space-y-2">
-          <Label>Grade Level *</Label>
+          <div className="flex items-center justify-between">
+            <Label>Grade Level *</Label>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedGrades(!showAdvancedGrades)}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+            >
+              {showAdvancedGrades ? (
+                <>
+                  Hide 4-6
+                  <ChevronUp className="h-3 w-3" />
+                </>
+              ) : (
+                <>
+                  Show 4-6
+                  <ChevronDown className="h-3 w-3" />
+                </>
+              )}
+            </button>
+          </div>
           <Controller
             name="grade"
             control={control}
@@ -141,7 +230,44 @@ export function ClassDetailsStep() {
             <p className="text-sm text-destructive">{errors.subject.message}</p>
           )}
         </div>
+      </div>
 
+      {/* Help me choose - shown for K-3 grades with a selected subject */}
+      {hasObjectivePacks && watchedSubject && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              <Label htmlFor="help-me-choose" className="text-sm cursor-pointer">
+                I don&apos;t know what to teach next
+              </Label>
+            </div>
+            <Switch
+              id="help-me-choose"
+              checked={needsObjectiveHelp}
+              onCheckedChange={setNeedsObjectiveHelp}
+            />
+          </div>
+
+          {needsObjectiveHelp && (
+            <ObjectiveChooser
+              grade={watchedGrade as Grade}
+              subject={watchedSubject}
+              onSelect={handleObjectiveSelect}
+              onCancel={() => setNeedsObjectiveHelp(false)}
+            />
+          )}
+
+          {/* Show current prompt if one is set */}
+          {!needsObjectiveHelp && prompt && (
+            <div className="text-sm text-muted-foreground p-2 bg-muted/50 rounded">
+              <span className="font-medium">Current topic:</span> {prompt}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
         {/* Format */}
         <div className="space-y-2">
           <Label>Format</Label>
@@ -196,6 +322,122 @@ export function ClassDetailsStep() {
           {...register("questionCount", { valueAsNumber: true })}
         />
       </div>
+
+      {/* Lesson Plan Options - shown when format includes lesson_plan (Issue #17) */}
+      {showLessonPlanOptions && (
+        <div className="space-y-4 pt-4 border-t">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <GraduationCap className="h-4 w-4" />
+            Lesson Plan Options
+          </div>
+
+          {/* Lesson Length */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Lesson Length
+              </Label>
+              <Controller
+                name="lessonLength"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    onValueChange={(v) => field.onChange(parseInt(v) as LessonLength)}
+                    value={field.value?.toString()}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select length" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lessonLengthOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value.toString()}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            {/* Teaching Confidence */}
+            <div className="space-y-2">
+              <Label>Your Teaching Experience</Label>
+              <Controller
+                name="teachingConfidence"
+                control={control}
+                render={({ field }) => (
+                  <RadioGroup
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    className="space-y-1"
+                  >
+                    {teachingConfidenceOptions.map((opt) => (
+                      <div key={opt.value} className="flex items-start space-x-2">
+                        <RadioGroupItem value={opt.value} id={`confidence-${opt.value}`} className="mt-0.5" />
+                        <Label
+                          htmlFor={`confidence-${opt.value}`}
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          <span className="font-medium">{opt.label}</span>
+                          <span className="text-muted-foreground text-xs block">{opt.description}</span>
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Student Profile */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Student Profile (optional)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Select any that apply to help tailor the lesson
+            </p>
+            <Controller
+              name="studentProfile"
+              control={control}
+              render={({ field }) => (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  {studentProfileOptions.map((opt) => {
+                    const isChecked = field.value?.includes(opt.value) || false;
+                    return (
+                      <label
+                        key={opt.value}
+                        className={`flex items-start gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
+                          isChecked ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const newValue = e.target.checked
+                              ? [...(field.value || []), opt.value]
+                              : (field.value || []).filter((v) => v !== opt.value);
+                            field.onChange(newValue);
+                          }}
+                          className="w-4 h-4 mt-0.5 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <span className="text-sm">
+                          <span className="font-medium">{opt.label}</span>
+                          <span className="text-muted-foreground text-xs block">{opt.description}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Options */}
       <div className="grid grid-cols-2 gap-4 pt-2">

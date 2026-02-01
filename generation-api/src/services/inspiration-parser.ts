@@ -7,9 +7,99 @@ import {
   type VisionImage,
 } from "./ai-provider.js";
 import { buildInspirationParsePrompt } from "../prompts/templates.js";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const pdf = require("pdf-parse");
+import { chromium, type Browser } from "playwright";
+import { createCanvas } from "canvas";
+// Use legacy build of pdfjs for Node.js compatibility
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { PDFParse } from "pdf-parse";
+
+// Reusable browser instance for screenshots
+let browserInstance: Browser | null = null;
+
+async function getBrowser(): Promise<Browser> {
+  if (!browserInstance || !browserInstance.isConnected()) {
+    browserInstance = await chromium.launch({ headless: true });
+  }
+  return browserInstance;
+}
+
+// Cleanup browser on process exit
+process.on("exit", () => {
+  browserInstance?.close();
+});
+
+// Screenshot a URL for visual design analysis
+async function getUrlScreenshot(url: string): Promise<VisionImage | null> {
+  try {
+    const browser = await getBrowser();
+    const context = await browser.newContext({
+      viewport: { width: 1200, height: 800 },
+    });
+    const page = await context.newPage();
+
+    await page.goto(url, {
+      waitUntil: "networkidle",
+      timeout: 15000,
+    });
+
+    // Take screenshot as PNG (medium quality, good for design analysis)
+    const screenshot = await page.screenshot({
+      type: "png",
+      fullPage: false, // Just viewport, not full page
+    });
+
+    await context.close();
+
+    return {
+      mediaType: "image/png",
+      base64Data: screenshot.toString("base64"),
+    };
+  } catch (error) {
+    console.error("Failed to screenshot URL:", error);
+    return null;
+  }
+}
+
+// Render first page of PDF as an image for visual design analysis
+async function getPdfPageAsImage(base64Content: string): Promise<VisionImage | null> {
+  try {
+    const buffer = Buffer.from(base64Content, "base64");
+    const uint8Array = new Uint8Array(buffer);
+
+    // Load the PDF document
+    const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+    const pdfDocument = await loadingTask.promise;
+
+    // Get the first page
+    const page = await pdfDocument.getPage(1);
+
+    // Set scale for medium quality (1.5 is a good balance of quality and size)
+    const scale = 1.5;
+    const viewport = page.getViewport({ scale });
+
+    // Create a canvas with the page dimensions
+    const canvas = createCanvas(viewport.width, viewport.height);
+    const context = canvas.getContext("2d");
+
+    // Render the page to the canvas
+    await page.render({
+      // @ts-expect-error - node-canvas context is compatible with pdfjs
+      canvasContext: context,
+      viewport,
+    }).promise;
+
+    // Convert canvas to PNG base64
+    const pngBuffer = canvas.toBuffer("image/png");
+
+    return {
+      mediaType: "image/png",
+      base64Data: pngBuffer.toString("base64"),
+    };
+  } catch (error) {
+    console.error("Failed to render PDF page:", error);
+    return null;
+  }
+}
 
 // Prompt for analyzing educational material design from images
 const DESIGN_ANALYSIS_PROMPT = `Analyze this educational material's visual design and provide a concise style guide that can be used to create similar worksheets.
@@ -29,8 +119,11 @@ const MAX_CONTENT_LENGTH = 10000;
 async function extractPdfText(base64Content: string): Promise<string> {
   try {
     const buffer = Buffer.from(base64Content, "base64");
-    const data = await pdf(buffer);
-    const text = data.text.trim();
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy();
+
+    const text = result.text.trim();
 
     if (text.length > MAX_CONTENT_LENGTH) {
       return text.substring(0, MAX_CONTENT_LENGTH) + "...";
@@ -108,7 +201,26 @@ export async function parseInspiration(
       if (!item.sourceUrl) {
         throw new Error("URL inspiration item missing sourceUrl");
       }
+      // Always extract text content as fallback
       content = await fetchUrlContent(item.sourceUrl);
+
+      // If provider supports vision, also capture and analyze the visual design
+      if (supportsVision(aiConfig.provider)) {
+        const screenshot = await getUrlScreenshot(item.sourceUrl);
+        if (screenshot) {
+          try {
+            const designAnalysis = await analyzeImageWithVision(
+              DESIGN_ANALYSIS_PROMPT,
+              [screenshot],
+              { ...aiConfig, maxTokens: 500 }
+            );
+            content = `DESIGN ANALYSIS:\n${designAnalysis.content}\n\nTEXT CONTENT:\n${content}`;
+          } catch (error) {
+            console.error("URL vision analysis failed:", error);
+            // Continue with text content only
+          }
+        }
+      }
       break;
 
     case "text":
@@ -118,7 +230,26 @@ export async function parseInspiration(
     case "pdf":
       // Check if content is base64-encoded PDF data (substantial length)
       if (item.content && item.content.length > 100) {
+        // Always extract text content as fallback
         content = await extractPdfText(item.content);
+
+        // If provider supports vision, also render and analyze the visual design
+        if (supportsVision(aiConfig.provider)) {
+          const pdfImage = await getPdfPageAsImage(item.content);
+          if (pdfImage) {
+            try {
+              const designAnalysis = await analyzeImageWithVision(
+                DESIGN_ANALYSIS_PROMPT,
+                [pdfImage],
+                { ...aiConfig, maxTokens: 500 }
+              );
+              content = `DESIGN ANALYSIS:\n${designAnalysis.content}\n\nTEXT CONTENT:\n${content}`;
+            } catch (error) {
+              console.error("PDF vision analysis failed:", error);
+              // Continue with text content only
+            }
+          }
+        }
       } else {
         content = item.content || "[PDF content not available]";
       }

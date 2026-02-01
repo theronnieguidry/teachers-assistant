@@ -15,6 +15,21 @@ vi.mock("@supabase/supabase-js", () => ({
   })),
 }));
 
+// Mock Playwright
+const mockPdf = vi.fn();
+const mockSetContent = vi.fn();
+const mockNewPage = vi.fn();
+const mockClose = vi.fn();
+
+vi.mock("playwright", () => ({
+  chromium: {
+    launch: vi.fn(() => ({
+      newPage: mockNewPage,
+      close: mockClose,
+    })),
+  },
+}));
+
 describe("PDF Route", () => {
   const app = express();
   app.use(express.json());
@@ -25,6 +40,15 @@ describe("PDF Route", () => {
     resetAuthClient();
     process.env.SUPABASE_URL = "https://test.supabase.co";
     process.env.SUPABASE_ANON_KEY = "test-anon-key";
+
+    // Setup Playwright mocks
+    mockPdf.mockResolvedValue(Buffer.from("%PDF-1.4 fake pdf content"));
+    mockSetContent.mockResolvedValue(undefined);
+    mockNewPage.mockResolvedValue({
+      setContent: mockSetContent,
+      pdf: mockPdf,
+    });
+    mockClose.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -69,7 +93,7 @@ describe("PDF Route", () => {
     expect(response.status).toBe(400);
   });
 
-  it("should return 503 when PDF service not configured", async () => {
+  it("should generate PDF successfully", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
@@ -80,9 +104,12 @@ describe("PDF Route", () => {
       .set("Authorization", "Bearer valid-token")
       .send({ html: "<p>Test content</p>" });
 
-    expect(response.status).toBe(503);
-    expect(response.body.error).toBe("PDF generation service not configured");
-    expect(response.body.suggestion).toContain("Print function");
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toBe("application/pdf");
+    expect(response.headers["content-disposition"]).toContain("attachment");
+    expect(mockSetContent).toHaveBeenCalled();
+    expect(mockPdf).toHaveBeenCalled();
+    expect(mockClose).toHaveBeenCalled();
   });
 
   it("should accept optional PDF options", async () => {
@@ -106,7 +133,33 @@ describe("PDF Route", () => {
         },
       });
 
-    // Still returns 503 since Playwright isn't configured, but validates options
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
+    expect(mockPdf).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: "a4",
+        landscape: true,
+        margin: expect.objectContaining({
+          top: "1in",
+          bottom: "1in",
+        }),
+      })
+    );
+  });
+
+  it("should handle PDF generation errors", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    mockPdf.mockRejectedValueOnce(new Error("Browser crashed"));
+
+    const response = await request(app)
+      .post("/pdf")
+      .set("Authorization", "Bearer valid-token")
+      .send({ html: "<p>Test content</p>" });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).toBe("PDF generation failed");
   });
 });

@@ -216,27 +216,24 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# AI Provider (choose one: claude, openai, ollama)
-AI_PROVIDER=ollama
-
-# Cloud providers (require API keys)
-ANTHROPIC_API_KEY=your-anthropic-api-key
+# Premium AI (OpenAI - requires API key)
 OPENAI_API_KEY=your-openai-api-key
 
-# Ollama (free local LLM - no API key needed)
+# Local AI (Ollama - free, no API key needed)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2
 ```
 
 ## AI Providers
 
-The application supports three AI providers:
+The application supports two AI provider modes:
 
 | Provider | Cost | Setup | Quality |
 |----------|------|-------|---------|
-| **Claude** | Paid (API) | Add `ANTHROPIC_API_KEY` | Excellent |
-| **OpenAI** | Paid (API) | Add `OPENAI_API_KEY` | Excellent |
-| **Ollama** | Free | Install Ollama locally | Good (model dependent) |
+| **Premium (OpenAI)** | Credits | Add `OPENAI_API_KEY` | Excellent |
+| **Local (Ollama)** | Free | Install Ollama locally | Good (model dependent) |
+
+> **Note**: Claude/Anthropic was removed from runtime. Legacy `project_versions` with `ai_provider=claude` remain viewable.
 
 ### Using Ollama (Free Local LLM)
 
@@ -354,6 +351,42 @@ Automates the full release workflow:
 
 **Prerequisites**: GitHub secrets must be configured (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
 
+### `/project-snapshot` - Project State Documentation
+Generates a comprehensive, evidence-based project state document for external AI reviewers (Nova/ChatGPT), contractors, or future maintainers. The document uses verification status levels (✅ Verified / 🟡 Configured / ⚠️ Partial / 🔴 Missing) instead of Yes/No.
+
+**Key sections** (16 total):
+1. Environment metadata header (version, build type, API URL, payment mode)
+2. Known gaps / TODO summary (P0/P1/P2 prioritized)
+3. Quick verdict (reviewer summary with status levels)
+4. Production runtime modes (Dev / Teacher / Local-only)
+5. Feature truth table with evidence fields
+6. Teacher experience acceptance checklist
+7. Wizard step-by-step (as implemented)
+8. API contracts (real JSON examples)
+9. Credits + billing edge cases matrix
+10. Prompt assembly "truth prompt" (sanitized example)
+11. Inspiration extraction contract (schema + limits)
+12. Output artifact contract (folder structure, naming rules)
+13. Testing inventory + last verified run metadata
+14. Privacy + "Never Store" rules
+15. Legacy compatibility (Claude → OpenAI remap)
+16. Open questions
+
+**Usage**: Type `/project-snapshot` to generate a new snapshot.
+
+**Output**: Creates a dated markdown file at:
+```
+C:\Users\ronni\.claude\plans\TA-Project-Snapshot-{YYYY-MM-DD}.md
+```
+
+**MVP Grade Range**: K-3 (soft-limit beyond MVP). The snapshot explicitly states this policy.
+
+**Use Cases**:
+- Share project status with external AI reviewers (Nova/ChatGPT)
+- Document current state before major refactoring
+- Verify implementation against specifications
+- Onboard new team members or contractors
+
 ---
 
 ## Development Workflow
@@ -365,7 +398,61 @@ This project uses **issue-driven development**:
 3. **Implement** with appropriate unit and E2E tests
 4. **Run full test suite**: `npm run test:run && npx playwright test`
 5. **Commit** with descriptive message referencing issue
-6. **Create PR**: `gh pr create`
+6. **Close the issue** with implementation summary (see below)
+7. **Create PR**: `gh pr create` (if using branches)
+
+### Closing Issues After Implementation
+
+**IMPORTANT**: When completing work on an issue, close it with a comprehensive implementation summary:
+
+```bash
+gh issue close <number> --comment "## Implementation Complete
+
+### Summary
+<What was done, any deviations from original plan>
+
+### Files Created/Modified
+- \`path/to/file.ts\` - Description of changes
+- \`path/to/new-file.ts\` - New file purpose
+
+### Tests Added
+- \`test-file.test.ts\` (N tests):
+  - Test case description
+  - Test case description
+
+### Acceptance Criteria
+- [x] Completed item
+- [x] Another completed item
+"
+```
+
+The implementation summary should include:
+1. **Summary** - What was done, any deviations from original plan
+2. **Files Created/Modified** - List of key files with descriptions
+3. **Tests Added** - New test cases with descriptions
+4. **Acceptance Criteria** - Check off completed items from the original issue
+
+Example:
+```bash
+gh issue close 9 --comment "## Implementation Complete
+
+### Summary
+Added visual design analysis for URLs and PDFs using vision-capable AI providers.
+
+### Files Modified
+- \`generation-api/src/services/inspiration-parser.ts\` - Added vision analysis
+- \`src/components/wizard/AIProviderStep.tsx\` - Added capability warning
+
+### Tests Added
+- \`inspiration-parser.test.ts\`:
+  - \`should perform visual analysis on URLs when provider supports vision\`
+  - \`should skip URL visual analysis when provider does not support vision\`
+
+### Acceptance Criteria
+- [x] User is clearly informed when feature is limited
+- [x] Warning appears at appropriate step
+"
+```
 
 ### Creating Issues
 

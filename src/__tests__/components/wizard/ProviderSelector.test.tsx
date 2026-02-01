@@ -12,7 +12,7 @@ vi.mock("@/services/tauri-bridge", () => ({
 
 describe("ProviderSelector", () => {
   const defaultProps = {
-    value: "claude" as const,
+    value: "premium" as const,
     onChange: vi.fn(),
     ollamaModel: null,
     onOllamaModelChange: vi.fn(),
@@ -29,21 +29,20 @@ describe("ProviderSelector", () => {
   });
 
   describe("rendering", () => {
-    it("renders all three provider options", async () => {
+    it("renders both provider options", async () => {
       render(<ProviderSelector {...defaultProps} />);
 
-      expect(screen.getByText("Claude")).toBeInTheDocument();
-      expect(screen.getByText("OpenAI")).toBeInTheDocument();
-      expect(screen.getByText("Ollama")).toBeInTheDocument();
+      expect(screen.getByText("Premium AI")).toBeInTheDocument();
+      expect(screen.getByText("Local AI")).toBeInTheDocument();
     });
 
-    it("renders Claude with Recommended badge", async () => {
+    it("renders Premium AI with Best Quality badge", async () => {
       render(<ProviderSelector {...defaultProps} />);
 
-      expect(screen.getByText("Recommended")).toBeInTheDocument();
+      expect(screen.getByText("Best Quality")).toBeInTheDocument();
     });
 
-    it("renders Ollama with Free badge", async () => {
+    it("renders Local AI with Free badge", async () => {
       render(<ProviderSelector {...defaultProps} />);
 
       expect(screen.getByText("Free")).toBeInTheDocument();
@@ -52,57 +51,51 @@ describe("ProviderSelector", () => {
     it("shows provider descriptions", async () => {
       render(<ProviderSelector {...defaultProps} />);
 
-      expect(screen.getByText(/Anthropic's AI - recommended for educational content/)).toBeInTheDocument();
-      expect(screen.getByText(/GPT-4 powered content generation/)).toBeInTheDocument();
-      expect(screen.getByText(/Run AI locally - no image analysis/)).toBeInTheDocument();
+      expect(screen.getByText(/Best quality - uses cloud-based AI/)).toBeInTheDocument();
+      expect(screen.getByText(/Runs on this computer - no image analysis/)).toBeInTheDocument();
+    });
+
+    it("shows credits info for Premium AI", async () => {
+      render(<ProviderSelector {...defaultProps} />);
+
+      expect(screen.getByText(/Uses credits \(typically 3-6 per worksheet\)/)).toBeInTheDocument();
     });
   });
 
   describe("provider selection", () => {
-    it("calls onChange when Claude is clicked", async () => {
+    it("calls onChange when Premium AI is clicked", async () => {
       const onChange = vi.fn();
       const user = userEvent.setup();
 
-      render(<ProviderSelector {...defaultProps} value="openai" onChange={onChange} />);
+      render(<ProviderSelector {...defaultProps} value="local" onChange={onChange} />);
 
-      await user.click(screen.getByText("Claude").closest("[role='button']")!);
+      await user.click(screen.getByText("Premium AI").closest("[role='button']")!);
 
-      expect(onChange).toHaveBeenCalledWith("claude");
+      expect(onChange).toHaveBeenCalledWith("premium");
     });
 
-    it("calls onChange when OpenAI is clicked", async () => {
+    it("calls onChange when Local AI is clicked", async () => {
       const onChange = vi.fn();
       const user = userEvent.setup();
 
       render(<ProviderSelector {...defaultProps} onChange={onChange} />);
 
-      await user.click(screen.getByText("OpenAI").closest("[role='button']")!);
+      await user.click(screen.getByText("Local AI").closest("[role='button']")!);
 
-      expect(onChange).toHaveBeenCalledWith("openai");
-    });
-
-    it("calls onChange when Ollama is clicked", async () => {
-      const onChange = vi.fn();
-      const user = userEvent.setup();
-
-      render(<ProviderSelector {...defaultProps} onChange={onChange} />);
-
-      await user.click(screen.getByText("Ollama").closest("[role='button']")!);
-
-      expect(onChange).toHaveBeenCalledWith("ollama");
+      expect(onChange).toHaveBeenCalledWith("local");
     });
   });
 
-  describe("Ollama status", () => {
-    it("shows Running status when Ollama is available with models", async () => {
+  describe("Local AI status", () => {
+    it("shows Ready status when Local AI is available with models", async () => {
       render(<ProviderSelector {...defaultProps} />);
 
       await waitFor(() => {
-        expect(screen.getByText("Running (2 models)")).toBeInTheDocument();
+        expect(screen.getByText("Ready (2 models available)")).toBeInTheDocument();
       });
     });
 
-    it("shows No models installed when Ollama is running but has no models", async () => {
+    it("shows No models installed when Local AI is running but has no models", async () => {
       mockCheckOllamaStatus.mockResolvedValue({
         installed: true,
         running: true,
@@ -117,7 +110,7 @@ describe("ProviderSelector", () => {
       });
     });
 
-    it("shows Not running when Ollama is not running", async () => {
+    it("shows Not running when Local AI is not running", async () => {
       mockCheckOllamaStatus.mockResolvedValue({
         installed: true,
         running: false,
@@ -139,28 +132,28 @@ describe("ProviderSelector", () => {
 
       render(<ProviderSelector {...defaultProps} />);
 
-      expect(screen.getByText("Checking...")).toBeInTheDocument();
+      expect(screen.getByText(/Checking local AI status/)).toBeInTheDocument();
     });
   });
 
-  describe("Ollama model selection", () => {
-    it("shows model dropdown when Ollama is selected and running", async () => {
-      render(<ProviderSelector {...defaultProps} value="ollama" />);
+  describe("Local AI model selection", () => {
+    it("shows model dropdown when Local AI is selected and running", async () => {
+      render(<ProviderSelector {...defaultProps} value="local" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Ollama Model")).toBeInTheDocument();
+        expect(screen.getByText("Local AI Model")).toBeInTheDocument();
       });
     });
 
-    it("does not show model dropdown when Ollama is not selected", async () => {
-      render(<ProviderSelector {...defaultProps} value="claude" />);
+    it("does not show model dropdown when Premium AI is selected", async () => {
+      render(<ProviderSelector {...defaultProps} value="premium" />);
 
       await waitFor(() => {
-        expect(screen.queryByText("Ollama Model")).not.toBeInTheDocument();
+        expect(screen.queryByText("Local AI Model")).not.toBeInTheDocument();
       });
     });
 
-    it("does not show model dropdown when Ollama is not running", async () => {
+    it("does not show model dropdown when Local AI is not running", async () => {
       mockCheckOllamaStatus.mockResolvedValue({
         installed: true,
         running: false,
@@ -168,14 +161,14 @@ describe("ProviderSelector", () => {
         models: [],
       });
 
-      render(<ProviderSelector {...defaultProps} value="ollama" />);
+      render(<ProviderSelector {...defaultProps} value="local" />);
 
       await waitFor(() => {
-        expect(screen.queryByText("Ollama Model")).not.toBeInTheDocument();
+        expect(screen.queryByText("Local AI Model")).not.toBeInTheDocument();
       });
     });
 
-    it("auto-selects first model when switching to Ollama", async () => {
+    it("auto-selects first model when switching to Local AI", async () => {
       const onOllamaModelChange = vi.fn();
       const onChange = vi.fn();
       const user = userEvent.setup();
@@ -188,43 +181,43 @@ describe("ProviderSelector", () => {
         />
       );
 
-      // Wait for Ollama status to load
+      // Wait for Local AI status to load
       await waitFor(() => {
-        expect(screen.getByText("Running (2 models)")).toBeInTheDocument();
+        expect(screen.getByText("Ready (2 models available)")).toBeInTheDocument();
       });
 
-      // Click Ollama
-      await user.click(screen.getByText("Ollama").closest("[role='button']")!);
+      // Click Local AI
+      await user.click(screen.getByText("Local AI").closest("[role='button']")!);
 
       expect(onOllamaModelChange).toHaveBeenCalledWith("llama3.2");
     });
 
-    it("clears model when switching away from Ollama", async () => {
+    it("clears model when switching away from Local AI", async () => {
       const onOllamaModelChange = vi.fn();
       const user = userEvent.setup();
 
       render(
         <ProviderSelector
           {...defaultProps}
-          value="ollama"
+          value="local"
           ollamaModel="llama3.2"
           onOllamaModelChange={onOllamaModelChange}
         />
       );
 
       await waitFor(() => {
-        expect(screen.getByText("Ollama Model")).toBeInTheDocument();
+        expect(screen.getByText("Local AI Model")).toBeInTheDocument();
       });
 
-      // Click Claude
-      await user.click(screen.getByText("Claude").closest("[role='button']")!);
+      // Click Premium AI
+      await user.click(screen.getByText("Premium AI").closest("[role='button']")!);
 
       expect(onOllamaModelChange).toHaveBeenCalledWith(null);
     });
   });
 
   describe("warning messages", () => {
-    it("shows warning when Ollama is selected but not running", async () => {
+    it("shows warning when Local AI is selected but not running", async () => {
       mockCheckOllamaStatus.mockResolvedValue({
         installed: true,
         running: false,
@@ -232,16 +225,16 @@ describe("ProviderSelector", () => {
         models: [],
       });
 
-      render(<ProviderSelector {...defaultProps} value="ollama" />);
+      render(<ProviderSelector {...defaultProps} value="local" />);
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Ollama is not running/i)
+          screen.getByText(/Local AI is not running/i)
         ).toBeInTheDocument();
       });
     });
 
-    it("shows warning when Ollama is selected but no models installed", async () => {
+    it("shows warning when Local AI is selected but no models installed", async () => {
       mockCheckOllamaStatus.mockResolvedValue({
         installed: true,
         running: true,
@@ -249,17 +242,17 @@ describe("ProviderSelector", () => {
         models: [],
       });
 
-      render(<ProviderSelector {...defaultProps} value="ollama" />);
+      render(<ProviderSelector {...defaultProps} value="local" />);
 
       await waitFor(() => {
         // Warning message in the amber box
         expect(
-          screen.getByText(/Install a model in Ollama settings/i)
+          screen.getByText(/Install a model from Settings/i)
         ).toBeInTheDocument();
       });
     });
 
-    it("does not show warning when Ollama is not selected", async () => {
+    it("does not show warning when Premium AI is selected", async () => {
       mockCheckOllamaStatus.mockResolvedValue({
         installed: true,
         running: false,
@@ -267,18 +260,18 @@ describe("ProviderSelector", () => {
         models: [],
       });
 
-      render(<ProviderSelector {...defaultProps} value="claude" />);
+      render(<ProviderSelector {...defaultProps} value="premium" />);
 
       await waitFor(() => {
         expect(
-          screen.queryByText(/Ollama is not running/i)
+          screen.queryByText(/Local AI is not running/i)
         ).not.toBeInTheDocument();
       });
     });
   });
 
   describe("error handling", () => {
-    it("handles Ollama check failure gracefully", async () => {
+    it("handles Local AI check failure gracefully", async () => {
       mockCheckOllamaStatus.mockRejectedValue(new Error("Connection failed"));
 
       render(<ProviderSelector {...defaultProps} />);

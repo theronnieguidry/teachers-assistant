@@ -73,6 +73,9 @@ describe("wizardStore", () => {
         includeVisuals: true,
         difficulty: "medium",
         includeAnswerKey: true,
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
       });
     });
 
@@ -189,6 +192,9 @@ describe("wizardStore", () => {
         includeVisuals: false,
         difficulty: "hard" as const,
         includeAnswerKey: false,
+        lessonLength: 30 as const,
+        studentProfile: [] as ("needs_movement" | "struggles_reading" | "easily_frustrated" | "advanced" | "ell")[],
+        teachingConfidence: "intermediate" as const,
       };
 
       setClassDetails(details);
@@ -275,6 +281,9 @@ describe("wizardStore", () => {
           includeVisuals: true,
           difficulty: "hard",
           includeAnswerKey: true,
+          lessonLength: 30,
+          studentProfile: [],
+          teachingConfidence: "intermediate",
         },
         selectedInspiration: [{ id: "1", type: "url", title: "Test" }],
         outputPath: "/path",
@@ -319,6 +328,9 @@ describe("wizardStore", () => {
           includeVisuals: false,
           difficulty: "easy",
           includeAnswerKey: true,
+          lessonLength: 30,
+          studentProfile: [],
+          teachingConfidence: "intermediate",
         },
       });
 
@@ -331,6 +343,9 @@ describe("wizardStore", () => {
         difficulty: "easy",
         format: "worksheet",
         includeAnswerKey: true,
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
       });
     });
   });
@@ -345,10 +360,10 @@ describe("wizardStore", () => {
       grade: "3" as const,
       subject: "Math",
       options: {
-        format: "worksheet",
+        format: "worksheet" as const,
         questionCount: 15,
         includeVisuals: false,
-        difficulty: "hard",
+        difficulty: "hard" as const,
         includeAnswerKey: true,
       },
       inspiration: [
@@ -402,6 +417,9 @@ describe("wizardStore", () => {
         includeVisuals: false,
         difficulty: "hard",
         includeAnswerKey: true,
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
       });
     });
 
@@ -471,7 +489,7 @@ describe("wizardStore", () => {
       const projectWithoutOptions = {
         ...mockProject,
         options: {},
-        inspiration: undefined,
+        inspiration: [],
         outputPath: null,
       };
 
@@ -487,6 +505,9 @@ describe("wizardStore", () => {
         includeVisuals: true,
         difficulty: "medium",
         includeAnswerKey: true,
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
       });
       expect(state.selectedInspiration).toEqual([]);
       expect(state.outputPath).toBeNull();

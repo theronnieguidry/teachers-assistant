@@ -23,11 +23,10 @@ vi.mock("@/components/wizard/ProviderSelector", () => ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="claude">Claude</option>
-        <option value="openai">OpenAI</option>
-        <option value="ollama">Ollama</option>
+        <option value="premium">Premium AI</option>
+        <option value="local">Local AI</option>
       </select>
-      {value === "ollama" && (
+      {value === "local" && (
         <select
           data-testid="model-select"
           value={ollamaModel || ""}
@@ -42,6 +41,21 @@ vi.mock("@/components/wizard/ProviderSelector", () => ({
   ),
 }));
 
+// Mock useAuth hook
+const mockRefreshCredits = vi.fn();
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({
+    credits: { balance: 50, lifetimeGranted: 50, lifetimeUsed: 0 },
+    refreshCredits: mockRefreshCredits,
+  }),
+}));
+
+// Mock PurchaseDialog to avoid complex component testing
+vi.mock("@/components/purchase", () => ({
+  PurchaseDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="purchase-dialog">Purchase Dialog</div> : null,
+}));
+
 describe("AIProviderStep", () => {
   const mockNextStep = vi.fn();
   const mockPrevStep = vi.fn();
@@ -51,12 +65,13 @@ describe("AIProviderStep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWizardStore.setState({
-      aiProvider: "claude",
+      aiProvider: "premium",
       ollamaModel: null,
       nextStep: mockNextStep,
       prevStep: mockPrevStep,
       setAiProvider: mockSetAiProvider,
       setOllamaModel: mockSetOllamaModel,
+      selectedInspiration: [],
     });
   });
 
@@ -87,11 +102,11 @@ describe("AIProviderStep", () => {
     expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
   });
 
-  it("shows Claude as default selected provider", () => {
+  it("shows Premium AI as default selected provider", () => {
     render(<AIProviderStep />);
 
     const providerSelect = screen.getByTestId("provider-select");
-    expect(providerSelect).toHaveValue("claude");
+    expect(providerSelect).toHaveValue("premium");
   });
 
   it("calls setAiProvider when provider is changed", async () => {
@@ -99,37 +114,29 @@ describe("AIProviderStep", () => {
     render(<AIProviderStep />);
 
     const providerSelect = screen.getByTestId("provider-select");
-    await user.selectOptions(providerSelect, "openai");
+    await user.selectOptions(providerSelect, "local");
 
-    expect(mockSetAiProvider).toHaveBeenCalledWith("openai");
+    expect(mockSetAiProvider).toHaveBeenCalledWith("local");
   });
 
-  it("enables Next button when Claude is selected", () => {
-    useWizardStore.setState({ aiProvider: "claude", ollamaModel: null });
+  it("enables Next button when Premium AI is selected with sufficient credits", () => {
+    useWizardStore.setState({ aiProvider: "premium", ollamaModel: null });
     render(<AIProviderStep />);
 
     const nextButton = screen.getByRole("button", { name: /next/i });
     expect(nextButton).not.toBeDisabled();
   });
 
-  it("enables Next button when OpenAI is selected", () => {
-    useWizardStore.setState({ aiProvider: "openai", ollamaModel: null });
-    render(<AIProviderStep />);
-
-    const nextButton = screen.getByRole("button", { name: /next/i });
-    expect(nextButton).not.toBeDisabled();
-  });
-
-  it("disables Next button when Ollama is selected but no model is chosen", () => {
-    useWizardStore.setState({ aiProvider: "ollama", ollamaModel: null });
+  it("disables Next button when Local AI is selected but no model is chosen", () => {
+    useWizardStore.setState({ aiProvider: "local", ollamaModel: null });
     render(<AIProviderStep />);
 
     const nextButton = screen.getByRole("button", { name: /next/i });
     expect(nextButton).toBeDisabled();
   });
 
-  it("enables Next button when Ollama is selected with a model", () => {
-    useWizardStore.setState({ aiProvider: "ollama", ollamaModel: "llama3.2" });
+  it("enables Next button when Local AI is selected with a model", () => {
+    useWizardStore.setState({ aiProvider: "local", ollamaModel: "llama3.2" });
     render(<AIProviderStep />);
 
     const nextButton = screen.getByRole("button", { name: /next/i });
@@ -156,22 +163,22 @@ describe("AIProviderStep", () => {
     expect(mockNextStep).toHaveBeenCalledTimes(1);
   });
 
-  it("shows model selector when Ollama is selected", () => {
-    useWizardStore.setState({ aiProvider: "ollama", ollamaModel: null });
+  it("shows model selector when Local AI is selected", () => {
+    useWizardStore.setState({ aiProvider: "local", ollamaModel: null });
     render(<AIProviderStep />);
 
     expect(screen.getByTestId("model-select")).toBeInTheDocument();
   });
 
-  it("does not show model selector when Claude is selected", () => {
-    useWizardStore.setState({ aiProvider: "claude", ollamaModel: null });
+  it("does not show model selector when Premium AI is selected", () => {
+    useWizardStore.setState({ aiProvider: "premium", ollamaModel: null });
     render(<AIProviderStep />);
 
     expect(screen.queryByTestId("model-select")).not.toBeInTheDocument();
   });
 
   it("calls setOllamaModel when model is changed", async () => {
-    useWizardStore.setState({ aiProvider: "ollama", ollamaModel: null });
+    useWizardStore.setState({ aiProvider: "local", ollamaModel: null });
     const user = userEvent.setup();
     render(<AIProviderStep />);
 
@@ -181,79 +188,96 @@ describe("AIProviderStep", () => {
     expect(mockSetOllamaModel).toHaveBeenCalledWith("llama3.2");
   });
 
-  describe("Image inspiration warning", () => {
+  describe("Design inspiration warning", () => {
     const imageInspiration = [
       { id: "img-1", type: "image" as const, title: "design.png", content: "base64..." },
     ];
-    const textInspiration = [
-      { id: "text-1", type: "url" as const, title: "example.com", sourceUrl: "https://example.com" },
+    const urlInspiration = [
+      { id: "url-1", type: "url" as const, title: "example.com", sourceUrl: "https://example.com" },
+    ];
+    const pdfInspiration = [
+      { id: "pdf-1", type: "pdf" as const, title: "worksheet.pdf", content: "base64..." },
+    ];
+    const textOnlyInspiration = [
+      { id: "text-1", type: "text" as const, title: "Notes", content: "Some text notes" },
     ];
 
-    it("does not show warning when Claude is selected with image inspiration", () => {
+    it("does not show warning when Premium AI is selected with design inspiration", () => {
       useWizardStore.setState({
-        aiProvider: "claude",
+        aiProvider: "premium",
         ollamaModel: null,
         selectedInspiration: imageInspiration,
       });
       render(<AIProviderStep />);
 
-      expect(screen.queryByText(/Image inspiration won't be analyzed/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Design inspiration will be limited/i)).not.toBeInTheDocument();
     });
 
-    it("does not show warning when OpenAI is selected with image inspiration", () => {
+    it("does not show warning when Local AI is selected with text-only inspiration", () => {
       useWizardStore.setState({
-        aiProvider: "openai",
-        ollamaModel: null,
-        selectedInspiration: imageInspiration,
-      });
-      render(<AIProviderStep />);
-
-      expect(screen.queryByText(/Image inspiration won't be analyzed/i)).not.toBeInTheDocument();
-    });
-
-    it("does not show warning when Ollama is selected without image inspiration", () => {
-      useWizardStore.setState({
-        aiProvider: "ollama",
+        aiProvider: "local",
         ollamaModel: "llama3.2",
-        selectedInspiration: textInspiration,
+        selectedInspiration: textOnlyInspiration,
       });
       render(<AIProviderStep />);
 
-      expect(screen.queryByText(/Image inspiration won't be analyzed/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Design inspiration will be limited/i)).not.toBeInTheDocument();
     });
 
-    it("does not show warning when Ollama is selected with no inspiration", () => {
+    it("does not show warning when Local AI is selected with no inspiration", () => {
       useWizardStore.setState({
-        aiProvider: "ollama",
+        aiProvider: "local",
         ollamaModel: "llama3.2",
         selectedInspiration: [],
       });
       render(<AIProviderStep />);
 
-      expect(screen.queryByText(/Image inspiration won't be analyzed/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Design inspiration will be limited/i)).not.toBeInTheDocument();
     });
 
-    it("shows warning when Ollama is selected with image inspiration", () => {
+    it("shows warning when Local AI is selected with image inspiration", () => {
       useWizardStore.setState({
-        aiProvider: "ollama",
+        aiProvider: "local",
         ollamaModel: "llama3.2",
         selectedInspiration: imageInspiration,
       });
       render(<AIProviderStep />);
 
-      expect(screen.getByText(/Image inspiration won't be analyzed/i)).toBeInTheDocument();
-      expect(screen.getByText(/Ollama cannot analyze images/i)).toBeInTheDocument();
+      expect(screen.getByText(/Design inspiration will be limited/i)).toBeInTheDocument();
+      expect(screen.getByText(/Local AI cannot analyze visual designs/i)).toBeInTheDocument();
     });
 
-    it("shows warning when Ollama is selected with mixed inspiration including images", () => {
+    it("shows warning when Local AI is selected with URL inspiration", () => {
       useWizardStore.setState({
-        aiProvider: "ollama",
+        aiProvider: "local",
         ollamaModel: "llama3.2",
-        selectedInspiration: [...textInspiration, ...imageInspiration],
+        selectedInspiration: urlInspiration,
       });
       render(<AIProviderStep />);
 
-      expect(screen.getByText(/Image inspiration won't be analyzed/i)).toBeInTheDocument();
+      expect(screen.getByText(/Design inspiration will be limited/i)).toBeInTheDocument();
+    });
+
+    it("shows warning when Local AI is selected with PDF inspiration", () => {
+      useWizardStore.setState({
+        aiProvider: "local",
+        ollamaModel: "llama3.2",
+        selectedInspiration: pdfInspiration,
+      });
+      render(<AIProviderStep />);
+
+      expect(screen.getByText(/Design inspiration will be limited/i)).toBeInTheDocument();
+    });
+
+    it("shows warning when Local AI is selected with mixed design inspiration", () => {
+      useWizardStore.setState({
+        aiProvider: "local",
+        ollamaModel: "llama3.2",
+        selectedInspiration: [...textOnlyInspiration, ...imageInspiration, ...urlInspiration],
+      });
+      render(<AIProviderStep />);
+
+      expect(screen.getByText(/Design inspiration will be limited/i)).toBeInTheDocument();
     });
   });
 });

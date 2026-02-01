@@ -1,10 +1,30 @@
 import "@testing-library/jest-dom";
 import { cleanup } from "@testing-library/react";
-import { afterEach, beforeAll, afterAll, vi } from "vitest";
+import { afterEach, vi } from "vitest";
+
+// Define Vite globals for tests
+// @ts-expect-error - Vite define global
+globalThis.__APP_VERSION__ = "1.0.0-test";
+
+// Mock localStorage for Zustand persist middleware (JSDOM's implementation is incomplete)
+const localStorageMap = new Map<string, string>();
+const localStorageMock: Storage = {
+  getItem: (key: string) => localStorageMap.get(key) ?? null,
+  setItem: (key: string, value: string) => { localStorageMap.set(key, value); },
+  removeItem: (key: string) => { localStorageMap.delete(key); },
+  clear: () => { localStorageMap.clear(); },
+  get length() { return localStorageMap.size; },
+  key: (index: number) => [...localStorageMap.keys()][index] ?? null,
+};
+Object.defineProperty(window, "localStorage", {
+  value: localStorageMock,
+  writable: true,
+});
 
 // Cleanup after each test
 afterEach(() => {
   cleanup();
+  localStorageMap.clear();
 });
 
 // Mock window.matchMedia

@@ -45,7 +45,8 @@ describe("ProjectPreview", () => {
     createdAt: new Date("2024-01-15"),
     updatedAt: new Date("2024-01-15"),
     completedAt: null,
-    latestVersion: null,
+    latestVersion: undefined,
+    description: null,
     ...overrides,
   });
 
@@ -168,6 +169,10 @@ describe("ProjectPreview", () => {
             worksheetHtml: "<html>Worksheet</html>",
             lessonPlanHtml: "<html>Lesson Plan</html>",
             answerKeyHtml: "<html>Answer Key</html>",
+            teacherScriptHtml: null,
+            studentActivityHtml: null,
+            materialsListHtml: null,
+            lessonMetadata: null,
             aiProvider: "claude",
             aiModel: null,
             createdAt: new Date(),
@@ -193,6 +198,10 @@ describe("ProjectPreview", () => {
             worksheetHtml: "<html>Worksheet</html>",
             lessonPlanHtml: null,
             answerKeyHtml: null,
+            teacherScriptHtml: null,
+            studentActivityHtml: null,
+            materialsListHtml: null,
+            lessonMetadata: null,
             aiProvider: "claude",
             aiModel: null,
             createdAt: new Date(),
@@ -217,6 +226,10 @@ describe("ProjectPreview", () => {
             worksheetHtml: "<html>Worksheet</html>",
             lessonPlanHtml: null,
             answerKeyHtml: null,
+            teacherScriptHtml: null,
+            studentActivityHtml: null,
+            materialsListHtml: null,
+            lessonMetadata: null,
             aiProvider: "claude",
             aiModel: null,
             createdAt: new Date(),
@@ -242,6 +255,10 @@ describe("ProjectPreview", () => {
             worksheetHtml: "<html>Worksheet</html>",
             lessonPlanHtml: null,
             answerKeyHtml: null,
+            teacherScriptHtml: null,
+            studentActivityHtml: null,
+            materialsListHtml: null,
+            lessonMetadata: null,
             aiProvider: "claude",
             aiModel: null,
             createdAt: new Date(),
@@ -268,6 +285,10 @@ describe("ProjectPreview", () => {
             worksheetHtml: "<html>Worksheet</html>",
             lessonPlanHtml: null,
             answerKeyHtml: null,
+            teacherScriptHtml: null,
+            studentActivityHtml: null,
+            materialsListHtml: null,
+            lessonMetadata: null,
             aiProvider: "claude",
             aiModel: null,
             createdAt: new Date(),
@@ -301,7 +322,7 @@ describe("ProjectPreview", () => {
   it("fetches version for completed project without version data", () => {
     render(
       <ProjectPreview
-        project={createProject({ status: "completed", latestVersion: null })}
+        project={createProject({ status: "completed", latestVersion: undefined })}
       />
     );
 
@@ -320,6 +341,10 @@ describe("ProjectPreview", () => {
             worksheetHtml: "<html>Worksheet</html>",
             lessonPlanHtml: null,
             answerKeyHtml: null,
+            teacherScriptHtml: null,
+            studentActivityHtml: null,
+            materialsListHtml: null,
+            lessonMetadata: null,
             aiProvider: "claude",
             aiModel: null,
             createdAt: new Date(),

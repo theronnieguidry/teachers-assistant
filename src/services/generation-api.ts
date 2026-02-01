@@ -4,6 +4,9 @@ import type {
   GenerationProgress,
   UserCredits,
   Grade,
+  EstimateRequest,
+  EstimateResponse,
+  ObjectiveRecommendation,
 } from "@/types";
 import { TIMEOUTS } from "@/lib/async-utils";
 
@@ -98,9 +101,12 @@ export async function generateTeacherPack(
         subject: request.subject,
         options: request.options,
         inspiration: request.inspiration,
-        aiProvider: request.aiProvider || "claude",
+        aiProvider: request.aiProvider || "premium",
         aiModel: request.aiModel,
         prePolished: request.prePolished,
+        // Premium pipeline parameters
+        generationMode: request.generationMode,
+        visualSettings: request.visualSettings,
       }),
     },
     accessToken,
@@ -337,4 +343,153 @@ export async function checkHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Get a credit estimate before starting generation
+ */
+export async function estimateCredits(
+  request: EstimateRequest,
+  accessToken: string
+): Promise<EstimateResponse> {
+  const response = await fetchWithAuth(
+    "/estimate",
+    {
+      method: "POST",
+      body: JSON.stringify(request),
+    },
+    accessToken
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new GenerationApiError(
+      error.error || "Failed to get estimate",
+      response.status
+    );
+  }
+
+  return response.json();
+}
+
+// ============================================
+// Curriculum API (for "Help Me Choose" feature)
+// ============================================
+
+export interface CurriculumObjectivesResponse {
+  objectives: ObjectiveRecommendation[];
+  grade: string;
+  subject: string;
+  count: number;
+  message?: string;
+}
+
+/**
+ * Get recommended learning objectives for a grade and subject
+ * Used by the "Help me choose" feature in the wizard
+ */
+export async function getRecommendedObjectives(
+  grade: string,
+  subject: string,
+  accessToken: string,
+  options?: {
+    difficulty?: "easy" | "standard" | "challenge";
+    count?: number;
+  }
+): Promise<ObjectiveRecommendation[]> {
+  const params = new URLSearchParams({
+    grade,
+    subject,
+  });
+
+  if (options?.difficulty) {
+    params.append("difficulty", options.difficulty);
+  }
+  if (options?.count) {
+    params.append("count", options.count.toString());
+  }
+
+  const response = await fetchWithAuth(
+    `/curriculum/objectives?${params}`,
+    { method: "GET" },
+    accessToken
+  );
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      // No curriculum pack for this subject - return empty array
+      return [];
+    }
+    const error = await response.json().catch(() => ({}));
+    throw new GenerationApiError(
+      error.error || "Failed to fetch objectives",
+      response.status
+    );
+  }
+
+  const data: CurriculumObjectivesResponse = await response.json();
+  return data.objectives;
+}
+
+/**
+ * Get available subjects that have curriculum packs
+ */
+export async function getAvailableSubjects(
+  accessToken: string
+): Promise<string[]> {
+  const response = await fetchWithAuth(
+    "/curriculum/subjects",
+    { method: "GET" },
+    accessToken
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new GenerationApiError(
+      error.error || "Failed to fetch subjects",
+      response.status
+    );
+  }
+
+  const data = await response.json();
+  return data.subjects;
+}
+
+/**
+ * Search objectives by keyword
+ */
+export async function searchObjectives(
+  subject: string,
+  query: string,
+  accessToken: string,
+  grade?: string
+): Promise<ObjectiveRecommendation[]> {
+  const params = new URLSearchParams({
+    q: query,
+    subject,
+  });
+
+  if (grade) {
+    params.append("grade", grade);
+  }
+
+  const response = await fetchWithAuth(
+    `/curriculum/search?${params}`,
+    { method: "GET" },
+    accessToken
+  );
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      return [];
+    }
+    const error = await response.json().catch(() => ({}));
+    throw new GenerationApiError(
+      error.error || "Failed to search objectives",
+      response.status
+    );
+  }
+
+  const data = await response.json();
+  return data.results;
 }

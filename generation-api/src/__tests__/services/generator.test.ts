@@ -5,6 +5,7 @@ import { generateTeacherPack, type ProgressCallback } from "../../services/gener
 vi.mock("../../services/ai-provider.js", () => ({
   generateContent: vi.fn(),
   calculateCredits: vi.fn(),
+  requiresCredits: vi.fn((provider: string) => provider !== "local" && provider !== "ollama"),
 }));
 
 vi.mock("../../services/inspiration-parser.js", () => ({
@@ -21,9 +22,76 @@ vi.mock("../../services/image-service.js", () => ({
   processVisualPlaceholders: vi.fn((html: string) => Promise.resolve(html)),
 }));
 
+vi.mock("../../services/prompt-polisher.js", () => ({
+  polishPrompt: vi.fn(({ prompt }: { prompt: string }) =>
+    Promise.resolve({ polished: prompt, wasPolished: false })
+  ),
+}));
+
+vi.mock("../../services/premium/index.js", () => ({
+  createWorksheetPlan: vi.fn(),
+  createFallbackPlan: vi.fn(),
+  countQuestions: vi.fn(),
+  validateAndRepair: vi.fn(),
+  assembleAll: vi.fn(),
+  runQualityGate: vi.fn(),
+  getQualitySummary: vi.fn(),
+}));
+
+vi.mock("../../services/premium/image-generator.js", () => ({
+  generateBatchImagesWithStats: vi.fn(),
+  createImageRequestsFromPlacements: vi.fn(),
+  isImageGenerationAvailable: vi.fn(() => false),
+}));
+
+vi.mock("../../services/premium/image-relevance-gate.js", () => ({
+  filterAndCapPlacements: vi.fn(),
+  getFilterSummary: vi.fn(),
+}));
+
+vi.mock("../../services/premium/image-compressor.js", () => ({
+  compressImages: vi.fn(),
+  validateOutputSize: vi.fn(),
+  getCompressionStats: vi.fn(),
+}));
+
+vi.mock("../../services/premium/lesson-plan-planner.js", () => ({
+  createLessonPlan: vi.fn(),
+}));
+
+vi.mock("../../services/premium/lesson-plan-validator.js", () => ({
+  validateAndRepairLessonPlan: vi.fn(),
+}));
+
+vi.mock("../../services/premium/lesson-plan-assembler.js", () => ({
+  assembleLessonPlanHTML: vi.fn(),
+}));
+
 import { generateContent, calculateCredits } from "../../services/ai-provider.js";
 import { parseAllInspiration } from "../../services/inspiration-parser.js";
 import { getSupabaseClient, reserveCredits, refundCredits } from "../../services/credits.js";
+import {
+  createWorksheetPlan,
+  countQuestions,
+  validateAndRepair,
+  assembleAll,
+  runQualityGate,
+  getQualitySummary,
+} from "../../services/premium/index.js";
+import {
+  generateBatchImagesWithStats,
+  createImageRequestsFromPlacements,
+  isImageGenerationAvailable,
+} from "../../services/premium/image-generator.js";
+import {
+  filterAndCapPlacements,
+  getFilterSummary,
+} from "../../services/premium/image-relevance-gate.js";
+import {
+  compressImages,
+  validateOutputSize,
+  getCompressionStats,
+} from "../../services/premium/image-compressor.js";
 
 describe("Generator Service", () => {
   const mockSupabase = {
@@ -87,7 +155,7 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(reserveCredits).toHaveBeenCalledWith("user-123", 5, "project-123");
@@ -97,7 +165,7 @@ describe("Generator Service", () => {
       vi.mocked(reserveCredits).mockResolvedValue(false);
 
       await expect(
-        generateTeacherPack(baseRequest, "user-123", { aiProvider: "claude" })
+        generateTeacherPack(baseRequest, "user-123", { aiProvider: "openai" })
       ).rejects.toThrow("Insufficient credits");
     });
 
@@ -105,7 +173,7 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(mockSupabase.from).toHaveBeenCalledWith("projects");
@@ -116,7 +184,7 @@ describe("Generator Service", () => {
       const result = await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(result.worksheetHtml).toContain("Test Worksheet");
@@ -127,7 +195,7 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       // Should be called twice: worksheet + answer key
@@ -143,7 +211,7 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         request,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       // Should only be called once for worksheet
@@ -159,7 +227,7 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         request,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       // worksheet + lesson plan + answer key
@@ -177,12 +245,12 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         request,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(parseAllInspiration).toHaveBeenCalledWith(
         request.inspiration,
-        expect.objectContaining({ provider: "claude" })
+        expect.objectContaining({ provider: "openai" })
       );
     });
 
@@ -190,14 +258,14 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(mockSupabase.from).toHaveBeenCalledWith("project_versions");
       expect(mockSupabase.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           project_id: "project-123",
-          ai_provider: "claude",
+          ai_provider: "openai",
         })
       );
     });
@@ -206,7 +274,7 @@ describe("Generator Service", () => {
       const result = await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(result).toMatchObject({
@@ -223,7 +291,7 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" },
+        { aiProvider: "openai" },
         onProgress
       );
 
@@ -242,7 +310,7 @@ describe("Generator Service", () => {
       vi.mocked(generateContent).mockRejectedValue(new Error("AI error"));
 
       await expect(
-        generateTeacherPack(baseRequest, "user-123", { aiProvider: "claude" })
+        generateTeacherPack(baseRequest, "user-123", { aiProvider: "openai" })
       ).rejects.toThrow("AI error");
 
       expect(refundCredits).toHaveBeenCalledWith(
@@ -266,7 +334,7 @@ describe("Generator Service", () => {
       await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(refundCredits).toHaveBeenCalledWith(
@@ -287,7 +355,7 @@ describe("Generator Service", () => {
       const result = await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(result.worksheetHtml).toBe("<div>Content</div>");
@@ -303,7 +371,7 @@ describe("Generator Service", () => {
       const result = await generateTeacherPack(
         baseRequest,
         "user-123",
-        { aiProvider: "claude" }
+        { aiProvider: "openai" }
       );
 
       expect(result.worksheetHtml).toContain("<!DOCTYPE html>");
@@ -324,6 +392,218 @@ describe("Generator Service", () => {
           model: "gpt-4",
         })
       );
+    });
+
+    it("should not include imageStats in standard pipeline result", async () => {
+      const result = await generateTeacherPack(
+        baseRequest,
+        "user-123",
+        { aiProvider: "openai" }
+      );
+
+      expect(result.imageStats).toBeUndefined();
+    });
+  });
+
+  describe("generateTeacherPack - premium pipeline", () => {
+    const mockPlan = {
+      version: "1.0" as const,
+      metadata: {
+        title: "Addition Practice",
+        grade: "2" as const,
+        subject: "Math",
+        topic: "Addition",
+        learningObjectives: ["Add single-digit numbers"],
+        estimatedTime: "15 minutes",
+      },
+      structure: {
+        header: {
+          title: "Addition Practice",
+          hasNameLine: true,
+          hasDateLine: true,
+          instructions: "Solve the problems below.",
+        },
+        sections: [{
+          id: "s1",
+          type: "questions" as const,
+          title: "Addition",
+          items: [{
+            id: "q1",
+            questionText: "2 + 3 = ?",
+            questionType: "fill_blank" as const,
+            correctAnswer: "5",
+          }],
+        }],
+      },
+      style: {
+        difficulty: "medium" as const,
+        visualStyle: "standard" as const,
+      },
+      visualPlacements: [{
+        afterItemId: "q1",
+        description: "Counting blocks showing 2 + 3",
+        purpose: "counting_support" as const,
+        size: "small" as const,
+      }],
+    };
+
+    const premiumConfig = {
+      aiProvider: "openai" as const,
+      generationMode: "premium_plan_pipeline" as const,
+      visualSettings: {
+        includeVisuals: true,
+        richness: "standard" as const,
+        style: "friendly_cartoon" as const,
+      },
+    };
+
+    const mockRelevanceStats = {
+      total: 1,
+      accepted: 1,
+      rejected: 0,
+      cap: 5,
+      byPurpose: { counting_support: 1 },
+    };
+
+    const mockImageStats = {
+      total: 1,
+      generated: 1,
+      cached: 0,
+      failed: 0,
+    };
+
+    function setupPremiumMocks() {
+      vi.mocked(createWorksheetPlan).mockResolvedValue({
+        plan: mockPlan,
+        inputTokens: 500,
+        outputTokens: 1000,
+      });
+      vi.mocked(countQuestions).mockReturnValue(1);
+      vi.mocked(validateAndRepair).mockResolvedValue({
+        plan: mockPlan,
+        wasRepaired: false,
+      });
+      vi.mocked(assembleAll).mockReturnValue({
+        worksheetHtml: "<html><body>Worksheet</body></html>",
+        lessonPlanHtml: "",
+        answerKeyHtml: "<html><body>Answers</body></html>",
+      });
+      vi.mocked(runQualityGate).mockResolvedValue({
+        passed: true,
+        score: 85,
+        issues: [],
+        shouldCharge: true,
+      });
+      vi.mocked(getQualitySummary).mockReturnValue("Score: 85/100");
+      vi.mocked(isImageGenerationAvailable).mockReturnValue(true);
+      vi.mocked(filterAndCapPlacements).mockReturnValue({
+        accepted: mockPlan.visualPlacements!,
+        rejected: [],
+        stats: mockRelevanceStats,
+      });
+      vi.mocked(getFilterSummary).mockReturnValue("1 accepted, 0 rejected");
+      vi.mocked(createImageRequestsFromPlacements).mockReturnValue([{
+        prompt: "counting blocks",
+        style: "friendly_cartoon" as const,
+        size: "small" as const,
+        placementId: "q1",
+      }]);
+      vi.mocked(generateBatchImagesWithStats).mockResolvedValue({
+        images: [{
+          base64Data: "abc123",
+          mediaType: "image/png",
+          width: 256,
+          height: 256,
+          placementId: "q1",
+        }],
+        stats: mockImageStats,
+      });
+      vi.mocked(compressImages).mockResolvedValue([{
+        base64Data: "abc123compressed",
+        mediaType: "image/png",
+        width: 256,
+        height: 256,
+        placementId: "q1",
+      }]);
+      vi.mocked(validateOutputSize).mockReturnValue({
+        valid: true,
+        totalSize: 1024,
+        recommendation: "",
+      });
+      vi.mocked(getCompressionStats).mockReturnValue({
+        totalOriginal: 2048,
+        totalCompressed: 1024,
+        averageRatio: 0.5,
+        count: 1,
+      });
+    }
+
+    it("should include imageStats when images are generated", async () => {
+      setupPremiumMocks();
+
+      const result = await generateTeacherPack(
+        baseRequest,
+        "user-123",
+        premiumConfig
+      );
+
+      expect(result.imageStats).toEqual({
+        total: 1,
+        generated: 1,
+        cached: 0,
+        failed: 0,
+        relevance: {
+          total: 1,
+          accepted: 1,
+          rejected: 0,
+          cap: 5,
+          byPurpose: { counting_support: 1 },
+        },
+      });
+    });
+
+    it("should return zero imageStats when visuals are disabled", async () => {
+      setupPremiumMocks();
+
+      const result = await generateTeacherPack(
+        baseRequest,
+        "user-123",
+        {
+          ...premiumConfig,
+          visualSettings: {
+            includeVisuals: false,
+            richness: "minimal" as const,
+            style: "friendly_cartoon" as const,
+          },
+        }
+      );
+
+      expect(result.imageStats).toEqual({
+        total: 0,
+        generated: 0,
+        cached: 0,
+        failed: 0,
+        relevance: null,
+      });
+    });
+
+    it("should return zero imageStats when image generation is unavailable", async () => {
+      setupPremiumMocks();
+      vi.mocked(isImageGenerationAvailable).mockReturnValue(false);
+
+      const result = await generateTeacherPack(
+        baseRequest,
+        "user-123",
+        premiumConfig
+      );
+
+      expect(result.imageStats).toEqual({
+        total: 0,
+        generated: 0,
+        cached: 0,
+        failed: 0,
+        relevance: null,
+      });
     });
   });
 });

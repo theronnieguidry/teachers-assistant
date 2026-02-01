@@ -166,7 +166,7 @@ describe("Generate Route", () => {
       }),
       "user-123",
       expect.objectContaining({
-        aiProvider: "claude",
+        aiProvider: "openai",
       }),
       expect.any(Function)
     );

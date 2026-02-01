@@ -58,7 +58,7 @@ describe("PreviewTabs", () => {
     );
   });
 
-  it("disables tabs without content", () => {
+  it("hides tabs without content", () => {
     render(
       <PreviewTabs
         {...defaultProps}
@@ -66,8 +66,10 @@ describe("PreviewTabs", () => {
       />
     );
 
-    const lessonPlanTab = screen.getByRole("tab", { name: /lesson plan/i });
-    expect(lessonPlanTab).toBeDisabled();
+    // Tabs without content are not rendered at all
+    expect(screen.queryByRole("tab", { name: /lesson plan/i })).not.toBeInTheDocument();
+    // Tabs with content are still rendered
+    expect(screen.getByRole("tab", { name: /worksheet/i })).toBeInTheDocument();
   });
 
   it("renders print button", () => {
@@ -96,7 +98,7 @@ describe("PreviewTabs", () => {
     expect(screen.getByRole("button", { name: /pdf/i })).toBeDisabled();
   });
 
-  it("shows 'No content available' for empty tabs", () => {
+  it("defaults to first tab with content when worksheet is empty", () => {
     render(
       <PreviewTabs
         worksheetHtml=""
@@ -106,7 +108,7 @@ describe("PreviewTabs", () => {
       />
     );
 
-    // Worksheet tab is active but empty
-    expect(screen.getByText("No content available")).toBeInTheDocument();
+    // When worksheet is empty, lesson plan should be the active tab
+    expect(screen.getByRole("tab", { name: /lesson plan/i })).toHaveAttribute("data-state", "active");
   });
 });

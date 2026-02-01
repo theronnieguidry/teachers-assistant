@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Header } from "@/components/layout/Header";
-import { useSettingsStore } from "@/stores/settingsStore";
 
 // Mock useAuth hook
 const mockSignOut = vi.fn();
@@ -28,11 +27,25 @@ vi.mock("@/components/settings", () => ({
   },
 }));
 
+// Mock purchase components
+vi.mock("@/components/purchase", () => ({
+  PurchaseDialog: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
+    return open ? (
+      <div data-testid="purchase-dialog" role="dialog">
+        <button onClick={() => onOpenChange(false)}>Close Purchase</button>
+      </div>
+    ) : null;
+  },
+}));
+
+// Mock feedback components
+vi.mock("@/components/feedback", () => ({
+  FeedbackButton: () => <button data-testid="feedback-button">Feedback</button>,
+}));
+
 describe("Header", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default to Claude so credits are shown (not Ollama)
-    useSettingsStore.setState({ defaultAiProvider: "claude" });
   });
 
   describe("branding", () => {
@@ -50,32 +63,28 @@ describe("Header", () => {
   });
 
   describe("credits display", () => {
-    it("shows credits balance when using Claude provider", () => {
-      useSettingsStore.setState({ defaultAiProvider: "claude" });
+    it("shows credits balance regardless of provider setting", () => {
       render(<Header />);
 
       expect(screen.getByText("50")).toBeInTheDocument();
     });
 
-    it("shows credits balance when using OpenAI provider", () => {
-      useSettingsStore.setState({ defaultAiProvider: "openai" });
+    it("has accessible aria-label on credits button", () => {
       render(<Header />);
 
-      expect(screen.getByText("50")).toBeInTheDocument();
+      // Credits badge is now a clickable button
+      const creditsButton = screen.getByRole("button", { name: /premium ai credits: 50/i });
+      expect(creditsButton).toBeInTheDocument();
     });
 
-    it("hides credits badge when using Ollama provider", () => {
-      useSettingsStore.setState({ defaultAiProvider: "ollama" });
+    it("opens purchase dialog when credits button is clicked", async () => {
+      const user = userEvent.setup();
       render(<Header />);
 
-      expect(screen.queryByText("50")).not.toBeInTheDocument();
-    });
+      const creditsButton = screen.getByRole("button", { name: /premium ai credits: 50/i });
+      await user.click(creditsButton);
 
-    it("has accessible aria-label on credits badge", () => {
-      useSettingsStore.setState({ defaultAiProvider: "claude" });
-      render(<Header />);
-
-      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "API credits: 50");
+      expect(screen.getByTestId("purchase-dialog")).toBeInTheDocument();
     });
   });
 

@@ -25,7 +25,6 @@ export function PromptReviewStep() {
     selectedInspiration,
     polishedPrompt,
     setPolishedPrompt,
-    usePolishedPrompt,
     setUsePolishedPrompt,
     nextStep,
     prevStep,

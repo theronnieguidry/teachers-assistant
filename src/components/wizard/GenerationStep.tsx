@@ -1,15 +1,20 @@
-import { useEffect, useRef } from "react";
-import { Loader2, CheckCircle2, XCircle, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, CheckCircle2, XCircle, Sparkles, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useInspirationStore } from "@/stores/inspirationStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useArtifactStore } from "@/stores/artifactStore";
+import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/stores/toastStore";
-import { generateTeacherPack, GenerationApiError } from "@/services/generation-api";
+import { generateTeacherPack, estimateCredits, GenerationApiError } from "@/services/generation-api";
 import { saveTeacherPack } from "@/services/tauri-bridge";
 import { cn } from "@/lib/utils";
-import type { GenerationProgress } from "@/types";
+import { PurchaseDialog } from "@/components/purchase";
+import { CreditEstimate } from "./CreditEstimate";
+import type { GenerationProgress, EstimateResponse } from "@/types";
 
 export function GenerationStep() {
   const {
@@ -30,6 +35,10 @@ export function GenerationStep() {
     aiProvider,
     ollamaModel,
     regeneratingProjectId,
+    targetProjectId,
+    generationMode,
+    visualSettings,
+    prevStep,
   } = useWizardStore();
 
   // Use the polished prompt if available and user chose to use it
@@ -37,15 +46,83 @@ export function GenerationStep() {
   const { createProject, updateProject } = useProjectStore();
   const { persistLocalItems } = useInspirationStore();
   const { session } = useAuthStore();
+  const { credits } = useAuth();
   const startedRef = useRef(false);
+  const estimateFetchedRef = useRef(false);
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
+  // Estimate phase state (for premium AI)
+  const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
+  const [estimateConfirmed, setEstimateConfirmed] = useState(false);
+
+  // Premium AI requires estimate confirmation before generation
+  const isPremium = aiProvider === "premium";
+
+  // Fetch estimate for premium AI
   useEffect(() => {
-    // Start generation when step loads (only once)
-    if (!startedRef.current && !isGenerating && generationProgress === 0 && !generationError) {
+    if (isPremium && !estimateFetchedRef.current && !estimate && !estimateLoading && !estimateError) {
+      estimateFetchedRef.current = true;
+      fetchEstimate();
+    }
+  }, [isPremium]);
+
+  // Start generation when estimate is confirmed (premium) or immediately (local)
+  useEffect(() => {
+    // For premium: wait for estimate confirmation
+    // For local: start immediately
+    const shouldStart = isPremium ? estimateConfirmed : true;
+
+    if (!startedRef.current && shouldStart && !isGenerating && generationProgress === 0 && !generationError) {
       startedRef.current = true;
       startGeneration();
     }
-  }, []);
+  }, [estimateConfirmed, isPremium]);
+
+  const fetchEstimate = async () => {
+    if (!classDetails || !session?.access_token) {
+      setEstimateError("Missing class details or session");
+      return;
+    }
+
+    setEstimateLoading(true);
+    setEstimateError(null);
+
+    try {
+      const result = await estimateCredits(
+        {
+          grade: classDetails.grade,
+          subject: classDetails.subject,
+          options: {
+            questionCount: classDetails.questionCount,
+            includeVisuals: classDetails.includeVisuals,
+            difficulty: classDetails.difficulty,
+            format: classDetails.format,
+            includeAnswerKey: classDetails.includeAnswerKey,
+          },
+          visualSettings: visualSettings,
+        },
+        session.access_token
+      );
+      setEstimate(result);
+    } catch (error) {
+      console.error("[GenerationStep] Failed to fetch estimate:", error);
+      setEstimateError(
+        error instanceof Error ? error.message : "Failed to get credit estimate"
+      );
+    } finally {
+      setEstimateLoading(false);
+    }
+  };
+
+  const handleEstimateConfirm = () => {
+    setEstimateConfirmed(true);
+  };
+
+  const handleEstimateBack = () => {
+    prevStep();
+  };
 
   const startGeneration = async () => {
     if (!classDetails || !session?.access_token) {
@@ -131,6 +208,7 @@ export function GenerationStep() {
       }
 
       console.log("[GenerationStep] Starting AI generation via API...");
+      console.log(`[GenerationStep] Generation mode: ${generationMode}`);
       setGenerationState({ progress: 10, message: "Starting AI generation..." });
 
       // Call the Generation API with the final (possibly polished) prompt
@@ -146,19 +224,89 @@ export function GenerationStep() {
             difficulty: classDetails.difficulty,
             format: classDetails.format,
             includeAnswerKey: classDetails.includeAnswerKey,
+            lessonLength: classDetails.lessonLength,
+            studentProfile: classDetails.studentProfile,
+            teachingConfidence: classDetails.teachingConfidence,
           },
           inspiration: selectedInspiration,
           aiProvider,
           aiModel: ollamaModel || undefined,
           prePolished: usePolishedPrompt && polishedPrompt !== null,
+          // Premium pipeline parameters
+          generationMode: isPremium ? generationMode : "standard",
+          visualSettings: isPremium ? visualSettings : undefined,
         },
         session.access_token,
         handleProgress
       );
 
       // Note: The backend (generator.ts) already saves the version and updates the project status.
-      // We only need to handle local file saving here.
+      // We need to sync the local Zustand store with the backend state.
       console.log("[GenerationStep] AI generation complete, received result");
+
+      // Sync local store with backend state so ProjectPreview shows the completed content
+      console.log("[GenerationStep] Syncing project store with completion state...");
+      await updateProject(projectId, {
+        status: "completed",
+        completedAt: new Date(),
+        creditsUsed: result.creditsUsed,
+      });
+
+      // Fetch the saved version to update currentProject.latestVersion
+      await useProjectStore.getState().fetchProjectVersion(projectId);
+      console.log("[GenerationStep] Project store synchronized");
+
+      // Save artifacts to local Library and sync to UnifiedProject (Issue #20 integration)
+      try {
+        console.log("[GenerationStep] Saving artifacts to Library...");
+        const savedArtifacts = await useArtifactStore.getState().saveFromGeneration({
+          projectId,
+          jobId: result.versionId || projectId,
+          grade: classDetails.grade,
+          subject: classDetails.subject,
+          title,
+          objectiveTags: result.lessonMetadata?.objective ? [result.lessonMetadata.objective] : [],
+          contents: {
+            studentPage: result.worksheetHtml,
+            teacherScript: result.teacherScriptHtml,
+            answerKey: result.answerKeyHtml,
+            lessonPlan: result.lessonPlanHtml,
+          },
+        });
+        console.log("[GenerationStep] Artifacts saved to Library");
+
+        // Bridge: Link artifacts to an existing or new UnifiedProject
+        try {
+          console.log("[GenerationStep] Syncing to unified project store...");
+          const unifiedStore = useUnifiedProjectStore.getState();
+          let unifiedProjectId: string;
+
+          if (targetProjectId) {
+            // Use the user-selected existing project
+            unifiedProjectId = targetProjectId;
+            console.log(`[GenerationStep] Using existing unified project: ${targetProjectId}`);
+          } else {
+            // Create a new Quick Create project
+            const unifiedProject = await unifiedStore.createQuickProject(
+              title,
+              classDetails.grade,
+              [classDetails.subject]
+            );
+            unifiedProjectId = unifiedProject.projectId;
+          }
+
+          // Link saved artifacts to the unified project
+          for (const artifact of savedArtifacts) {
+            await unifiedStore.addArtifact(unifiedProjectId, artifact.artifactId);
+          }
+          console.log("[GenerationStep] Unified project synced with artifacts");
+        } catch (syncError) {
+          console.error("[GenerationStep] Failed to sync unified project:", syncError);
+        }
+      } catch (libraryError) {
+        // Don't fail generation if Library save fails - it's a secondary storage
+        console.error("[GenerationStep] Failed to save to Library:", libraryError);
+      }
 
       // Save files to local folder if output path specified
       if (outputPath) {
@@ -252,6 +400,34 @@ export function GenerationStep() {
     startGeneration();
   };
 
+  // Show estimate phase for premium AI before generation starts
+  if (isPremium && !estimateConfirmed) {
+    return (
+      <div className="space-y-6 py-4">
+        <div className="text-center mb-4">
+          <h3 className="text-lg font-medium">Review Credit Estimate</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Please review the estimated credits before generating your materials.
+          </p>
+        </div>
+
+        <CreditEstimate
+          estimate={estimate}
+          isLoading={estimateLoading}
+          error={estimateError}
+          currentBalance={credits?.balance ?? 0}
+          onConfirm={handleEstimateConfirm}
+          onBack={handleEstimateBack}
+        />
+
+        <PurchaseDialog
+          open={purchaseDialogOpen}
+          onOpenChange={setPurchaseDialogOpen}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 py-4">
       {/* Progress indicator */}
@@ -314,11 +490,19 @@ export function GenerationStep() {
 
       {/* Insufficient credits message */}
       {generationError?.includes("Insufficient credits") && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg">
+        <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg space-y-3">
           <p className="text-sm text-amber-700 dark:text-amber-300">
-            You don't have enough credits to generate this content. Please
-            purchase additional credits to continue.
+            You don't have enough credits to generate this content. Purchase
+            credits to continue using Claude or OpenAI, or switch to Ollama
+            (free local AI).
           </p>
+          <Button
+            onClick={() => setPurchaseDialogOpen(true)}
+            className="w-full"
+          >
+            <CreditCard className="mr-2 h-4 w-4" />
+            Buy Credits
+          </Button>
         </div>
       )}
 
@@ -342,6 +526,12 @@ export function GenerationStep() {
           </>
         ) : null}
       </div>
+
+      {/* Purchase Dialog */}
+      <PurchaseDialog
+        open={purchaseDialogOpen}
+        onOpenChange={setPurchaseDialogOpen}
+      />
     </div>
   );
 }

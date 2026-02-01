@@ -137,29 +137,6 @@ export function OllamaSetup({ open, onOpenChange }: OllamaSetupProps) {
     }
   };
 
-  // Quick setup: Start server and download default model
-  const handleQuickSetup = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Start Ollama if not running
-      if (!status?.running) {
-        setProgress("Starting Ollama server...");
-        await startOllama();
-      }
-      // Download the recommended model (llama3.2)
-      setProgress("Downloading llama3.2 model... This may take a few minutes.");
-      await pullOllamaModel("llama3.2");
-      setProgress("Setup complete!");
-      await checkStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Quick setup failed");
-    } finally {
-      setLoading(false);
-      setProgress("");
-    }
-  };
-
   const renderContent = () => {
     if (step === "checking") {
       return (

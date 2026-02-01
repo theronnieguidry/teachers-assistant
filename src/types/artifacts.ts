@@ -43,17 +43,36 @@ export interface ObjectiveTag {
 }
 
 /**
- * Helper to parse an objective ID into components
+ * Helper to parse an objective ID into components.
+ * Supports both formats:
+ *   - Dotted: "K.MATH.COUNT.1_20" → { grade: "K", subject: "MATH", domain: "COUNT", specific: "1_20" }
+ *   - Underscore (curriculum packs): "math_k_01" → { grade: "k", subject: "math", domain: "01", specific: "" }
  */
 export function parseObjectiveId(id: string): { grade: string; subject: string; domain: string; specific: string } | null {
-  const parts = id.split(".");
-  if (parts.length < 3) return null;
-  return {
-    grade: parts[0],
-    subject: parts[1],
-    domain: parts[2],
-    specific: parts.slice(3).join("."),
-  };
+  // Try dotted format first (K.MATH.COUNT.1_20)
+  const dottedParts = id.split(".");
+  if (dottedParts.length >= 3) {
+    return {
+      grade: dottedParts[0],
+      subject: dottedParts[1],
+      domain: dottedParts[2],
+      specific: dottedParts.slice(3).join("."),
+    };
+  }
+
+  // Try underscore format (math_k_01)
+  const underscoreParts = id.split("_");
+  if (underscoreParts.length >= 3) {
+    return {
+      grade: underscoreParts[1],
+      subject: underscoreParts[0],
+      domain: underscoreParts.slice(2).join("_"),
+      specific: "",
+    };
+  }
+
+  // Return raw ID as subject for display purposes
+  return null;
 }
 
 // ============================================

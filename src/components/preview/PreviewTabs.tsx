@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { FileText, BookOpen, CheckSquare, Download, Printer, Loader2, ClipboardList, Package } from "lucide-react";
+import { FileText, BookOpen, CheckSquare, Download, Printer, Loader2, ClipboardList, MessageSquare, Users, Package } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { HTMLRenderer } from "./HTMLRenderer";
+import { ImproveMenu } from "./ImproveMenu";
 import { generatePdf } from "@/services/generation-api";
 import { useAuthStore } from "@/stores/authStore";
 import type { PreviewTabId } from "@/types";
 
-// Legacy tab type for backwards compatibility
-export type PreviewTab = "worksheet" | "lesson_plan" | "answer_key";
+// Extended tab type with new lesson plan artifacts (Issue #17)
+export type PreviewTab = "worksheet" | "lesson_plan" | "teacher_script" | "student_activity" | "answer_key" | "materials";
 
 // New standardized tab type (Issue #20)
 export type StandardizedPreviewTab = PreviewTabId;
@@ -18,7 +19,14 @@ interface PreviewTabsProps {
   worksheetHtml: string;
   lessonPlanHtml: string;
   answerKeyHtml: string;
+  // New lesson plan artifacts (Issue #17)
+  teacherScriptHtml?: string;
+  studentActivityHtml?: string;
+  materialsListHtml?: string;
   projectTitle: string;
+  projectId?: string;
+  versionId?: string;
+  onVersionChanged?: (newVersionId: string) => void;
 }
 
 // New standardized props interface (Issue #20)
@@ -35,13 +43,19 @@ export function PreviewTabs({
   worksheetHtml,
   lessonPlanHtml,
   answerKeyHtml,
+  teacherScriptHtml,
+  studentActivityHtml,
+  materialsListHtml,
   projectTitle,
+  projectId,
+  versionId,
+  onVersionChanged,
 }: PreviewTabsProps) {
-  const [activeTab, setActiveTab] = useState<PreviewTab>("worksheet");
   const [isDownloading, setIsDownloading] = useState(false);
   const { session } = useAuthStore();
 
-  const tabs = [
+  // Build tabs array with all potential tabs (Issue #17)
+  const allTabs = [
     {
       id: "worksheet" as const,
       label: "Worksheet",
@@ -55,12 +69,37 @@ export function PreviewTabs({
       content: lessonPlanHtml,
     },
     {
+      id: "teacher_script" as const,
+      label: "Teacher Script",
+      icon: MessageSquare,
+      content: teacherScriptHtml || "",
+    },
+    {
+      id: "student_activity" as const,
+      label: "Activity",
+      icon: Users,
+      content: studentActivityHtml || "",
+    },
+    {
       id: "answer_key" as const,
       label: "Answer Key",
       icon: CheckSquare,
       content: answerKeyHtml,
     },
+    {
+      id: "materials" as const,
+      label: "Materials",
+      icon: Package,
+      content: materialsListHtml || "",
+    },
   ];
+
+  // Only show tabs that have content
+  const tabs = allTabs.filter((tab) => tab.content);
+
+  // Default to first available tab
+  const defaultTab = tabs.find((t) => t.content)?.id || "worksheet";
+  const [activeTab, setActiveTab] = useState<PreviewTab>(defaultTab);
 
   const currentContent = tabs.find((t) => t.id === activeTab)?.content || "";
 
@@ -158,6 +197,16 @@ export function PreviewTabs({
           </TabsList>
 
           <div className="flex gap-2">
+            {projectId && versionId && onVersionChanged &&
+              (activeTab === "worksheet" || activeTab === "lesson_plan" || activeTab === "answer_key") && (
+              <ImproveMenu
+                projectId={projectId}
+                versionId={versionId}
+                activeTab={activeTab}
+                onImproved={onVersionChanged}
+                disabled={!currentContent}
+              />
+            )}
             <Button
               variant="outline"
               size="sm"

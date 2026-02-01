@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { chromium } from "playwright";
 import type { AuthenticatedRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -22,9 +23,6 @@ const pdfRequestSchema = z.object({
     .optional(),
 });
 
-// Note: This is a placeholder implementation.
-// In production, you would use Playwright or Puppeteer for PDF generation.
-// For now, we return a simple error indicating the feature requires setup.
 router.post("/", async (req: AuthenticatedRequest, res) => {
   try {
     const validation = pdfRequestSchema.safeParse(req.body);
@@ -38,43 +36,25 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
 
     const { html, options } = validation.data;
 
-    // In a production implementation, you would:
-    // 1. Launch a headless browser (Playwright/Puppeteer)
-    // 2. Load the HTML content
-    // 3. Generate PDF with options
-    // 4. Return the PDF buffer
-
-    // For development/testing, return a placeholder response
-    // Real implementation would look like:
-    /*
     const browser = await chromium.launch();
     const page = await browser.newPage();
     await page.setContent(wrapHtmlForPdf(html));
     const pdfBuffer = await page.pdf({
-      format: options?.format || 'letter',
+      format: options?.format || "letter",
       landscape: options?.landscape || false,
       margin: options?.margin || {
-        top: '0.5in',
-        right: '0.5in',
-        bottom: '0.5in',
-        left: '0.5in',
+        top: "0.5in",
+        right: "0.5in",
+        bottom: "0.5in",
+        left: "0.5in",
       },
       printBackground: true,
     });
     await browser.close();
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="document.pdf"');
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="document.pdf"');
     return res.send(pdfBuffer);
-    */
-
-    // Return error indicating PDF service needs Playwright setup
-    return res.status(503).json({
-      error: "PDF generation service not configured",
-      message:
-        "PDF generation requires Playwright. Install playwright and configure the service.",
-      suggestion: "For now, use the Print function in the preview to save as PDF.",
-    });
   } catch (error) {
     console.error("PDF generation error:", error);
     return res.status(500).json({

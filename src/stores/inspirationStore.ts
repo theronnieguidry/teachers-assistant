@@ -63,7 +63,11 @@ export const useInspirationStore = create<InspirationState>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(
+        supabase.auth.getUser(),
+        TIMEOUTS.SUPABASE_QUERY,
+        "fetchUser"
+      );
       if (!user) {
         set({ items: [], isLoading: false });
         return;

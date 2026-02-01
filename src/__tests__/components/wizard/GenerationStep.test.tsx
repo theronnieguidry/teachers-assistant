@@ -22,13 +22,51 @@ vi.mock("@/services/tauri-bridge", () => ({
   saveTeacherPack: vi.fn(),
 }));
 
-vi.mock("@/stores/toastStore", () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
-  },
+// Mock checkout-api (used by PurchaseDialog)
+vi.mock("@/services/checkout-api", () => ({
+  getCreditPacks: vi.fn().mockResolvedValue([]),
+  createCheckoutSession: vi.fn(),
+}));
+
+// Mock useAuth hook for PurchaseDialog
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({
+    session: { access_token: "test-token" },
+    credits: { balance: 50, lifetimeGranted: 100, lifetimeUsed: 50 },
+    refreshCredits: vi.fn(),
+  }),
+}));
+
+// Mock the toast store - need both useToastStore and toast for PurchaseDialog
+vi.mock("@/stores/toastStore", () => {
+  const mockAddToast = vi.fn();
+  const useToastStore = vi.fn(() => ({
+    addToast: mockAddToast,
+    toasts: [],
+    removeToast: vi.fn(),
+    clearToasts: vi.fn(),
+  }));
+  useToastStore.getState = () => ({
+    addToast: mockAddToast,
+    toasts: [],
+    removeToast: vi.fn(),
+    clearToasts: vi.fn(),
+  });
+  return {
+    useToastStore,
+    toast: {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      warning: vi.fn(),
+    },
+  };
+});
+
+vi.mock("@/stores/inspirationStore", () => ({
+  useInspirationStore: () => ({
+    persistLocalItems: vi.fn().mockResolvedValue(new Map()),
+  }),
 }));
 
 import { generateTeacherPack, GenerationApiError } from "@/services/generation-api";
@@ -61,6 +99,9 @@ describe("GenerationStep", () => {
         includeVisuals: true,
         difficulty: "medium",
         includeAnswerKey: true,
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
       },
       selectedInspiration: [],
       outputPath: "C:\\Output",
@@ -83,12 +124,14 @@ describe("GenerationStep", () => {
     mockUpdateProject.mockResolvedValue({});
     mockUpdateProjectWithVersion.mockResolvedValue({});
     vi.mocked(generateTeacherPack).mockResolvedValue({
+      projectId: "project-123",
+      versionId: "version-123",
       worksheetHtml: "<html>Worksheet</html>",
       lessonPlanHtml: "<html>Lesson Plan</html>",
       answerKeyHtml: "<html>Answer Key</html>",
       creditsUsed: 3,
     });
-    vi.mocked(saveTeacherPack).mockResolvedValue(undefined);
+    vi.mocked(saveTeacherPack).mockResolvedValue([]);
   });
 
   it("renders generating message initially", () => {
@@ -236,5 +279,125 @@ describe("GenerationStep", () => {
 
     expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  describe("store synchronization after generation", () => {
+    const mockFetchProjectVersion = vi.fn();
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      mockFetchProjectVersion.mockResolvedValue({
+        id: "version-123",
+        worksheetHtml: "<html>Worksheet</html>",
+        lessonPlanHtml: "<html>Lesson Plan</html>",
+        answerKeyHtml: "<html>Answer Key</html>",
+      });
+
+      // Reset mocks
+      mockCreateProject.mockResolvedValue({ id: "project-123" });
+      mockUpdateProject.mockResolvedValue({});
+      vi.mocked(generateTeacherPack).mockResolvedValue({
+        projectId: "project-123",
+        versionId: "version-123",
+        worksheetHtml: "<html>Worksheet</html>",
+        lessonPlanHtml: "<html>Lesson Plan</html>",
+        answerKeyHtml: "<html>Answer Key</html>",
+        creditsUsed: 3,
+      });
+      vi.mocked(saveTeacherPack).mockResolvedValue([]);
+
+      // Re-setup with fetchProjectVersion mock
+      useProjectStore.setState({
+        createProject: mockCreateProject,
+        updateProject: mockUpdateProject,
+        updateProjectWithVersion: mockUpdateProjectWithVersion,
+        fetchProjectVersion: mockFetchProjectVersion,
+      });
+    });
+
+    it("should call updateProject with completed status after successful generation", async () => {
+      // Component will auto-start generation on mount when conditions are met
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(mockUpdateProject).toHaveBeenCalledWith(
+          "project-123",
+          expect.objectContaining({
+            status: "completed",
+            creditsUsed: 3,
+          })
+        );
+      }, { timeout: 5000 });
+    });
+
+    it("should call fetchProjectVersion after successful generation", async () => {
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(mockFetchProjectVersion).toHaveBeenCalledWith("project-123");
+      }, { timeout: 5000 });
+    });
+
+    it("should call fetchProjectVersion after updateProject", async () => {
+      // Track call order
+      const callOrder: string[] = [];
+      mockUpdateProject.mockImplementation(async (id, data) => {
+        if (data.status === "completed") {
+          callOrder.push("updateProject-completed");
+        }
+      });
+      mockFetchProjectVersion.mockImplementation(async () => {
+        callOrder.push("fetchProjectVersion");
+        return { id: "version-123" };
+      });
+
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(callOrder).toContain("updateProject-completed");
+        expect(callOrder).toContain("fetchProjectVersion");
+        // fetchProjectVersion should be called after updateProject with completed status
+        const updateIndex = callOrder.indexOf("updateProject-completed");
+        const fetchIndex = callOrder.indexOf("fetchProjectVersion");
+        expect(fetchIndex).toBeGreaterThan(updateIndex);
+      }, { timeout: 5000 });
+    });
+
+    it("should not call updateProject with completed status if generation fails", async () => {
+      vi.mocked(generateTeacherPack).mockRejectedValue(new Error("AI error"));
+
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(mockSetGenerationState).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: "AI error",
+          })
+        );
+      }, { timeout: 5000 });
+
+      // updateProject should be called with status "failed", not "completed"
+      expect(mockUpdateProject).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ status: "completed" })
+      );
+    });
+
+    it("should not call fetchProjectVersion if generation fails", async () => {
+      vi.mocked(generateTeacherPack).mockRejectedValue(new Error("AI error"));
+
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(mockSetGenerationState).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: "AI error",
+          })
+        );
+      }, { timeout: 5000 });
+
+      expect(mockFetchProjectVersion).not.toHaveBeenCalled();
+    });
   });
 });

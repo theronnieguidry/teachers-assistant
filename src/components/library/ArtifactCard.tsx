@@ -1,7 +1,9 @@
-import { FileText, BookOpen, CheckSquare, ClipboardList, Eye, Printer, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { FileText, BookOpen, CheckSquare, ClipboardList, Eye, Printer, Trash2, Tag, X, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +20,7 @@ interface ArtifactCardProps {
   onView: (artifactId: string) => void;
   onPrint: (artifactId: string) => void;
   onDelete: (artifactId: string) => void;
+  onEditTags?: (artifactId: string, tags: string[]) => void;
 }
 
 const ARTIFACT_ICONS: Record<ArtifactType, typeof FileText> = {
@@ -38,7 +41,11 @@ const GRADE_COLORS: Record<Grade, string> = {
   "6": "bg-pink-100 text-pink-800",
 };
 
-export function ArtifactCard({ artifact, onView, onPrint, onDelete }: ArtifactCardProps) {
+export function ArtifactCard({ artifact, onView, onPrint, onDelete, onEditTags }: ArtifactCardProps) {
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const [editedTags, setEditedTags] = useState<string[]>(artifact.objectiveTags);
+
   const Icon = ARTIFACT_ICONS[artifact.type] || FileText;
   const gradeColor = GRADE_COLORS[artifact.grade] || "bg-gray-100 text-gray-800";
 
@@ -47,6 +54,29 @@ export function ArtifactCard({ artifact, onView, onPrint, onDelete }: ArtifactCa
     day: "numeric",
     year: "numeric",
   });
+
+  const handleAddTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !editedTags.includes(trimmed)) {
+      setEditedTags([...editedTags, trimmed]);
+      setTagInput("");
+    }
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setEditedTags(editedTags.filter((t) => t !== tag));
+  };
+
+  const handleSaveTags = () => {
+    onEditTags?.(artifact.artifactId, editedTags);
+    setIsEditingTags(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditedTags(artifact.objectiveTags);
+    setTagInput("");
+    setIsEditingTags(false);
+  };
 
   return (
     <Card className="group hover:shadow-md transition-shadow">
@@ -83,6 +113,12 @@ export function ArtifactCard({ artifact, onView, onPrint, onDelete }: ArtifactCa
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </DropdownMenuItem>
+              {onEditTags && (
+                <DropdownMenuItem onClick={() => setIsEditingTags(true)}>
+                  <Tag className="h-4 w-4 mr-2" />
+                  Edit Tags
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => onDelete(artifact.artifactId)}
@@ -109,7 +145,36 @@ export function ArtifactCard({ artifact, onView, onPrint, onDelete }: ArtifactCa
           </Badge>
         </div>
 
-        {artifact.objectiveTags.length > 0 && (
+        {isEditingTags ? (
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap gap-1">
+              {editedTags.map((tag) => (
+                <Badge key={tag} variant="outline" className="text-xs font-mono gap-1">
+                  {tag}
+                  <button onClick={() => handleRemoveTag(tag)} className="ml-1 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-1">
+              <Input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
+                placeholder="Add tag..."
+                className="h-7 text-xs"
+              />
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleAddTag}>
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" className="text-xs h-6" onClick={handleCancelEdit}>Cancel</Button>
+              <Button size="sm" className="text-xs h-6" onClick={handleSaveTags}>Save</Button>
+            </div>
+          </div>
+        ) : artifact.objectiveTags.length > 0 ? (
           <div className="mt-3 flex flex-wrap gap-1">
             {artifact.objectiveTags.slice(0, 2).map((tag) => (
               <Badge key={tag} variant="outline" className="text-xs font-mono">
@@ -122,7 +187,7 @@ export function ArtifactCard({ artifact, onView, onPrint, onDelete }: ArtifactCa
               </Badge>
             )}
           </div>
-        )}
+        ) : null}
 
         <Button
           variant="ghost"

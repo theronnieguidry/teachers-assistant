@@ -325,14 +325,51 @@ export const useLearnerStore = create<LearnerState>()((set, get) => ({
 }));
 
 // Export convenience selector hooks
-export const useActiveProfile = () =>
-  useLearnerStore((state) => state.getActiveProfile());
+// NOTE: These hooks use shallow selectors to avoid infinite render loops.
+// They select raw state and compute derived values, rather than calling
+// store methods that return new objects on each render.
+export const useActiveProfile = () => {
+  const profiles = useLearnerStore((state) => state.profiles);
+  const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
+  if (!activeLearnerId) return null;
+  return profiles.find((p) => p.learnerId === activeLearnerId) || null;
+};
 
-export const useNextRecommendedObjective = (subject?: string) =>
-  useLearnerStore((state) => state.getNextRecommendedObjective(subject));
+export const useNextRecommendedObjective = (subject?: string) => {
+  const profiles = useLearnerStore((state) => state.profiles);
+  const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
+  const masteryData = useLearnerStore((state) => state.masteryData);
 
-export const useSubjectProgress = (subject: string) =>
-  useLearnerStore((state) => state.getSubjectProgress(subject));
+  const profile = activeLearnerId
+    ? profiles.find((p) => p.learnerId === activeLearnerId)
+    : null;
 
-export const useAllSubjectProgress = () =>
-  useLearnerStore((state) => state.getAllSubjectProgress());
+  if (!profile) return null;
+  return getNextRecommendedObjective(profile.grade, masteryData, subject);
+};
+
+export const useSubjectProgress = (subject: string) => {
+  const profiles = useLearnerStore((state) => state.profiles);
+  const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
+  const masteryData = useLearnerStore((state) => state.masteryData);
+
+  const profile = activeLearnerId
+    ? profiles.find((p) => p.learnerId === activeLearnerId)
+    : null;
+
+  if (!profile) return null;
+  return getCurriculumSubjectProgress(subject, profile.grade, masteryData);
+};
+
+export const useAllSubjectProgress = () => {
+  const profiles = useLearnerStore((state) => state.profiles);
+  const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
+  const masteryData = useLearnerStore((state) => state.masteryData);
+
+  const profile = activeLearnerId
+    ? profiles.find((p) => p.learnerId === activeLearnerId)
+    : null;
+
+  if (!profile) return [];
+  return getAllSubjectProgress(profile.grade, masteryData);
+};

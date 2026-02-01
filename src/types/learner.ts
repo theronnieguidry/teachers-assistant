@@ -1,4 +1,5 @@
 import type { Grade, TeachingConfidence } from "./index";
+import type { CurriculumObjective, CurriculumUnit } from "@shared/types";
 
 // ============================================
 // Mastery Tracking Types (Issue #18)
@@ -58,34 +59,10 @@ export interface LearnerMasteryData {
 }
 
 // ============================================
-// Curriculum Pack Types
+// Curriculum Pack Types (re-exported from shared)
 // ============================================
 
-export interface CurriculumObjective {
-  id: string;
-  text: string;
-  prereqs: string[];
-  difficulty: "easy" | "standard" | "challenge";
-  estimatedMinutes: number;
-  misconceptions: string[];
-  vocabulary: string[];
-  activities: string[];
-}
-
-export interface CurriculumUnit {
-  unitId: string;
-  title: string;
-  grade: Grade;
-  sequence: number;
-  objectives: CurriculumObjective[];
-}
-
-export interface CurriculumPack {
-  subject: string;
-  gradeRange: string;
-  version: string;
-  units: CurriculumUnit[];
-}
+export type { CurriculumObjective, CurriculumUnit, CurriculumPack } from "@shared/types";
 
 // ============================================
 // Quick Check Types (Phase 2)

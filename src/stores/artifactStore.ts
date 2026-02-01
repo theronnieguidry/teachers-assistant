@@ -15,6 +15,8 @@ import {
   deleteArtifact,
   searchArtifacts,
   saveArtifactsFromGeneration,
+  getArtifactsByJob,
+  updateArtifactTags,
 } from "@/services/library-storage";
 
 interface ArtifactState {
@@ -44,6 +46,12 @@ interface ArtifactState {
   saveArtifact: (artifact: LocalArtifact) => Promise<void>;
   deleteArtifact: (artifactId: string) => Promise<void>;
   searchArtifacts: (query: ArtifactSearchQuery) => Promise<void>;
+
+  // Load all artifacts from the same generation job
+  loadArtifactsByJob: (jobId: string) => Promise<LocalArtifact[]>;
+
+  // Update objective tags on an artifact
+  updateTags: (artifactId: string, tags: string[]) => Promise<void>;
 
   // Batch save from generation
   saveFromGeneration: (params: {
@@ -253,6 +261,35 @@ export const useArtifactStore = create<ArtifactState>()((set, get) => ({
         isLoading: false,
         error: error instanceof Error ? error.message : "Failed to search artifacts",
       });
+    }
+  },
+
+  loadArtifactsByJob: async (jobId: string) => {
+    try {
+      return await getArtifactsByJob(jobId);
+    } catch (error) {
+      console.error("Failed to load artifacts by job:", error);
+      return [];
+    }
+  },
+
+  updateTags: async (artifactId: string, tags: string[]) => {
+    try {
+      await updateArtifactTags(artifactId, tags);
+
+      // Update local state
+      set((state) => ({
+        artifacts: state.artifacts.map((a) =>
+          a.artifactId === artifactId ? { ...a, objectiveTags: tags } : a
+        ),
+        currentArtifact:
+          state.currentArtifact?.artifactId === artifactId
+            ? { ...state.currentArtifact, objectiveTags: tags }
+            : state.currentArtifact,
+      }));
+    } catch (error) {
+      console.error("Failed to update artifact tags:", error);
+      throw error;
     }
   },
 

@@ -4,6 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { OutputStep } from "@/components/wizard/OutputStep";
 import { useWizardStore } from "@/stores/wizardStore";
 
+vi.mock("@/stores/unifiedProjectStore", () => ({
+  useUnifiedProjectStore: vi.fn((selector?: (state: unknown) => unknown) => {
+    const state = {
+      projects: [],
+      loadProjects: vi.fn(),
+    };
+    if (typeof selector === "function") return selector(state);
+    return state;
+  }),
+}));
+
 describe("OutputStep", () => {
   const mockNextStep = vi.fn();
   const mockPrevStep = vi.fn();
@@ -14,9 +25,11 @@ describe("OutputStep", () => {
     useWizardStore.setState({
       outputPath: null,
       title: "Test Project",
+      targetProjectId: null,
       nextStep: mockNextStep,
       prevStep: mockPrevStep,
       setOutputPath: mockSetOutputPath,
+      setTargetProjectId: vi.fn(),
     });
   });
 
@@ -25,7 +38,7 @@ describe("OutputStep", () => {
       render(<OutputStep />);
 
       expect(
-        screen.getByText(/choose where to save your generated materials/i)
+        screen.getByText(/choose a project and where to save your generated materials/i)
       ).toBeInTheDocument();
     });
 
@@ -71,10 +84,11 @@ describe("OutputStep", () => {
     it("displays list of generated files", () => {
       render(<OutputStep />);
 
-      expect(screen.getByText("Generated files:")).toBeInTheDocument();
-      expect(screen.getByText(/worksheet\.html \/ worksheet\.pdf/)).toBeInTheDocument();
-      expect(screen.getByText(/lesson_plan\.html \/ lesson_plan\.pdf/)).toBeInTheDocument();
-      expect(screen.getByText(/answer_key\.html \/ answer_key\.pdf/)).toBeInTheDocument();
+      expect(screen.getByText("Files saved to folder:")).toBeInTheDocument();
+      expect(screen.getByText(/Test Project - Worksheet\.html/)).toBeInTheDocument();
+      expect(screen.getByText(/Test Project - Lesson Plan\.html/)).toBeInTheDocument();
+      expect(screen.getByText(/Test Project - Answer Key\.html/)).toBeInTheDocument();
+      expect(screen.getByText(/PDFs can be downloaded from the Preview/)).toBeInTheDocument();
     });
   });
 

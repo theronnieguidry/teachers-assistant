@@ -205,7 +205,7 @@ test.describe("Creation Wizard", () => {
     await expect(page.getByText("AI Provider")).toBeVisible();
 
     // Should see both provider options (Premium AI and Local AI)
-    await expect(page.getByText("Premium AI")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Select Premium AI/ })).toBeVisible();
     await expect(page.getByText("Local AI", { exact: true }).first()).toBeVisible();
   });
 

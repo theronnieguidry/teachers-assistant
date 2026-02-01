@@ -25,6 +25,9 @@ describe("PromptReviewStep", () => {
     difficulty: "medium" as const,
     includeVisuals: true,
     includeAnswerKey: true,
+    lessonLength: 30 as const,
+    studentProfile: [] as ("needs_movement" | "struggles_reading" | "easily_frustrated" | "advanced" | "ell")[],
+    teachingConfidence: "intermediate" as const,
   };
 
   beforeEach(() => {

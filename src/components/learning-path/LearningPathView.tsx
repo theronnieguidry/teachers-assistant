@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import {
   getUnitsForGrade,
   getSubjects,
   getSubjectProgress,
+  getAllSubjectProgress,
 } from "@/lib/curriculum";
 import type { MasteryState, CurriculumUnit } from "@/types";
 import {
@@ -41,10 +42,22 @@ export function LearningPathView({ initialSubject }: LearningPathViewProps) {
   const [masteryFilter, setMasteryFilter] = useState<MasteryFilter>("all");
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
 
-  const activeProfile = useLearnerStore((state) => state.getActiveProfile());
+  // Select raw state to avoid infinite loops
+  const profiles = useLearnerStore((state) => state.profiles);
+  const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
   const masteryData = useLearnerStore((state) => state.masteryData);
   const loadMastery = useLearnerStore((state) => state.loadMastery);
-  const allProgress = useLearnerStore((state) => state.getAllSubjectProgress());
+
+  // Compute derived values with useMemo
+  const activeProfile = useMemo(() => {
+    if (!activeLearnerId) return null;
+    return profiles.find((p) => p.learnerId === activeLearnerId) || null;
+  }, [profiles, activeLearnerId]);
+
+  const allProgress = useMemo(() => {
+    if (!activeProfile) return [];
+    return getAllSubjectProgress(activeProfile.grade, masteryData);
+  }, [activeProfile, masteryData]);
 
   // Update subject when initialSubject changes
   useEffect(() => {
@@ -55,10 +68,10 @@ export function LearningPathView({ initialSubject }: LearningPathViewProps) {
 
   // Load mastery when profile changes
   useEffect(() => {
-    if (activeProfile?.learnerId) {
-      loadMastery(activeProfile.learnerId);
+    if (activeLearnerId) {
+      loadMastery(activeLearnerId);
     }
-  }, [activeProfile?.learnerId, loadMastery]);
+  }, [activeLearnerId, loadMastery]);
 
   const subjects = getSubjects();
   const units = activeProfile

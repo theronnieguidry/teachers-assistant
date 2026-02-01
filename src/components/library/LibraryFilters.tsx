@@ -1,6 +1,8 @@
-import { X } from "lucide-react";
+import { useState } from "react";
+import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -10,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useArtifactStore } from "@/stores/artifactStore";
 import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
 import type { Grade, ArtifactType, LibraryFilters as LibraryFiltersType } from "@/types";
 import { getArtifactTypeLabel } from "@/types";
 import { SUBJECTS } from "@/types/learner";
@@ -31,12 +34,16 @@ interface LibraryFiltersProps {
 export function LibraryFilters({ onFilterChange }: LibraryFiltersProps) {
   const { filters, setFilters, clearFilters } = useArtifactStore();
   const { projects } = useUnifiedProjectStore();
+  const { packs } = useDesignPackStore();
+  const [tagInput, setTagInput] = useState("");
 
   const hasFilters =
     filters.grades.length > 0 ||
     filters.subjects.length > 0 ||
     filters.types.length > 0 ||
-    filters.projects.length > 0;
+    filters.projects.length > 0 ||
+    filters.objectiveTags.length > 0 ||
+    !!filters.dateRange;
 
   const toggleGrade = (grade: Grade) => {
     const newGrades = filters.grades.includes(grade)
@@ -150,6 +157,123 @@ export function LibraryFilters({ onFilterChange }: LibraryFiltersProps) {
         </div>
       </div>
 
+      {/* Objective Tags Filter */}
+      <div>
+        <label className="text-sm font-medium mb-2 block">Objective Tags</label>
+        <div className="flex flex-wrap gap-1 mb-2">
+          {filters.objectiveTags.map((tag) => (
+            <Badge key={tag} variant="default" className="gap-1 text-xs font-mono">
+              {tag}
+              <X
+                className="h-3 w-3 cursor-pointer"
+                onClick={() => {
+                  setFilters({
+                    objectiveTags: filters.objectiveTags.filter((t) => t !== tag),
+                  });
+                  onFilterChange?.();
+                }}
+              />
+            </Badge>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          <Input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && tagInput.trim()) {
+                const trimmed = tagInput.trim();
+                if (!filters.objectiveTags.includes(trimmed)) {
+                  setFilters({ objectiveTags: [...filters.objectiveTags, trimmed] });
+                  onFilterChange?.();
+                }
+                setTagInput("");
+              }
+            }}
+            placeholder="Type tag and press Enter..."
+            className="h-8 text-xs"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => {
+              const trimmed = tagInput.trim();
+              if (trimmed && !filters.objectiveTags.includes(trimmed)) {
+                setFilters({ objectiveTags: [...filters.objectiveTags, trimmed] });
+                onFilterChange?.();
+              }
+              setTagInput("");
+            }}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Design Pack Filter */}
+      {packs.length > 0 && (
+        <div>
+          <label className="text-sm font-medium mb-2 block">Design Pack</label>
+          <Select
+            value={(filters as LibraryFiltersType & { designPackId?: string }).designPackId || "all"}
+            onValueChange={(v) => {
+              setFilters({ designPackId: v === "all" ? undefined : v } as Partial<LibraryFiltersType>);
+              onFilterChange?.();
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Design Packs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Design Packs</SelectItem>
+              {packs.map((pack) => (
+                <SelectItem key={pack.packId} value={pack.packId}>
+                  {pack.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Date Range Filter */}
+      <div>
+        <label className="text-sm font-medium mb-2 block">Date Range</label>
+        <div className="flex gap-2">
+          <Input
+            type="date"
+            className="h-8 text-xs"
+            value={filters.dateRange?.from || ""}
+            onChange={(e) => {
+              const from = e.target.value;
+              const to = filters.dateRange?.to || new Date().toISOString().split("T")[0];
+              if (from) {
+                setFilters({ dateRange: { from, to } });
+              } else {
+                setFilters({ dateRange: undefined });
+              }
+              onFilterChange?.();
+            }}
+          />
+          <Input
+            type="date"
+            className="h-8 text-xs"
+            value={filters.dateRange?.to || ""}
+            onChange={(e) => {
+              const to = e.target.value;
+              const from = filters.dateRange?.from || "2020-01-01";
+              if (to) {
+                setFilters({ dateRange: { from, to } });
+              } else {
+                setFilters({ dateRange: undefined });
+              }
+              onFilterChange?.();
+            }}
+          />
+        </div>
+      </div>
+
       {/* Clear Filters */}
       {hasFilters && (
         <Button
@@ -187,11 +311,21 @@ export function ActiveFilterChips() {
     setFilters({ projects: filters.projects.filter((p) => p !== projectId) });
   };
 
+  const removeTag = (tag: string) => {
+    setFilters({ objectiveTags: filters.objectiveTags.filter((t) => t !== tag) });
+  };
+
+  const clearDateRange = () => {
+    setFilters({ dateRange: undefined });
+  };
+
   const hasFilters =
     filters.grades.length > 0 ||
     filters.subjects.length > 0 ||
     filters.types.length > 0 ||
-    filters.projects.length > 0;
+    filters.projects.length > 0 ||
+    filters.objectiveTags.length > 0 ||
+    !!filters.dateRange;
 
   if (!hasFilters) return null;
 
@@ -227,6 +361,18 @@ export function ActiveFilterChips() {
           <X className="h-3 w-3 cursor-pointer" onClick={() => removeType(type)} />
         </Badge>
       ))}
+      {filters.objectiveTags.map((tag) => (
+        <Badge key={tag} variant="secondary" className="gap-1 font-mono text-xs">
+          {tag}
+          <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag)} />
+        </Badge>
+      ))}
+      {filters.dateRange && (
+        <Badge variant="secondary" className="gap-1">
+          {filters.dateRange.from} - {filters.dateRange.to}
+          <X className="h-3 w-3 cursor-pointer" onClick={clearDateRange} />
+        </Badge>
+      )}
     </div>
   );
 }

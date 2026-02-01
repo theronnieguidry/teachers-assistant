@@ -10,18 +10,6 @@ import {
   type VisionImage,
 } from "../../services/ai-provider.js";
 
-// Mock Anthropic SDK
-vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: "text", text: "Mock Claude response" }],
-        usage: { input_tokens: 100, output_tokens: 200 },
-      }),
-    },
-  })),
-}));
-
 // Mock OpenAI SDK - used by both OpenAI and Ollama providers
 const mockChatCreate = vi.fn();
 vi.mock("openai", () => ({
@@ -55,7 +43,6 @@ describe("AI Provider Service", () => {
     vi.clearAllMocks();
     resetClients();
     // Set required env vars
-    process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
     process.env.OPENAI_API_KEY = "test-openai-key";
     process.env.OLLAMA_BASE_URL = "http://localhost:11434";
     process.env.OLLAMA_MODEL = "llama3.2";
@@ -68,31 +55,22 @@ describe("AI Provider Service", () => {
   });
 
   afterEach(() => {
-    delete process.env.ANTHROPIC_API_KEY;
     delete process.env.OPENAI_API_KEY;
     delete process.env.OLLAMA_BASE_URL;
     delete process.env.OLLAMA_MODEL;
   });
 
   describe("generateContent", () => {
-    describe("with Claude", () => {
-      it("should generate content using Claude", async () => {
+    describe("legacy claude backward compatibility", () => {
+      it("should remap legacy 'claude' provider to OpenAI", async () => {
         const result = await generateContent("Test prompt", {
           provider: "claude",
         });
 
-        expect(result.content).toBe("Mock Claude response");
-        expect(result.inputTokens).toBe(100);
-        expect(result.outputTokens).toBe(200);
-      });
-
-      it("should throw error when ANTHROPIC_API_KEY is missing", async () => {
-        delete process.env.ANTHROPIC_API_KEY;
-        resetClients();
-
-        await expect(
-          generateContent("Test prompt", { provider: "claude" })
-        ).rejects.toThrow("ANTHROPIC_API_KEY environment variable is required");
+        // Claude is remapped to OpenAI, so we get OpenAI response
+        expect(result.content).toBe("Mock OpenAI response");
+        expect(result.inputTokens).toBe(150);
+        expect(result.outputTokens).toBe(250);
       });
     });
 
@@ -224,16 +202,24 @@ describe("AI Provider Service", () => {
   });
 
   describe("supportsVision", () => {
-    it("should return true for Claude", () => {
-      expect(supportsVision("claude")).toBe(true);
-    });
-
     it("should return true for OpenAI", () => {
       expect(supportsVision("openai")).toBe(true);
     });
 
+    it("should return true for premium (maps to OpenAI)", () => {
+      expect(supportsVision("premium")).toBe(true);
+    });
+
+    it("should return true for legacy claude (maps to OpenAI)", () => {
+      expect(supportsVision("claude")).toBe(true);
+    });
+
     it("should return false for Ollama", () => {
       expect(supportsVision("ollama")).toBe(false);
+    });
+
+    it("should return false for local (maps to Ollama)", () => {
+      expect(supportsVision("local")).toBe(false);
     });
   });
 
@@ -243,18 +229,6 @@ describe("AI Provider Service", () => {
       base64Data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
     };
 
-    it("should analyze image with Claude", async () => {
-      const result = await analyzeImageWithVision(
-        "Describe this image",
-        [testImage],
-        { provider: "claude" }
-      );
-
-      expect(result.content).toBe("Mock Claude response");
-      expect(result.inputTokens).toBe(100);
-      expect(result.outputTokens).toBe(200);
-    });
-
     it("should analyze image with OpenAI", async () => {
       const result = await analyzeImageWithVision(
         "Describe this image",
@@ -262,6 +236,19 @@ describe("AI Provider Service", () => {
         { provider: "openai" }
       );
 
+      expect(result.content).toBe("Mock OpenAI response");
+      expect(result.inputTokens).toBe(150);
+      expect(result.outputTokens).toBe(250);
+    });
+
+    it("should analyze image with legacy claude (remaps to OpenAI)", async () => {
+      const result = await analyzeImageWithVision(
+        "Describe this image",
+        [testImage],
+        { provider: "claude" }
+      );
+
+      // Claude is remapped to OpenAI
       expect(result.content).toBe("Mock OpenAI response");
       expect(result.inputTokens).toBe(150);
       expect(result.outputTokens).toBe(250);
@@ -286,10 +273,10 @@ describe("AI Provider Service", () => {
       const result = await analyzeImageWithVision(
         "Compare these images",
         images,
-        { provider: "claude" }
+        { provider: "openai" }
       );
 
-      expect(result.content).toBe("Mock Claude response");
+      expect(result.content).toBe("Mock OpenAI response");
     });
   });
 });

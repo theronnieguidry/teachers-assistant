@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -17,6 +17,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useState } from "react";
+import {
+  getNextRecommendedObjective,
+  getAllSubjectProgress,
+} from "@/lib/curriculum";
 
 interface TodayViewProps {
   onNavigateToLearningPath?: (subject?: string) => void;
@@ -25,13 +29,29 @@ interface TodayViewProps {
 export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
+  // Select primitive/stable state values directly
   const profiles = useLearnerStore((state) => state.profiles);
-  const activeProfile = useLearnerStore((state) => state.getActiveProfile());
+  const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
+  const masteryData = useLearnerStore((state) => state.masteryData);
   const loadProfiles = useLearnerStore((state) => state.loadProfiles);
   const loadMastery = useLearnerStore((state) => state.loadMastery);
-  const nextObjective = useLearnerStore((state) => state.getNextRecommendedObjective());
-  const allProgress = useLearnerStore((state) => state.getAllSubjectProgress());
   const markObjectiveStarted = useLearnerStore((state) => state.markObjectiveStarted);
+
+  // Compute derived values with useMemo to avoid infinite loops
+  const activeProfile = useMemo(() => {
+    if (!activeLearnerId) return null;
+    return profiles.find((p) => p.learnerId === activeLearnerId) || null;
+  }, [profiles, activeLearnerId]);
+
+  const nextObjective = useMemo(() => {
+    if (!activeProfile) return null;
+    return getNextRecommendedObjective(activeProfile.grade, masteryData);
+  }, [activeProfile, masteryData]);
+
+  const allProgress = useMemo(() => {
+    if (!activeProfile) return [];
+    return getAllSubjectProgress(activeProfile.grade, masteryData);
+  }, [activeProfile, masteryData]);
 
   const openWizardFromObjective = useWizardStore(
     (state) => state.openWizardFromObjective
@@ -43,10 +63,10 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
   }, [loadProfiles]);
 
   useEffect(() => {
-    if (activeProfile?.learnerId) {
-      loadMastery(activeProfile.learnerId);
+    if (activeLearnerId) {
+      loadMastery(activeLearnerId);
     }
-  }, [activeProfile?.learnerId, loadMastery]);
+  }, [activeLearnerId, loadMastery]);
 
   // No profiles - show welcome
   if (profiles.length === 0) {

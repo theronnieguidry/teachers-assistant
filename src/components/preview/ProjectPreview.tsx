@@ -6,6 +6,9 @@ import {
   FolderOpen,
   RefreshCw,
   Loader2,
+  MessageSquare,
+  Users,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +29,7 @@ interface ProjectPreviewProps {
 }
 
 export function ProjectPreview({ project, onRegenerate }: ProjectPreviewProps) {
-  const { fetchProjectVersion } = useProjectStore();
+  const { fetchProjectVersion, fetchSpecificVersion } = useProjectStore();
   const [isLoadingVersion, setIsLoadingVersion] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -40,6 +43,20 @@ export function ProjectPreview({ project, onRegenerate }: ProjectPreviewProps) {
   const loadVersion = async () => {
     setIsLoadingVersion(true);
     try {
+      await fetchProjectVersion(project.id);
+    } finally {
+      setIsLoadingVersion(false);
+    }
+  };
+
+  const handleVersionChanged = async (newVersionId: string) => {
+    // Reload the version after an improvement is applied
+    setIsLoadingVersion(true);
+    try {
+      await fetchSpecificVersion(project.id, newVersionId);
+    } catch (error) {
+      console.error("Failed to load new version:", error);
+      // Fallback to loading latest version
       await fetchProjectVersion(project.id);
     } finally {
       setIsLoadingVersion(false);
@@ -105,7 +122,13 @@ export function ProjectPreview({ project, onRegenerate }: ProjectPreviewProps) {
             worksheetHtml={project.latestVersion.worksheetHtml || ""}
             lessonPlanHtml={project.latestVersion.lessonPlanHtml || ""}
             answerKeyHtml={project.latestVersion.answerKeyHtml || ""}
+            teacherScriptHtml={project.latestVersion.teacherScriptHtml || ""}
+            studentActivityHtml={project.latestVersion.studentActivityHtml || ""}
+            materialsListHtml={project.latestVersion.materialsListHtml || ""}
             projectTitle={project.title}
+            projectId={project.id}
+            versionId={project.latestVersion.id}
+            onVersionChanged={handleVersionChanged}
           />
         </div>
       </div>
@@ -165,6 +188,31 @@ export function ProjectPreview({ project, onRegenerate }: ProjectPreviewProps) {
                   description="Complete solutions"
                   hasContent={!!project.latestVersion.answerKeyHtml}
                 />
+                {/* New lesson plan artifacts (Issue #17) */}
+                {project.latestVersion.teacherScriptHtml && (
+                  <OutputCard
+                    icon={MessageSquare}
+                    title="Teacher Script"
+                    description="What to say and do"
+                    hasContent={true}
+                  />
+                )}
+                {project.latestVersion.studentActivityHtml && (
+                  <OutputCard
+                    icon={Users}
+                    title="Activity"
+                    description="Student activity instructions"
+                    hasContent={true}
+                  />
+                )}
+                {project.latestVersion.materialsListHtml && (
+                  <OutputCard
+                    icon={Package}
+                    title="Materials"
+                    description="What you'll need"
+                    hasContent={true}
+                  />
+                )}
               </div>
 
               <div className="flex gap-2">

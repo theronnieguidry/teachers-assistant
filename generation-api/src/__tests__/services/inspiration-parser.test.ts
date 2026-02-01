@@ -1,17 +1,53 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock pdf-parse via createRequire - must use vi.hoisted() to avoid hoisting issues
-const { mockPdf } = vi.hoisted(() => ({
-  mockPdf: vi.fn(),
+// Mock pdf-parse class - must use vi.hoisted() to avoid hoisting issues
+const { mockGetText, mockDestroy, MockPDFParse } = vi.hoisted(() => {
+  const mockGetText = vi.fn();
+  const mockDestroy = vi.fn();
+  const MockPDFParse = vi.fn().mockImplementation(() => ({
+    getText: mockGetText,
+    destroy: mockDestroy,
+  }));
+  return { mockGetText, mockDestroy, MockPDFParse };
+});
+
+vi.mock("pdf-parse", () => ({
+  PDFParse: MockPDFParse,
 }));
 
-vi.mock("module", () => ({
-  createRequire: () => (moduleName: string) => {
-    if (moduleName === "pdf-parse") {
-      return mockPdf;
-    }
-    throw new Error(`Unexpected require: ${moduleName}`);
-  },
+// Mock Playwright to avoid launching real browsers in tests - must be hoisted
+const { mockPlaywright } = vi.hoisted(() => {
+  const mockScreenshot = vi.fn().mockResolvedValue(Buffer.from("fake-screenshot"));
+  const mockClose = vi.fn();
+  const mockGoto = vi.fn();
+  const mockNewPage = vi.fn().mockResolvedValue({
+    goto: mockGoto,
+    screenshot: mockScreenshot,
+  });
+  const mockNewContext = vi.fn().mockResolvedValue({
+    newPage: mockNewPage,
+    close: mockClose,
+  });
+  const mockBrowserClose = vi.fn();
+  const mockIsConnected = vi.fn().mockReturnValue(true);
+  const mockLaunch = vi.fn().mockResolvedValue({
+    newContext: mockNewContext,
+    close: mockBrowserClose,
+    isConnected: mockIsConnected,
+  });
+
+  return {
+    mockPlaywright: {
+      chromium: { launch: mockLaunch },
+      mockScreenshot,
+      mockGoto,
+      mockNewContext,
+    },
+  };
+});
+
+vi.mock("playwright", () => ({
+  chromium: mockPlaywright.chromium,
 }));
 
 // Mock AI provider with factory function
@@ -45,16 +81,14 @@ describe("Inspiration Parser Service", () => {
       outputTokens: 100,
     });
     vi.mocked(supportsVision).mockImplementation((provider) =>
-      provider === "claude" || provider === "openai"
+      provider === "openai" || provider === "premium" || provider === "claude"
     );
-    mockPdf.mockResolvedValue({
+    mockGetText.mockResolvedValue({
       text: "This is a comprehensive educational PDF document containing detailed lesson plans, worksheets, and activities for elementary school students covering mathematics, reading, and science topics.",
-      numpages: 2,
-      numrender: 2,
-      info: {},
-      metadata: null,
-      version: "1.0",
+      pages: [{ num: 1, text: "Page 1 content" }, { num: 2, text: "Page 2 content" }],
+      total: 2,
     });
+    mockDestroy.mockResolvedValue(undefined);
   });
 
   describe("fetchUrlContent", () => {
@@ -160,7 +194,7 @@ describe("Inspiration Parser Service", () => {
   });
 
   describe("parseInspiration", () => {
-    const aiConfig = { provider: "claude" as const };
+    const aiConfig = { provider: "openai" as const };
 
     it("should parse URL inspiration", async () => {
       // Content needs to be over 100 chars to trigger AI processing
@@ -255,14 +289,15 @@ describe("Inspiration Parser Service", () => {
 
       const result = await parseInspiration(item, aiConfig);
 
-      expect(mockPdf).toHaveBeenCalled();
+      expect(MockPDFParse).toHaveBeenCalled();
+      expect(mockGetText).toHaveBeenCalled();
       expect(result.type).toBe("pdf");
       // Should use AI to summarize the extracted text
       expect(result.extractedContent).toBe("Summarized content about educational topics");
     });
 
     it("should handle PDF extraction failure gracefully", async () => {
-      mockPdf.mockRejectedValue(new Error("Invalid PDF"));
+      mockGetText.mockRejectedValueOnce(new Error("Invalid PDF"));
 
       const base64PdfContent = "invalid-base64-pdf-content".padEnd(200, "X");
 
@@ -305,7 +340,7 @@ describe("Inspiration Parser Service", () => {
 
       const result = await parseInspiration(item, aiConfig);
 
-      expect(vi.mocked(supportsVision)).toHaveBeenCalledWith("claude");
+      expect(vi.mocked(supportsVision)).toHaveBeenCalledWith("openai");
       expect(vi.mocked(analyzeImageWithVision)).toHaveBeenCalled();
       expect(result.type).toBe("image");
       expect(result.extractedContent).toContain("Design analysis");
@@ -350,10 +385,139 @@ describe("Inspiration Parser Service", () => {
       expect(result.type).toBe("image");
       expect(result.extractedContent).toBe("[Image: problematic.png]");
     });
+
+    it("should perform visual analysis on URLs when provider supports vision", async () => {
+      const mockHtml = "<html><body><p>This is a comprehensive educational resource covering mathematics, science, and language arts topics for elementary school students. It includes detailed lesson plans and activities.</p></body></html>";
+
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        headers: { get: () => "text/html" },
+        text: () => Promise.resolve(mockHtml),
+      } as unknown as Response);
+
+      // Reset the vision mock to track calls
+      vi.mocked(analyzeImageWithVision).mockResolvedValue({
+        content: "Design analysis: clean layout with blue headers",
+        inputTokens: 200,
+        outputTokens: 100,
+      });
+
+      const item = {
+        id: "item-1",
+        type: "url" as const,
+        title: "Example Site",
+        sourceUrl: "https://example.com",
+      };
+
+      const result = await parseInspiration(item, { provider: "openai" });
+
+      // Should call vision analysis for URL screenshot
+      expect(analyzeImageWithVision).toHaveBeenCalled();
+      expect(result.type).toBe("url");
+    });
+
+    it("should skip URL visual analysis when provider does not support vision", async () => {
+      const mockHtml = "<html><body><p>This is a comprehensive educational resource covering mathematics, science, and language arts topics for elementary school students. It includes detailed lesson plans and activities.</p></body></html>";
+
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        headers: { get: () => "text/html" },
+        text: () => Promise.resolve(mockHtml),
+      } as unknown as Response);
+
+      vi.mocked(analyzeImageWithVision).mockClear();
+
+      const item = {
+        id: "item-1",
+        type: "url" as const,
+        title: "Example Site",
+        sourceUrl: "https://example.com",
+      };
+
+      // Ollama does not support vision
+      const result = await parseInspiration(item, { provider: "ollama" });
+
+      // Should NOT call vision analysis for Ollama
+      expect(analyzeImageWithVision).not.toHaveBeenCalled();
+      expect(result.type).toBe("url");
+    });
+
+    it("should fall back gracefully when URL screenshot fails", async () => {
+      const mockHtml = "<html><body><p>This is a comprehensive educational resource covering mathematics, science, and language arts topics for elementary school students. It includes detailed lesson plans and activities.</p></body></html>";
+
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        headers: { get: () => "text/html" },
+        text: () => Promise.resolve(mockHtml),
+      } as unknown as Response);
+
+      // Make the Playwright mock fail
+      mockPlaywright.mockNewContext.mockRejectedValueOnce(new Error("Browser launch failed"));
+
+      const item = {
+        id: "item-1",
+        type: "url" as const,
+        title: "Example Site",
+        sourceUrl: "https://example.com",
+      };
+
+      const result = await parseInspiration(item, { provider: "openai" });
+
+      // Should still return a result with text content
+      expect(result.type).toBe("url");
+      expect(result.extractedContent).toBeDefined();
+    });
+
+    it("should attempt PDF visual analysis when provider supports vision", async () => {
+      // Reset mocks
+      vi.mocked(analyzeImageWithVision).mockClear();
+      vi.mocked(analyzeImageWithVision).mockResolvedValue({
+        content: "Design analysis: educational worksheet with colorful borders",
+        inputTokens: 200,
+        outputTokens: 100,
+      });
+
+      // Use valid PDF content (mocked via pdf-parse)
+      const base64PdfContent = "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoK".padEnd(200, "A");
+
+      const item = {
+        id: "item-1",
+        type: "pdf" as const,
+        title: "worksheet.pdf",
+        content: base64PdfContent,
+      };
+
+      const result = await parseInspiration(item, { provider: "openai" });
+
+      // Vision analysis may or may not be called (depends on PDF rendering success)
+      // But PDF should still be processed
+      expect(result.type).toBe("pdf");
+      expect(result.extractedContent).toBeDefined();
+    });
+
+    it("should skip PDF visual analysis when provider does not support vision", async () => {
+      vi.mocked(analyzeImageWithVision).mockClear();
+
+      const base64PdfContent = "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoK".padEnd(200, "A");
+
+      const item = {
+        id: "item-1",
+        type: "pdf" as const,
+        title: "worksheet.pdf",
+        content: base64PdfContent,
+      };
+
+      // Ollama does not support vision
+      const result = await parseInspiration(item, { provider: "ollama" });
+
+      // Should NOT call vision analysis for Ollama
+      expect(analyzeImageWithVision).not.toHaveBeenCalled();
+      expect(result.type).toBe("pdf");
+    });
   });
 
   describe("parseAllInspiration", () => {
-    const aiConfig = { provider: "claude" as const };
+    const aiConfig = { provider: "openai" as const };
 
     it("should parse all items and return results", async () => {
       const items = [

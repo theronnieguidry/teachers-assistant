@@ -579,9 +579,14 @@ describe("projectStore", () => {
 
   describe("updateProjectWithVersion", () => {
     const mockVersionData = {
+      versionNumber: 1,
       worksheetHtml: "<html>Worksheet</html>",
       lessonPlanHtml: "<html>Lesson Plan</html>",
       answerKeyHtml: "<html>Answer Key</html>",
+      teacherScriptHtml: null,
+      studentActivityHtml: null,
+      materialsListHtml: null,
+      lessonMetadata: null,
       aiProvider: "ollama",
       aiModel: "llama3.2",
     };
