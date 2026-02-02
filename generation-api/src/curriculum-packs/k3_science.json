@@ -1,0 +1,127 @@
+{
+  "subject": "Science",
+  "gradeRange": "K-3",
+  "version": "1.0",
+  "units": [
+    {
+      "unitId": "senses_k",
+      "title": "Our Five Senses",
+      "grade": "K",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "sci_k_01",
+          "text": "Identify the five senses and their body parts",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing which sense does what", "Not understanding all senses work together"],
+          "vocabulary": ["see", "hear", "smell", "taste", "touch", "eyes", "ears", "nose", "tongue", "skin"],
+          "activities": ["Senses sorting", "Mystery bag", "Senses walk"]
+        }
+      ]
+    },
+    {
+      "unitId": "living_k",
+      "title": "Living vs Non-Living Things",
+      "grade": "K",
+      "sequence": 2,
+      "objectives": [
+        {
+          "id": "sci_k_02",
+          "text": "Distinguish between living and non-living things",
+          "prereqs": [],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Thinking cars are alive because they move", "Plants not recognized as living"],
+          "vocabulary": ["living", "non-living", "grow", "breathe", "eat", "move"],
+          "activities": ["Sort pictures", "Nature walk", "Living things hunt"]
+        }
+      ]
+    },
+    {
+      "unitId": "weather_1",
+      "title": "Weather and Seasons",
+      "grade": "1",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "sci_1_01",
+          "text": "Describe different types of weather",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing weather and climate", "Not connecting weather to daily life"],
+          "vocabulary": ["sunny", "cloudy", "rainy", "windy", "snowy", "hot", "cold", "weather"],
+          "activities": ["Weather journal", "Dress the weather", "Weather chart"]
+        },
+        {
+          "id": "sci_1_02",
+          "text": "Identify the four seasons and their characteristics",
+          "prereqs": ["sci_1_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Seasons are the same everywhere", "Confusing months and seasons"],
+          "vocabulary": ["spring", "summer", "fall", "autumn", "winter", "season"],
+          "activities": ["Season sort", "Season wheel", "Season changes"]
+        }
+      ]
+    },
+    {
+      "unitId": "life_cycles_2",
+      "title": "Life Cycles",
+      "grade": "2",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "sci_2_01",
+          "text": "Describe the life cycle of a butterfly",
+          "prereqs": ["sci_k_02"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Skipping stages", "Not understanding metamorphosis"],
+          "vocabulary": ["life cycle", "egg", "larva", "caterpillar", "pupa", "chrysalis", "butterfly"],
+          "activities": ["Life cycle sequence", "Caterpillar observation", "Life cycle craft"]
+        },
+        {
+          "id": "sci_2_02",
+          "text": "Describe the life cycle of a plant",
+          "prereqs": ["sci_k_02"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Thinking seeds need light to sprout", "Not understanding pollination"],
+          "vocabulary": ["seed", "sprout", "seedling", "plant", "flower", "fruit", "germination"],
+          "activities": ["Plant a seed", "Life cycle diagram", "Parts of a plant"]
+        }
+      ]
+    },
+    {
+      "unitId": "matter_3",
+      "title": "States of Matter",
+      "grade": "3",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "sci_3_01",
+          "text": "Identify and describe solids, liquids, and gases",
+          "prereqs": ["sci_k_02"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Thinking gases don't exist because invisible", "Confusing shape and volume"],
+          "vocabulary": ["solid", "liquid", "gas", "matter", "shape", "volume"],
+          "activities": ["Matter sort", "Water experiments", "State changes"]
+        },
+        {
+          "id": "sci_3_02",
+          "text": "Explain how matter can change states",
+          "prereqs": ["sci_3_01"],
+          "difficulty": "challenge",
+          "estimatedMinutes": 45,
+          "misconceptions": ["Changes are permanent", "Not connecting to temperature"],
+          "vocabulary": ["melt", "freeze", "evaporate", "condense", "heat", "cool"],
+          "activities": ["Ice melting", "Water cycle", "State change observations"]
+        }
+      ]
+    }
+  ]
+}

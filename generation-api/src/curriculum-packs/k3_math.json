@@ -1,0 +1,271 @@
+{
+  "subject": "Math",
+  "gradeRange": "K-3",
+  "version": "1.0",
+  "units": [
+    {
+      "unitId": "counting_k",
+      "title": "Counting and Cardinality",
+      "grade": "K",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "math_k_01",
+          "text": "Count objects up to 10",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Skipping numbers when counting", "Not matching one object to one number"],
+          "vocabulary": ["count", "number", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"],
+          "activities": ["Count classroom objects", "Number song", "Touch and count"]
+        },
+        {
+          "id": "math_k_02",
+          "text": "Count objects up to 20",
+          "prereqs": ["math_k_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing teen numbers", "Losing track after 10"],
+          "vocabulary": ["eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"],
+          "activities": ["Count manipulatives", "Number line walk", "Count and write"]
+        },
+        {
+          "id": "math_k_03",
+          "text": "Write numbers 0-10",
+          "prereqs": ["math_k_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Reversing numbers (especially 3, 5, 7)", "Incorrect number formation"],
+          "vocabulary": ["write", "trace", "number"],
+          "activities": ["Trace numbers", "Write in sand/shaving cream", "Number writing practice"]
+        }
+      ]
+    },
+    {
+      "unitId": "shapes_k",
+      "title": "Shapes and Geometry",
+      "grade": "K",
+      "sequence": 2,
+      "objectives": [
+        {
+          "id": "math_k_04",
+          "text": "Identify basic 2D shapes (circle, square, triangle, rectangle)",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing squares and rectangles", "Only recognizing shapes in standard orientation"],
+          "vocabulary": ["circle", "square", "triangle", "rectangle", "shape", "side", "corner"],
+          "activities": ["Shape hunt", "Shape sorting", "Shape art"]
+        }
+      ]
+    },
+    {
+      "unitId": "addition_1",
+      "title": "Addition Within 10",
+      "grade": "1",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "math_1_01",
+          "text": "Add numbers with sums up to 5",
+          "prereqs": ["math_k_01"],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Counting all instead of counting on", "Not understanding the plus sign"],
+          "vocabulary": ["add", "plus", "equals", "sum", "altogether"],
+          "activities": ["Use counters", "Draw and add", "Story problems"]
+        },
+        {
+          "id": "math_1_02",
+          "text": "Add numbers with sums up to 10",
+          "prereqs": ["math_1_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Losing count", "Not checking work"],
+          "vocabulary": ["add", "sum", "total"],
+          "activities": ["Number bonds", "Ten frame addition", "Part-part-whole"]
+        },
+        {
+          "id": "math_1_03",
+          "text": "Understand the meaning of the equal sign",
+          "prereqs": ["math_1_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Thinking equals means 'the answer'", "Not understanding balance"],
+          "vocabulary": ["equal", "same as", "balance"],
+          "activities": ["Balance scale", "True/false equations", "Missing number"]
+        }
+      ]
+    },
+    {
+      "unitId": "subtraction_1",
+      "title": "Subtraction Within 10",
+      "grade": "1",
+      "sequence": 2,
+      "objectives": [
+        {
+          "id": "math_1_04",
+          "text": "Subtract numbers within 5",
+          "prereqs": ["math_1_01"],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing subtraction with addition", "Not understanding 'take away'"],
+          "vocabulary": ["subtract", "minus", "take away", "difference", "left"],
+          "activities": ["Take away with objects", "Subtraction stories", "Cross out pictures"]
+        },
+        {
+          "id": "math_1_05",
+          "text": "Subtract numbers within 10",
+          "prereqs": ["math_1_04"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Subtracting larger from smaller", "Not relating to addition"],
+          "vocabulary": ["subtract", "difference", "how many more"],
+          "activities": ["Number line subtraction", "Comparison problems", "Fact families"]
+        }
+      ]
+    },
+    {
+      "unitId": "place_value_2",
+      "title": "Place Value to 100",
+      "grade": "2",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "math_2_01",
+          "text": "Understand tens and ones",
+          "prereqs": ["math_k_02"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Forgetting zero as placeholder", "Confusing digit value with place value"],
+          "vocabulary": ["tens", "ones", "place value", "digit"],
+          "activities": ["Base-ten blocks", "Place value charts", "Bundle sticks"]
+        },
+        {
+          "id": "math_2_02",
+          "text": "Count by 10s to 100",
+          "prereqs": ["math_k_02"],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Saying 'elevendy' instead of proper names", "Losing track of decade"],
+          "vocabulary": ["ten", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred"],
+          "activities": ["Skip counting songs", "Hundred chart", "Count dimes"]
+        },
+        {
+          "id": "math_2_03",
+          "text": "Compare two-digit numbers using >, <, =",
+          "prereqs": ["math_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing > and <", "Only looking at ones place"],
+          "vocabulary": ["greater than", "less than", "equal to", "compare"],
+          "activities": ["Alligator method", "Number comparison games", "Ordering numbers"]
+        }
+      ]
+    },
+    {
+      "unitId": "addition_2",
+      "title": "Addition Within 100",
+      "grade": "2",
+      "sequence": 2,
+      "objectives": [
+        {
+          "id": "math_2_04",
+          "text": "Add two-digit numbers without regrouping",
+          "prereqs": ["math_2_01", "math_1_02"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Adding tens and ones together incorrectly", "Lining up digits wrong"],
+          "vocabulary": ["add", "sum", "tens", "ones"],
+          "activities": ["Base-ten block addition", "Vertical addition", "Mental math strategies"]
+        },
+        {
+          "id": "math_2_05",
+          "text": "Add two-digit numbers with regrouping",
+          "prereqs": ["math_2_04"],
+          "difficulty": "challenge",
+          "estimatedMinutes": 45,
+          "misconceptions": ["Forgetting to carry", "Writing carried number in wrong place"],
+          "vocabulary": ["regroup", "carry", "trade"],
+          "activities": ["Trade 10 ones for 1 ten", "Step-by-step regrouping", "Check with blocks"]
+        }
+      ]
+    },
+    {
+      "unitId": "multiplication_3",
+      "title": "Introduction to Multiplication",
+      "grade": "3",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "math_3_01",
+          "text": "Understand multiplication as equal groups",
+          "prereqs": ["math_2_04"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing groups and items in groups", "Not connecting to addition"],
+          "vocabulary": ["multiply", "groups", "times", "product", "factor"],
+          "activities": ["Make equal groups", "Array drawing", "Repeated addition"]
+        },
+        {
+          "id": "math_3_02",
+          "text": "Multiply by 2 (doubles)",
+          "prereqs": ["math_3_01"],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing with addition", "Not recognizing pattern"],
+          "vocabulary": ["double", "twice", "two times"],
+          "activities": ["Double facts", "Pair counting", "2s table practice"]
+        },
+        {
+          "id": "math_3_03",
+          "text": "Multiply by 5",
+          "prereqs": ["math_3_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Missing pattern connection to counting by 5s"],
+          "vocabulary": ["nickel", "five times"],
+          "activities": ["Skip count by 5", "Clock face (5s)", "5s table practice"]
+        },
+        {
+          "id": "math_3_04",
+          "text": "Multiply by 10",
+          "prereqs": ["math_3_01", "math_2_02"],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Just adding zero without understanding why"],
+          "vocabulary": ["dime", "ten times", "place value"],
+          "activities": ["Dime counting", "Pattern recognition", "10s table"]
+        }
+      ]
+    },
+    {
+      "unitId": "fractions_3",
+      "title": "Introduction to Fractions",
+      "grade": "3",
+      "sequence": 2,
+      "objectives": [
+        {
+          "id": "math_3_05",
+          "text": "Understand fractions as parts of a whole",
+          "prereqs": ["math_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Thinking bigger denominator means bigger fraction", "Not understanding equal parts"],
+          "vocabulary": ["fraction", "numerator", "denominator", "whole", "part", "equal parts"],
+          "activities": ["Fold paper", "Pizza fractions", "Fraction strips"]
+        },
+        {
+          "id": "math_3_06",
+          "text": "Identify halves, thirds, and fourths",
+          "prereqs": ["math_3_05"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Unequal parts still counting as fractions", "Confusing numerator and denominator"],
+          "vocabulary": ["half", "third", "fourth", "quarter"],
+          "activities": ["Shade fractions", "Fraction matching", "Real-world fractions"]
+        }
+      ]
+    }
+  ]
+}

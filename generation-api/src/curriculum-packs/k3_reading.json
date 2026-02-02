@@ -1,0 +1,149 @@
+{
+  "subject": "Reading",
+  "gradeRange": "K-3",
+  "version": "1.0",
+  "units": [
+    {
+      "unitId": "phonics_k",
+      "title": "Letter Recognition and Sounds",
+      "grade": "K",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "read_k_01",
+          "text": "Recognize uppercase letters A-Z",
+          "prereqs": [],
+          "difficulty": "easy",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing similar letters (M/W, E/F)", "Not recognizing letters in different fonts"],
+          "vocabulary": ["letter", "uppercase", "capital"],
+          "activities": ["Letter hunt", "Alphabet song", "Letter matching"]
+        },
+        {
+          "id": "read_k_02",
+          "text": "Recognize lowercase letters a-z",
+          "prereqs": ["read_k_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing b/d, p/q", "Not connecting upper and lowercase"],
+          "vocabulary": ["lowercase", "small letter"],
+          "activities": ["Letter matching", "Upper/lower pairs", "Letter sorting"]
+        },
+        {
+          "id": "read_k_03",
+          "text": "Associate letters with their sounds",
+          "prereqs": ["read_k_01", "read_k_02"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing letter name with sound", "Hard and soft sounds"],
+          "vocabulary": ["sound", "begins with"],
+          "activities": ["Picture sound match", "I Spy letter sounds", "Sound isolation"]
+        }
+      ]
+    },
+    {
+      "unitId": "phonics_1",
+      "title": "Beginning Phonics",
+      "grade": "1",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "read_1_01",
+          "text": "Blend CVC words (consonant-vowel-consonant)",
+          "prereqs": ["read_k_03"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Reading letters separately instead of blending", "Guessing based on first letter"],
+          "vocabulary": ["blend", "sound out", "word"],
+          "activities": ["Sound boxes", "Blending drill", "CVC word families"]
+        },
+        {
+          "id": "read_1_02",
+          "text": "Read common sight words",
+          "prereqs": ["read_k_03"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Trying to sound out sight words", "Confusing similar sight words"],
+          "vocabulary": ["sight word", "the", "is", "and", "a", "to", "in", "it", "he", "she", "we"],
+          "activities": ["Flashcard practice", "Sight word games", "Read and find"]
+        }
+      ]
+    },
+    {
+      "unitId": "comprehension_2",
+      "title": "Reading Comprehension",
+      "grade": "2",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "read_2_01",
+          "text": "Identify main idea and details",
+          "prereqs": ["read_1_01", "read_1_02"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Confusing main idea with first sentence", "Listing all details instead of key ones"],
+          "vocabulary": ["main idea", "detail", "important"],
+          "activities": ["Topic sentence hunt", "Detail web", "Main idea bingo"]
+        },
+        {
+          "id": "read_2_02",
+          "text": "Make predictions while reading",
+          "prereqs": ["read_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Wild guessing instead of using clues", "Not checking predictions"],
+          "vocabulary": ["predict", "guess", "clue", "what will happen"],
+          "activities": ["Cover and predict", "Picture walk predictions", "Prediction charts"]
+        },
+        {
+          "id": "read_2_03",
+          "text": "Retell a story in sequence",
+          "prereqs": ["read_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Leaving out important events", "Getting order wrong"],
+          "vocabulary": ["first", "then", "next", "last", "sequence", "order"],
+          "activities": ["Story sequencing cards", "Beginning-middle-end", "Retelling with pictures"]
+        }
+      ]
+    },
+    {
+      "unitId": "comprehension_3",
+      "title": "Advanced Comprehension",
+      "grade": "3",
+      "sequence": 1,
+      "objectives": [
+        {
+          "id": "read_3_01",
+          "text": "Identify character traits and motivations",
+          "prereqs": ["read_2_01"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Describing actions instead of traits", "Not using text evidence"],
+          "vocabulary": ["character", "trait", "motivation", "feeling"],
+          "activities": ["Character trait chart", "Evidence hunting", "Character comparison"]
+        },
+        {
+          "id": "read_3_02",
+          "text": "Compare and contrast story elements",
+          "prereqs": ["read_2_03"],
+          "difficulty": "standard",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Only finding similarities or differences", "Surface-level comparisons"],
+          "vocabulary": ["compare", "contrast", "same", "different", "alike"],
+          "activities": ["Venn diagram", "Comparison chart", "Same and different hunt"]
+        },
+        {
+          "id": "read_3_03",
+          "text": "Identify cause and effect relationships",
+          "prereqs": ["read_2_01"],
+          "difficulty": "challenge",
+          "estimatedMinutes": 30,
+          "misconceptions": ["Reversing cause and effect", "Not recognizing implicit relationships"],
+          "vocabulary": ["cause", "effect", "because", "so", "therefore"],
+          "activities": ["Cause/effect cards", "Signal word hunt", "Chain of events"]
+        }
+      ]
+    }
+  ]
+}
