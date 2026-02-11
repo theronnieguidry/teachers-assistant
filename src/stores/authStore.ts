@@ -26,6 +26,17 @@ interface AuthState {
   clearError: () => void;
 }
 
+function getOAuthRedirectUrl(): string {
+  const configuredRedirect = import.meta.env.VITE_OAUTH_REDIRECT_URL?.trim();
+  if (configuredRedirect) return configuredRedirect;
+
+  if (typeof window === "undefined") {
+    return "http://localhost:1420";
+  }
+
+  return window.location.origin;
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -133,7 +144,7 @@ export const useAuthStore = create<AuthState>()(
           const { error } = await supabase.auth.signInWithOAuth({
             provider,
             options: {
-              redirectTo: window.location.origin,
+              redirectTo: getOAuthRedirectUrl(),
             },
           });
 

@@ -68,11 +68,9 @@ function logSystem(message) {
   console.log(`${BOLD}[${timestamp}] [Watcher]${RESET} ${message}`);
 }
 
-// Kill process on a specific port (Windows/Unix)
-function killPort(port) {
+function getPidsOnPort(port) {
   try {
     if (process.platform === "win32") {
-      // Find all PIDs using the port on Windows (handles both IPv4 and IPv6)
       let result;
       try {
         result = execSync(`netstat -ano | findstr ":${port}"`, {
@@ -81,7 +79,7 @@ function killPort(port) {
         });
       } catch {
         // No results found
-        return false;
+        return [];
       }
 
       const lines = result.trim().split("\n");
@@ -98,43 +96,82 @@ function killPort(port) {
         }
       }
 
-      for (const pid of pids) {
-        try {
-          // Use /T to kill the process tree
-          execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
-          logSystem(`Killed process ${pid} on port ${port}`);
-        } catch {
-          // Process might have already exited
-        }
-      }
-
-      return pids.size > 0;
+      return [...pids];
     } else {
-      // Unix-like systems
       try {
-        execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null`, { stdio: "pipe" });
-        logSystem(`Killed process on port ${port}`);
-        return true;
+        const output = execSync(`lsof -tiTCP:${port} -sTCP:LISTEN`, {
+          encoding: "utf-8",
+          stdio: ["pipe", "pipe", "pipe"],
+        })
+          .trim()
+          .split("\n")
+          .map((pid) => pid.trim())
+          .filter(Boolean);
+        return [...new Set(output)];
       } catch {
-        return false;
+        return [];
       }
     }
   } catch {
-    // No process found on port
-    return false;
+    return [];
   }
 }
 
-// Check if a port is available
-function isPortAvailable(port) {
+function isPortInUseByConnection(port, host) {
   return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once("error", () => resolve(false));
-    server.once("listening", () => {
-      server.close();
+    const socket = net.createConnection({ port, host });
+    socket.once("connect", () => {
+      socket.destroy();
       resolve(true);
     });
-    server.listen(port, "127.0.0.1");
+    socket.once("error", () => resolve(false));
+    socket.setTimeout(500, () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
+
+// Kill process on a specific port (Windows/Unix)
+function killPort(port) {
+  const pids = getPidsOnPort(port);
+  if (pids.length === 0) return false;
+
+  for (const pid of pids) {
+    try {
+      if (process.platform === "win32") {
+        // Use /T to kill the process tree
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+      } else {
+        execSync(`kill -9 ${pid}`, { stdio: "pipe" });
+      }
+      logSystem(`Killed process ${pid} on port ${port}`);
+    } catch {
+      // Process might have already exited
+    }
+  }
+
+  return true;
+}
+
+// Check if a port is available
+async function isPortAvailable(port) {
+  if (getPidsOnPort(port).length > 0) {
+    return false;
+  }
+
+  const checks = await Promise.all([
+    isPortInUseByConnection(port, "127.0.0.1"),
+    isPortInUseByConnection(port, "::1"),
+    isPortInUseByConnection(port, "localhost"),
+  ]);
+
+  return !checks.some(Boolean);
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
 }
 
@@ -191,8 +228,22 @@ async function startService(serviceName) {
   if (!portAvailable) {
     log(serviceName, `Port ${config.port} is occupied, attempting to clear...`);
     killPort(config.port);
-    // Wait a moment for port to be released
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await wait(1500);
+  }
+
+  const portReleased = await isPortAvailable(config.port);
+  if (!portReleased) {
+    log(
+      serviceName,
+      `Port ${config.port} is still occupied after cleanup, retrying in 3 seconds...`,
+      true
+    );
+    setTimeout(() => {
+      if (!isShuttingDown) {
+        startService(serviceName);
+      }
+    }, 3000);
+    return;
   }
 
   log(serviceName, `Starting on port ${config.port}...`);

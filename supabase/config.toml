@@ -26,8 +26,8 @@ pop3_port = 54326
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:1420"
-additional_redirect_urls = ["tauri://localhost"]
+site_url = "http://localhost:1420"
+additional_redirect_urls = ["http://localhost:1420", "http://127.0.0.1:1420", "tauri://localhost"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10

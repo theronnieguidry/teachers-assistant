@@ -7,16 +7,29 @@ import {
   refundCredits,
   deductCredits,
 } from "../services/credits.js";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { ImprovementType, TargetDocument } from "../types/premium.js";
 
 const router = Router();
 
-// Supabase client for database operations
-const supabase = createClient(
-  process.env.SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-);
+let supabaseClient: SupabaseClient | null = null;
+
+function getSupabaseClient(): SupabaseClient {
+  if (!supabaseClient) {
+    const url = process.env.SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !serviceRoleKey) {
+      throw new Error(
+        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required"
+      );
+    }
+
+    supabaseClient = createClient(url, serviceRoleKey);
+  }
+
+  return supabaseClient;
+}
 
 // Validation schema for improvement requests
 const improveRequestSchema = z.object({
@@ -45,6 +58,8 @@ router.post("/", authMiddleware, async (req: Request, res: Response) => {
   const userId = authReq.userId;
 
   try {
+    const supabase = getSupabaseClient();
+
     // Validate request body
     const parsed = improveRequestSchema.safeParse(req.body);
     if (!parsed.success) {
