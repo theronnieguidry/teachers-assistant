@@ -13,20 +13,6 @@ vi.mock("@/hooks/useAuth", () => ({
   }),
 }));
 
-// Mock settings components
-vi.mock("@/components/settings", () => ({
-  OllamaSetup: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-    return open ? (
-      <div data-testid="ollama-setup-dialog" role="dialog">
-        <button onClick={() => onOpenChange(false)}>Close Setup</button>
-      </div>
-    ) : null;
-  },
-  UpdateDialog: ({ open }: { open: boolean }) => {
-    return open ? <div data-testid="update-dialog" role="dialog">Update Dialog</div> : null;
-  },
-}));
-
 // Mock purchase components
 vi.mock("@/components/purchase", () => ({
   PurchaseDialog: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
@@ -88,39 +74,6 @@ describe("Header", () => {
     });
   });
 
-  describe("settings button", () => {
-    it("renders settings button with correct title", () => {
-      render(<Header />);
-
-      const settingsButton = screen.getByTitle("Local AI Setup");
-      expect(settingsButton).toBeInTheDocument();
-    });
-
-    it("opens Ollama setup dialog when clicked", async () => {
-      const user = userEvent.setup();
-      render(<Header />);
-
-      const settingsButton = screen.getByTitle("Local AI Setup");
-      await user.click(settingsButton);
-
-      expect(screen.getByTestId("ollama-setup-dialog")).toBeInTheDocument();
-    });
-
-    it("closes Ollama setup dialog when close is triggered", async () => {
-      const user = userEvent.setup();
-      render(<Header />);
-
-      // Open the dialog
-      const settingsButton = screen.getByTitle("Local AI Setup");
-      await user.click(settingsButton);
-      expect(screen.getByTestId("ollama-setup-dialog")).toBeInTheDocument();
-
-      // Close the dialog
-      await user.click(screen.getByRole("button", { name: "Close Setup" }));
-      expect(screen.queryByTestId("ollama-setup-dialog")).not.toBeInTheDocument();
-    });
-  });
-
   describe("user info", () => {
     it("displays user email", () => {
       render(<Header />);
@@ -156,7 +109,6 @@ describe("Header", () => {
     it("buttons have accessible names via title attributes", () => {
       render(<Header />);
 
-      expect(screen.getByTitle("Local AI Setup")).toBeInTheDocument();
       expect(screen.getByTitle("Sign out")).toBeInTheDocument();
     });
   });
