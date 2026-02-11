@@ -2,6 +2,17 @@
 
 Date: 2026-02-11
 
+## Full-Library Metadata Sweep Baseline
+Full namespace discovery was run against the public Ollama library page and captured in:
+
+- `docs/model-eval/ollama-library-namespace-scan-2026-02-11.json`
+
+Snapshot summary:
+- Total discovered model namespaces: 211
+- Source: `https://ollama.com/library`
+
+This catalog is the constrained shortlist derived from that full-library sweep by applying deployment-fit and workload-fit filters.
+
 ## Selection Scope
 This catalog includes free local text-generation candidates relevant to Teacher's Assistant workloads (worksheet HTML, lesson-plan HTML, prompt polishing) that are practical for 16-32GB deployments.
 
