@@ -12,6 +12,7 @@ import checkoutRouter, { handleWebhook } from "./routes/checkout.js";
 import estimateRouter from "./routes/estimate.js";
 import improveRouter from "./routes/improve.js";
 import curriculumRouter from "./routes/curriculum.js";
+import { warmupLocalModel } from "./services/ollama-model-manager.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,9 +61,27 @@ app.use(
 
 // Start server
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
-    console.log(`Generation API running on port ${PORT}`);
-  });
+  const start = async () => {
+    try {
+      console.log("[startup] Running Ollama local-model warmup...");
+      const state = await warmupLocalModel();
+      if (state.localModelReady && state.activeModel) {
+        console.log(`[startup] Local model ready: ${state.activeModel}`);
+      } else {
+        console.warn(
+          `[startup] Local model not ready: ${state.lastError || "unknown reason"}`
+        );
+      }
+    } catch (error) {
+      console.warn("[startup] Ollama warmup failed:", error);
+    }
+
+    app.listen(PORT, () => {
+      console.log(`Generation API running on port ${PORT}`);
+    });
+  };
+
+  void start();
 }
 
 export { app };

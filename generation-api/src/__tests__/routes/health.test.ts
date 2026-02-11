@@ -26,4 +26,13 @@ describe("Health Route", () => {
 
     expect(response.body.version).toBeDefined();
   });
+
+  it("should return Ollama readiness fields", async () => {
+    const response = await request(app).get("/health");
+
+    expect(response.body).toHaveProperty("ollamaReachable");
+    expect(response.body).toHaveProperty("localModelReady");
+    expect(response.body).toHaveProperty("activeLocalModel");
+    expect(response.body).toHaveProperty("warmingUp");
+  });
 });
