@@ -6,6 +6,11 @@
  */
 
 import type { Grade } from "../types.js";
+import {
+  getResolvedLocalModel,
+  getOllamaWarmupState,
+  warmupLocalModel,
+} from "./ollama-model-manager.js";
 
 export interface PolishContext {
   prompt: string;
@@ -95,9 +100,19 @@ export async function polishPrompt(ctx: PolishContext): Promise<PolishResult> {
   }
 
   const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-  const model = process.env.POLISH_MODEL || process.env.OLLAMA_MODEL || "llama3.2";
+  const configuredPolishModel = process.env.POLISH_MODEL;
 
   try {
+    // Keep polish model aligned with backend-managed local generation model unless explicitly overridden.
+    let model = configuredPolishModel;
+    if (!model) {
+      const warmupState = getOllamaWarmupState();
+      if (!warmupState.localModelReady) {
+        await warmupLocalModel();
+      }
+      model = getResolvedLocalModel();
+    }
+
     const polishingPrompt = buildPolishingPrompt(ctx);
 
     const response = await fetch(`${ollamaUrl}/api/generate`, {

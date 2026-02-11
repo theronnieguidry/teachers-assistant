@@ -1,5 +1,10 @@
 import OpenAI from "openai";
 import type { AIProvider, InternalAIProvider } from "../types.js";
+import {
+  getOllamaWarmupState,
+  getResolvedLocalModel,
+  warmupLocalModel,
+} from "./ollama-model-manager.js";
 
 export interface AIResponse {
   content: string;
@@ -57,7 +62,7 @@ export function requiresCredits(provider: AIProvider): boolean {
 // Default models
 const DEFAULT_MODELS: Record<InternalAIProvider, string> = {
   openai: "gpt-4o",
-  ollama: "llama3.2",
+  ollama: "llama3.1:8b",
 };
 
 // Ollama configuration
@@ -144,16 +149,22 @@ async function generateWithOllama(
   prompt: string,
   config: AIProviderConfig
 ): Promise<AIResponse> {
+  let warmupState = getOllamaWarmupState();
+  if (!warmupState.localModelReady) {
+    warmupState = await warmupLocalModel();
+  }
+
   // Check if Ollama is available first
   const available = await isOllamaAvailable();
-  if (!available) {
+  if (!available || !warmupState.reachable) {
     throw new Error(
-      "Ollama is not running. Please start Ollama with 'ollama serve' and ensure you have a model pulled (e.g., 'ollama pull llama3.2')"
+      "Local AI is unavailable right now. The backend is still warming up or cannot reach Ollama."
     );
   }
 
   const client = getOllamaClient();
-  const model = process.env.OLLAMA_MODEL || config.model || DEFAULT_MODELS.ollama;
+  // Local model is backend-managed. Ignore user-provided model overrides.
+  const model = getResolvedLocalModel() || DEFAULT_MODELS.ollama;
   const maxTokens = config.maxTokens || 8192; // Match OpenAI token limit
 
   try {

@@ -17,9 +17,14 @@ vi.mock("@supabase/supabase-js", () => ({
 
 // Mock generator service
 const mockGenerateTeacherPack = vi.fn();
+const mockGetResolvedLocalModel = vi.fn(() => "llama3.1:8b");
 
 vi.mock("../../services/generator.js", () => ({
   generateTeacherPack: (...args: unknown[]) => mockGenerateTeacherPack(...args),
+}));
+
+vi.mock("../../services/ollama-model-manager.js", () => ({
+  getResolvedLocalModel: () => mockGetResolvedLocalModel(),
 }));
 
 describe("Generate Route", () => {
@@ -241,6 +246,42 @@ describe("Generate Route", () => {
       expect.anything(),
       expect.objectContaining({
         aiProvider: "openai",
+      }),
+      expect.any(Function)
+    );
+  });
+
+  it("should ignore requested aiModel for local provider and enforce backend model", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    mockGenerateTeacherPack.mockResolvedValue({
+      projectId: "project-123",
+      versionId: "version-456",
+      worksheetHtml: "<html>Worksheet</html>",
+      lessonPlanHtml: "",
+      answerKeyHtml: "",
+      creditsUsed: 0,
+    });
+
+    const response = await request(app)
+      .post("/generate")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        ...validRequestBody,
+        aiProvider: "local",
+        aiModel: "mistral",
+      });
+
+    expect(response.status).toBe(200);
+    expect(mockGenerateTeacherPack).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        aiProvider: "local",
+        model: "llama3.1:8b",
       }),
       expect.any(Function)
     );
