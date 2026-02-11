@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{file_system, dialog, ollama, learner_storage, library_storage, design_pack_storage, project_storage};
+use commands::{file_system, dialog, learner_storage, library_storage, design_pack_storage, project_storage};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,13 +14,6 @@ pub fn run() {
             file_system::save_file,
             file_system::read_file,
             dialog::open_folder,
-            ollama::check_ollama_status,
-            ollama::install_ollama,
-            ollama::start_ollama,
-            ollama::stop_ollama,
-            ollama::pull_ollama_model,
-            ollama::list_ollama_models,
-            ollama::get_recommended_models,
             learner_storage::get_learner_profiles,
             learner_storage::save_learner_profile,
             learner_storage::delete_learner_profile,
