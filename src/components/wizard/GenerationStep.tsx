@@ -33,7 +33,6 @@ export function GenerationStep() {
     selectedInspiration,
     outputPath,
     aiProvider,
-    ollamaModel,
     regeneratingProjectId,
     targetProjectId,
     generationMode,
@@ -131,7 +130,7 @@ export function GenerationStep() {
     }
 
     console.log("[GenerationStep] Starting generation...");
-    console.log(`[GenerationStep] AI Provider: ${aiProvider}, Model: ${ollamaModel || "default"}`);
+    console.log(`[GenerationStep] AI Provider: ${aiProvider}`);
     console.log(`[GenerationStep] Selected inspiration items: ${selectedInspiration.length}`);
 
     setGenerationState({
@@ -230,7 +229,6 @@ export function GenerationStep() {
           },
           inspiration: selectedInspiration,
           aiProvider,
-          aiModel: ollamaModel || undefined,
           prePolished: usePolishedPrompt && polishedPrompt !== null,
           // Premium pipeline parameters
           generationMode: isPremium ? generationMode : "standard",

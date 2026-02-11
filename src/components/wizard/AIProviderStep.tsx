@@ -16,8 +16,6 @@ export function AIProviderStep() {
   const {
     aiProvider,
     setAiProvider,
-    ollamaModel,
-    setOllamaModel,
     visualSettings,
     setVisualSettings,
     classDetails,
@@ -29,15 +27,12 @@ export function AIProviderStep() {
   const { credits } = useAuth();
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
-  // Disable next if Local AI is selected but no model is chosen
-  const localAiReady = aiProvider !== "local" || (aiProvider === "local" && ollamaModel);
-
   // Check if user has enough credits for Premium AI
   const hasEnoughCredits = credits && credits.balance >= MINIMUM_CREDITS;
   const showInsufficientCredits = aiProvider === "premium" && !hasEnoughCredits;
 
-  // Can proceed if: Premium AI with enough credits, or Local AI with model selected
-  const canProceed = localAiReady && (aiProvider === "local" || hasEnoughCredits);
+  // Can proceed if: Premium AI with enough credits, or Local AI (backend-managed model)
+  const canProceed = aiProvider === "local" || hasEnoughCredits;
 
   // Check if there are design inspirations selected (images, PDFs, URLs)
   const hasDesignInspiration = selectedInspiration.some(
@@ -62,8 +57,6 @@ export function AIProviderStep() {
         <ProviderSelector
           value={aiProvider}
           onChange={setAiProvider}
-          ollamaModel={ollamaModel}
-          onOllamaModelChange={setOllamaModel}
         />
       </div>
 
