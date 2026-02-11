@@ -7,15 +7,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { LogOut, Coins, GraduationCap, User, Settings } from "lucide-react";
-import { OllamaSetup } from "@/components/settings";
+import { LogOut, Coins, GraduationCap, User } from "lucide-react";
 import { FeedbackButton } from "@/components/feedback";
 import { PurchaseDialog } from "@/components/purchase";
 import { LearnerSwitcher } from "@/components/learner";
 
 export function Header() {
   const { profile, credits, signOut } = useAuth();
-  const [ollamaSetupOpen, setOllamaSetupOpen] = useState(false);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
   // Always show credits badge when available (users may switch between Premium and Local AI)
@@ -70,16 +68,6 @@ export function Header() {
           {/* Learner Switcher */}
           <LearnerSwitcher compact />
 
-          {/* Settings */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setOllamaSetupOpen(true)}
-            title="Local AI Setup"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-
           {/* Feedback */}
           <FeedbackButton />
 
@@ -102,9 +90,6 @@ export function Header() {
           </div>
         </div>
       </div>
-
-      {/* Ollama Setup Dialog */}
-      <OllamaSetup open={ollamaSetupOpen} onOpenChange={setOllamaSetupOpen} />
 
       {/* Purchase Dialog */}
       <PurchaseDialog
