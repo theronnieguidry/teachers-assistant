@@ -21,6 +21,21 @@ This document tracks the implementation progress of the TA MVP.
 
 ---
 
+## Recent Milestone (2026-02-11)
+
+- Backend-managed free local model rollout completed (Issues #51-#57).
+- Local model policy locked to:
+  - Primary: `llama3.1:8b`
+  - Fallbacks: `qwen2.5:7b`, `gemma3:4b`, `llama3.2`
+- Backend now owns local model resolution, warmup, and readiness.
+- User-facing Ollama setup/model controls removed from header and wizard.
+- Tauri invoke surface hardened by removing user-triggerable Ollama control commands.
+- Validation snapshot:
+  - Frontend unit tests: 1023/1023 passing
+  - Generation API unit tests: 614/614 passing (with test Supabase env vars)
+
+---
+
 ## Completed Work
 
 ### Phase 1: Project Setup
@@ -149,3 +164,4 @@ This document tracks the implementation progress of the TA MVP.
 | 2024-01-23 | Phases 1-4 marked complete |
 | 2024-01-23 | Phase 5 (Testing) started |
 | 2024-01-23 | Phase 5 (Testing) completed - 178 tests across 12 files |
+| 2026-02-11 | Backend-managed free local model rollout completed (Issues #51-#57, PRs #58-#63) |

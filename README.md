@@ -4,7 +4,7 @@ AI-powered teaching materials generator for K-3 educators. Create worksheets, le
 
 ## Features
 
-- **AI-Powered Generation**: Uses Claude or OpenAI to create grade-appropriate content
+- **AI-Powered Generation**: Premium cloud models (Claude/OpenAI) plus free local generation
 - **Multiple Output Formats**: Worksheets, lesson plans, and answer keys
 - **Print-Ready**: PDF export with professional formatting
 - **Inspiration Support**: Upload PDFs, images, or URLs to guide content generation
@@ -18,7 +18,7 @@ AI-powered teaching materials generator for K-3 educators. Create worksheets, le
 - **State**: Zustand
 - **Backend**: Supabase (Auth, Database, Storage)
 - **Generation API**: Node.js + Express
-- **AI**: Claude API / OpenAI API
+- **AI**: Claude API / OpenAI API / Ollama (local, backend-managed)
 
 ## Getting Started
 
@@ -44,6 +44,22 @@ npm run dev
 # Run Tauri desktop app
 npm run tauri dev
 ```
+
+### Local AI (Free) Policy
+
+Local generation is now backend-managed:
+
+- The backend enforces the local Ollama model policy and ignores client `aiModel` overrides for local requests.
+- Default local model is `llama3.1:8b` with fallback chain: `qwen2.5:7b`, `gemma3:4b`, `llama3.2`.
+- Startup warmup checks Ollama reachability and pulls the selected model automatically when configured.
+- User-facing Ollama setup and model picker controls are removed from the app UI.
+
+Health endpoint (`generation-api`) includes local readiness fields:
+
+- `ollamaReachable`
+- `localModelReady`
+- `activeLocalModel`
+- `warmingUp`
 
 ### Testing
 
