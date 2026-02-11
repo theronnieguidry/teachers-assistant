@@ -1,0 +1,572 @@
+{
+  "system": {
+    "generatedAt": "2026-02-11T22:18:41.136Z",
+    "hostname": "ronnies-mbp.lan",
+    "platform": "darwin",
+    "totalMemoryGb": 16,
+    "maxModelGb": 10,
+    "ollamaBaseUrl": "http://localhost:11434",
+    "fixture": true,
+    "installedModels": []
+  },
+  "summary": {
+    "recommendedPrimary": "llama3.1:8b",
+    "recommendedFallbacks": [
+      "qwen2.5:7b",
+      "gemma3:4b",
+      "llama3.2"
+    ],
+    "evaluatedCount": 7,
+    "skippedCount": 0
+  },
+  "results": [
+    {
+      "model": "llama3.1:8b",
+      "family": "llama3.1",
+      "sizeGb": 4.9,
+      "context": "128K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 92,
+          "elapsedMs": 7100,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 92,
+          "elapsedMs": 7100,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 92,
+          "elapsedMs": 7100,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 89.16,
+      "qualityAvg": 92,
+      "latencyAvgMs": 7100,
+      "mode": "fixture"
+    },
+    {
+      "model": "qwen2.5:7b",
+      "family": "qwen2.5",
+      "sizeGb": 4.7,
+      "context": "32K (card), supports up to 128K per model docs",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 88,
+          "elapsedMs": 6400,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 88,
+          "elapsedMs": 6400,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 88,
+          "elapsedMs": 6400,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 85.44,
+      "qualityAvg": 88,
+      "latencyAvgMs": 6400,
+      "mode": "fixture"
+    },
+    {
+      "model": "qwen3:8b",
+      "family": "qwen3",
+      "sizeGb": 5.2,
+      "context": "40K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 78,
+          "elapsedMs": 7700,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 78,
+          "elapsedMs": 7700,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 78,
+          "elapsedMs": 7700,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 74.92,
+      "qualityAvg": 78,
+      "latencyAvgMs": 7700,
+      "mode": "fixture"
+    },
+    {
+      "model": "deepseek-r1:8b",
+      "family": "deepseek-r1",
+      "sizeGb": 5.2,
+      "context": "128K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 74,
+          "elapsedMs": 9200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 74,
+          "elapsedMs": 9200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 74,
+          "elapsedMs": 9200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 70.32,
+      "qualityAvg": 74,
+      "latencyAvgMs": 9200,
+      "mode": "fixture"
+    },
+    {
+      "model": "gemma3:4b",
+      "family": "gemma3",
+      "sizeGb": 3.3,
+      "context": "128K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 84,
+          "elapsedMs": 5200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 84,
+          "elapsedMs": 5200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 84,
+          "elapsedMs": 5200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 81.92,
+      "qualityAvg": 84,
+      "latencyAvgMs": 5200,
+      "mode": "fixture"
+    },
+    {
+      "model": "mistral:7b",
+      "family": "mistral",
+      "sizeGb": 4.4,
+      "context": "32K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 72,
+          "elapsedMs": 5000,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 72,
+          "elapsedMs": 5000,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 72,
+          "elapsedMs": 5000,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 70,
+      "qualityAvg": 72,
+      "latencyAvgMs": 5000,
+      "mode": "fixture"
+    },
+    {
+      "model": "llama3.2",
+      "family": "llama3.2",
+      "sizeGb": 2,
+      "context": "smaller context than selected long-context alternatives",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 77,
+          "elapsedMs": 3900,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 77,
+          "elapsedMs": 3900,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 77,
+          "elapsedMs": 3900,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 75.44,
+      "qualityAvg": 77,
+      "latencyAvgMs": 3900,
+      "mode": "fixture"
+    }
+  ],
+  "ranked": [
+    {
+      "model": "llama3.1:8b",
+      "family": "llama3.1",
+      "sizeGb": 4.9,
+      "context": "128K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 92,
+          "elapsedMs": 7100,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 92,
+          "elapsedMs": 7100,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 92,
+          "elapsedMs": 7100,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 89.16,
+      "qualityAvg": 92,
+      "latencyAvgMs": 7100,
+      "mode": "fixture"
+    },
+    {
+      "model": "qwen2.5:7b",
+      "family": "qwen2.5",
+      "sizeGb": 4.7,
+      "context": "32K (card), supports up to 128K per model docs",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 88,
+          "elapsedMs": 6400,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 88,
+          "elapsedMs": 6400,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 88,
+          "elapsedMs": 6400,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 85.44,
+      "qualityAvg": 88,
+      "latencyAvgMs": 6400,
+      "mode": "fixture"
+    },
+    {
+      "model": "gemma3:4b",
+      "family": "gemma3",
+      "sizeGb": 3.3,
+      "context": "128K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 84,
+          "elapsedMs": 5200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 84,
+          "elapsedMs": 5200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 84,
+          "elapsedMs": 5200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 81.92,
+      "qualityAvg": 84,
+      "latencyAvgMs": 5200,
+      "mode": "fixture"
+    },
+    {
+      "model": "llama3.2",
+      "family": "llama3.2",
+      "sizeGb": 2,
+      "context": "smaller context than selected long-context alternatives",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 77,
+          "elapsedMs": 3900,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 77,
+          "elapsedMs": 3900,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 77,
+          "elapsedMs": 3900,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 75.44,
+      "qualityAvg": 77,
+      "latencyAvgMs": 3900,
+      "mode": "fixture"
+    },
+    {
+      "model": "qwen3:8b",
+      "family": "qwen3",
+      "sizeGb": 5.2,
+      "context": "40K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 78,
+          "elapsedMs": 7700,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 78,
+          "elapsedMs": 7700,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 78,
+          "elapsedMs": 7700,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 74.92,
+      "qualityAvg": 78,
+      "latencyAvgMs": 7700,
+      "mode": "fixture"
+    },
+    {
+      "model": "deepseek-r1:8b",
+      "family": "deepseek-r1",
+      "sizeGb": 5.2,
+      "context": "128K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 74,
+          "elapsedMs": 9200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 74,
+          "elapsedMs": 9200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 74,
+          "elapsedMs": 9200,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 70.32,
+      "qualityAvg": 74,
+      "latencyAvgMs": 9200,
+      "mode": "fixture"
+    },
+    {
+      "model": "mistral:7b",
+      "family": "mistral",
+      "sizeGb": 4.4,
+      "context": "32K",
+      "taskResults": [
+        {
+          "task": "worksheet_html",
+          "score": 72,
+          "elapsedMs": 5000,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "lesson_plan_structure",
+          "score": 72,
+          "elapsedMs": 5000,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        },
+        {
+          "task": "prompt_polish",
+          "score": 72,
+          "elapsedMs": 5000,
+          "outputChars": 1200,
+          "evalCount": null,
+          "promptEvalCount": null,
+          "mode": "fixture"
+        }
+      ],
+      "overall": 70,
+      "qualityAvg": 72,
+      "latencyAvgMs": 5000,
+      "mode": "fixture"
+    }
+  ]
+}
