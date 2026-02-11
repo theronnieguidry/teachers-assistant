@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { polishPrompt, type PolishContext } from "../../services/prompt-polisher.js";
 
+const mockGetResolvedLocalModel = vi.fn();
+const mockGetOllamaWarmupState = vi.fn();
+const mockWarmupLocalModel = vi.fn();
+
+vi.mock("../../services/ollama-model-manager.js", () => ({
+  getResolvedLocalModel: () => mockGetResolvedLocalModel(),
+  getOllamaWarmupState: () => mockGetOllamaWarmupState(),
+  warmupLocalModel: () => mockWarmupLocalModel(),
+}));
+
 describe("Prompt Polisher", () => {
   const baseContext: PolishContext = {
     prompt: "math addition worksheet",
@@ -14,6 +24,15 @@ describe("Prompt Polisher", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    mockGetResolvedLocalModel.mockReturnValue("llama3.1:8b");
+    mockGetOllamaWarmupState.mockReturnValue({
+      localModelReady: true,
+      reachable: true,
+    });
+    mockWarmupLocalModel.mockResolvedValue({
+      localModelReady: true,
+      reachable: true,
+    });
   });
 
   afterEach(() => {
@@ -148,6 +167,21 @@ describe("Prompt Polisher", () => {
         vi.mocked(fetch).mock.calls[0][1]?.body as string
       );
       expect(callBody.model).toBe("llama3.2:1b");
+    });
+
+    it("should use backend-resolved local model when POLISH_MODEL is not set", async () => {
+      mockGetResolvedLocalModel.mockReturnValue("qwen2.5:7b");
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ response: "Polished prompt here with enough content." }),
+      } as Response);
+
+      await polishPrompt(baseContext);
+
+      const callBody = JSON.parse(
+        vi.mocked(fetch).mock.calls[0][1]?.body as string
+      );
+      expect(callBody.model).toBe("qwen2.5:7b");
     });
 
     it("should include inspiration titles in polishing prompt", async () => {

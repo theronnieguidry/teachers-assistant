@@ -12,6 +12,16 @@ import {
 
 // Mock OpenAI SDK - used by both OpenAI and Ollama providers
 const mockChatCreate = vi.fn();
+const mockWarmupLocalModel = vi.fn();
+const mockGetResolvedLocalModel = vi.fn();
+const mockGetOllamaWarmupState = vi.fn();
+
+vi.mock("../../services/ollama-model-manager.js", () => ({
+  warmupLocalModel: () => mockWarmupLocalModel(),
+  getResolvedLocalModel: () => mockGetResolvedLocalModel(),
+  getOllamaWarmupState: () => mockGetOllamaWarmupState(),
+}));
+
 vi.mock("openai", () => ({
   default: vi.fn().mockImplementation(({ baseURL }) => ({
     chat: {
@@ -45,19 +55,41 @@ describe("AI Provider Service", () => {
     // Set required env vars
     process.env.OPENAI_API_KEY = "test-openai-key";
     process.env.OLLAMA_BASE_URL = "http://localhost:11434";
-    process.env.OLLAMA_MODEL = "llama3.2";
 
     // Default: Ollama is available
     mockFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ models: [{ name: "llama3.2" }] }),
     });
+
+    mockGetOllamaWarmupState.mockReturnValue({
+      localModelReady: true,
+      reachable: true,
+      activeModel: "llama3.1:8b",
+      warmingUp: false,
+      selectedPrimaryModel: "llama3.1:8b",
+      fallbackModels: ["qwen2.5:7b", "gemma3:4b", "llama3.2"],
+      autoPull: true,
+      lastCheckedAt: "2026-02-11T00:00:00.000Z",
+      lastError: null,
+    });
+    mockGetResolvedLocalModel.mockReturnValue("llama3.1:8b");
+    mockWarmupLocalModel.mockResolvedValue({
+      localModelReady: true,
+      reachable: true,
+      activeModel: "llama3.1:8b",
+      warmingUp: false,
+      selectedPrimaryModel: "llama3.1:8b",
+      fallbackModels: ["qwen2.5:7b", "gemma3:4b", "llama3.2"],
+      autoPull: true,
+      lastCheckedAt: "2026-02-11T00:00:00.000Z",
+      lastError: null,
+    });
   });
 
   afterEach(() => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.OLLAMA_BASE_URL;
-    delete process.env.OLLAMA_MODEL;
   });
 
   describe("generateContent", () => {
@@ -112,17 +144,32 @@ describe("AI Provider Service", () => {
 
         await expect(
           generateContent("Test prompt", { provider: "ollama" })
-        ).rejects.toThrow("Ollama is not running");
+        ).rejects.toThrow("Local AI is unavailable right now");
       });
 
-      it("should use OLLAMA_MODEL env var when set", async () => {
-        process.env.OLLAMA_MODEL = "mistral";
+      it("should use backend-resolved local model for Ollama", async () => {
+        mockGetResolvedLocalModel.mockReturnValue("qwen2.5:7b");
         resetClients();
 
         await generateContent("Test prompt", { provider: "ollama" });
 
-        // Verify the model was passed (via mock inspection)
-        expect(mockChatCreate).toHaveBeenCalled();
+        expect(mockChatCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model: "qwen2.5:7b",
+          })
+        );
+      });
+
+      it("should warm up local model when readiness is false", async () => {
+        mockGetOllamaWarmupState.mockReturnValueOnce({
+          localModelReady: false,
+          reachable: true,
+          activeModel: null,
+        });
+        resetClients();
+
+        await generateContent("Test prompt", { provider: "ollama" });
+        expect(mockWarmupLocalModel).toHaveBeenCalledTimes(1);
       });
     });
 

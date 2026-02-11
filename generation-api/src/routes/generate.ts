@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { AuthenticatedRequest } from "../middleware/auth.js";
 import { generateTeacherPack } from "../services/generator.js";
 import { getSupabaseClient } from "../services/credits.js";
+import { getResolvedLocalModel } from "../services/ollama-model-manager.js";
 import type { GenerationRequest, AIProvider, InspirationItem } from "../types.js";
 import type { VisualSettings, GenerationMode } from "../types/premium.js";
 import { DEFAULT_VISUAL_SETTINGS } from "../types/premium.js";
@@ -134,11 +135,21 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       prePolished: data.prePolished,
     };
 
-    const aiModel = data.aiModel;
+    const requestedModel = data.aiModel;
+    const usingLocalProvider = aiProvider === "local" || aiProvider === "ollama";
+    const aiModel = usingLocalProvider
+      ? getResolvedLocalModel()
+      : requestedModel;
+
     console.log(
       `[${request.projectId}] Using AI provider: ${aiProvider}${aiModel ? `, model: ${aiModel}` : ""}` +
         ` (mode: ${generationMode})`
     );
+    if (usingLocalProvider && requestedModel && requestedModel !== aiModel) {
+      console.log(
+        `[${request.projectId}] Ignoring requested local model '${requestedModel}' in favor of backend-managed model '${aiModel}'`
+      );
+    }
 
     // Set up SSE streaming for progress updates
     res.setHeader("Content-Type", "text/event-stream");
