@@ -4,17 +4,21 @@ Date: 2026-02-11
 Scope: Free local generation path for Teacher's Assistant
 
 ## Method
-1. Catalog relevant candidates from official Ollama model pages/tags.
-2. Evaluate runnable candidates with `scripts/benchmark-ollama-models.cjs`.
-3. Rank by weighted score:
+1. Run full-library namespace discovery from `https://ollama.com/library` and persist the snapshot artifact.
+2. Derive deployment-fit shortlist from discovered namespaces (free, local generation, practical 16-32GB footprints).
+3. Evaluate runnable candidates with `scripts/benchmark-ollama-models.cjs`.
+4. Rank by weighted score:
    - Quality heuristics on worksheet HTML, lesson plan structure, prompt polishing.
    - Latency penalty to avoid selecting very slow defaults.
-4. Lock primary + fallback policy for backend enforcement.
+5. Lock primary + fallback policy for backend enforcement.
 
 ## Repro Commands
 ```bash
 # Deterministic smoke output for CI/docs validation
 node scripts/benchmark-ollama-models.cjs --fixture --out docs/model-eval/ollama-benchmark-fixture.json
+
+# Full library namespace scan snapshot
+node scripts/scan-ollama-library-namespaces.cjs --out docs/model-eval/ollama-library-namespace-scan-2026-02-11.json
 
 # Live benchmark for installed models
 node scripts/benchmark-ollama-models.cjs --installed-only --out docs/model-eval/ollama-benchmark-live.json
@@ -22,6 +26,8 @@ node scripts/benchmark-ollama-models.cjs --installed-only --out docs/model-eval/
 # Live benchmark with pulls enabled
 node scripts/benchmark-ollama-models.cjs --auto-pull --out docs/model-eval/ollama-benchmark-live.json
 ```
+
+Namespace scan result (2026-02-11): 211 model namespaces discovered.
 
 ## Ranked Outcome (Policy)
 1. `llama3.1:8b` (Primary)
