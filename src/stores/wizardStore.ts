@@ -54,7 +54,6 @@ interface WizardState {
 
   // AI Provider state
   aiProvider: AiProvider;
-  ollamaModel: string | null;
 
   // Premium pipeline state
   generationMode: GenerationMode;
@@ -94,7 +93,6 @@ interface WizardState {
   setSelectedInspiration: (items: InspirationItem[]) => void;
   setOutputPath: (path: string) => void;
   setAiProvider: (provider: AiProvider) => void;
-  setOllamaModel: (model: string | null) => void;
   setGenerationMode: (mode: GenerationMode) => void;
   setVisualSettings: (settings: Partial<VisualSettings>) => void;
   setPolishedPrompt: (prompt: string | null) => void;
@@ -132,7 +130,6 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   selectedInspiration: [],
   outputPath: null,
   aiProvider: "local",
-  ollamaModel: null,
   generationMode: "standard",
   visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
   polishedPrompt: null,
@@ -160,7 +157,6 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       selectedInspiration: [],
       outputPath: null,
       aiProvider: defaultProvider,
-      ollamaModel: null,
       generationMode: defaultMode,
       visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
       polishedPrompt: null,
@@ -212,7 +208,6 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       selectedInspiration: inspiration,
       outputPath: project.outputPath || null,
       aiProvider: defaultProvider,
-      ollamaModel: null,
       generationMode: defaultMode,
       visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
       polishedPrompt: null,
@@ -268,7 +263,6 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       selectedInspiration: [],
       outputPath: null,
       aiProvider: defaultProvider,
-      ollamaModel: null,
       generationMode: defaultMode,
       visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
       polishedPrompt: null,
@@ -332,10 +326,6 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     set({ aiProvider: provider, generationMode });
   },
 
-  setOllamaModel: (model) => {
-    set({ ollamaModel: model });
-  },
-
   setGenerationMode: (mode) => {
     set({ generationMode: mode });
   },
@@ -379,7 +369,6 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       selectedInspiration: [],
       outputPath: null,
       aiProvider: defaultProvider,
-      ollamaModel: null,
       generationMode: defaultMode,
       visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
       polishedPrompt: null,
