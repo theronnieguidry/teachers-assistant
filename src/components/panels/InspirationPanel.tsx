@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
-  Link,
-  FileText,
-  Image,
   X,
   Plus,
   Upload,
@@ -13,7 +10,8 @@ import { useInspirationStore } from "@/stores/inspirationStore";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
-import { readFileAsBase64 } from "@/lib/file-encoding";
+import { getInspirationIcon } from "@/lib/inspiration-icons";
+import { useInspirationDrop } from "@/hooks/useInspirationDrop";
 
 export function InspirationPanel() {
   const { items, isLoading, addItem, removeItem, fetchItems } = useInspirationStore();
@@ -37,62 +35,9 @@ export function InspirationPanel() {
     prevWizardOpenRef.current = isWizardOpen;
   }, [isWizardOpen, user, fetchItems]);
 
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const files = Array.from(e.dataTransfer.files);
-      const text = e.dataTransfer.getData("text/plain");
-      const url = e.dataTransfer.getData("text/uri-list");
-
-      // Handle URL drop
-      if (url || (text && text.startsWith("http"))) {
-        const droppedUrl = url || text;
-        try {
-          await addItem({
-            type: "url",
-            title: new URL(droppedUrl).hostname,
-            sourceUrl: droppedUrl,
-          });
-        } catch {
-          // Error handled by store
-        }
-        return;
-      }
-
-      // Handle file drops - read files as base64 for backend processing
-      for (const file of files) {
-        try {
-          if (file.type === "application/pdf") {
-            const base64Content = await readFileAsBase64(file);
-            await addItem({
-              type: "pdf",
-              title: file.name,
-              content: base64Content,
-            });
-          } else if (file.type.startsWith("image/")) {
-            const base64Content = await readFileAsBase64(file);
-            const mediaType = file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-            await addItem({
-              type: "image",
-              title: file.name,
-              content: base64Content,
-              storagePath: mediaType, // Store media type for vision API
-            });
-          }
-        } catch {
-          // Error handled by store
-        }
-      }
-    },
-    [addItem]
-  );
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
+  const { handleDrop, handleDragOver } = useInspirationDrop({
+    onAddItem: (item) => addItem(item),
+  });
 
   const handleAddUrl = async () => {
     const url = prompt("Enter a URL for inspiration:");
@@ -106,19 +51,6 @@ export function InspirationPanel() {
       } catch {
         // Error handled by store toast
       }
-    }
-  };
-
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "url":
-        return Link;
-      case "pdf":
-        return FileText;
-      case "image":
-        return Image;
-      default:
-        return FileText;
     }
   };
 
@@ -169,7 +101,7 @@ export function InspirationPanel() {
       {items.length > 0 && (
         <div className="space-y-1">
           {items.map((item) => {
-            const Icon = getIcon(item.type);
+            const Icon = getInspirationIcon(item.type);
             return (
               <div
                 key={item.id}
