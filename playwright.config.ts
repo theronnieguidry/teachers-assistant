@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const useWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER !== "1";
+
 /**
  * Playwright E2E Test Configuration for TA (Teacher's Assistant)
  * @see https://playwright.dev/docs/test-configuration
@@ -79,10 +81,12 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:1420",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  webServer: useWebServer
+    ? {
+        command: "npm run dev",
+        url: "http://localhost:1420",
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000,
+      }
+    : undefined,
 });

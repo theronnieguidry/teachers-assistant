@@ -1,0 +1,273 @@
+name: Deploy Generation API (Cloud Run)
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deploy target"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+          - both
+        default: staging
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-staging:
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'workflow_dispatch' && (inputs.environment == 'staging' || inputs.environment == 'both'))
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ secrets.GCP_REGION }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_MODE: ${{ secrets.STRIPE_MODE }}
+      APP_URL: ${{ secrets.APP_URL }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      SMOKE_TEST_AUTH_TOKEN: ${{ secrets.SMOKE_TEST_AUTH_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          missing=0
+          for key in \
+            GCP_PROJECT_ID \
+            GCP_REGION \
+            GCP_WORKLOAD_IDENTITY_PROVIDER \
+            GCP_SERVICE_ACCOUNT \
+            CLOUD_RUN_SERVICE \
+            SUPABASE_URL \
+            SUPABASE_ANON_KEY \
+            SUPABASE_SERVICE_ROLE_KEY \
+            OPENAI_API_KEY \
+            STRIPE_SECRET_KEY \
+            STRIPE_WEBHOOK_SECRET \
+            STRIPE_MODE \
+            APP_URL \
+            PIXABAY_API_KEY \
+            SMOKE_TEST_AUTH_TOKEN
+          do
+            if [ -z "${!key}" ]; then
+              echo "Missing required secret: ${key}"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Build container image
+        run: |
+          IMAGE_URI="gcr.io/${GCP_PROJECT_ID}/${CLOUD_RUN_SERVICE}:${GITHUB_SHA}"
+          gcloud builds submit generation-api \
+            --tag "${IMAGE_URI}" \
+            --project "${GCP_PROJECT_ID}"
+          echo "IMAGE_URI=${IMAGE_URI}" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run (staging)
+        id: deploy
+        run: |
+          cat > cloudrun.env <<EOF
+          NODE_ENV=production
+          SUPABASE_URL=${SUPABASE_URL}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+          SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+          STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+          STRIPE_MODE=${STRIPE_MODE}
+          APP_URL=${APP_URL}
+          PIXABAY_API_KEY=${PIXABAY_API_KEY}
+          OLLAMA_AUTO_PULL=false
+          OLLAMA_WARMUP_TIMEOUT_MS=5000
+          EOF
+
+          DEPLOY_URL="$(
+            gcloud run deploy "${CLOUD_RUN_SERVICE}" \
+              --image "${IMAGE_URI}" \
+              --project "${GCP_PROJECT_ID}" \
+              --region "${GCP_REGION}" \
+              --platform managed \
+              --allow-unauthenticated \
+              --port 8080 \
+              --env-vars-file cloudrun.env \
+              --quiet \
+              --format='value(status.url)'
+          )"
+
+          echo "deploy_url=${DEPLOY_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node for smoke test
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run staging smoke test (/health + /estimate)
+        run: |
+          API_BASE_URL="${{ steps.deploy.outputs.deploy_url }}" \
+          API_BEARER_TOKEN="${SMOKE_TEST_AUTH_TOKEN}" \
+          SMOKE_LABEL="staging" \
+          node scripts/smoke-api.cjs
+
+      - name: Run staging Playwright API smoke (optional)
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          PLAYWRIGHT_SKIP_WEBSERVER=1 \
+          STAGING_API_URL="${{ steps.deploy.outputs.deploy_url }}" \
+          STAGING_API_TOKEN="${SMOKE_TEST_AUTH_TOKEN}" \
+          npx playwright test e2e/staging-api-smoke.spec.ts --project=chromium
+
+  deploy-production:
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && (inputs.environment == 'production' || inputs.environment == 'both'))
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ secrets.GCP_REGION }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_MODE: ${{ secrets.STRIPE_MODE }}
+      APP_URL: ${{ secrets.APP_URL }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      SMOKE_TEST_AUTH_TOKEN: ${{ secrets.SMOKE_TEST_AUTH_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          missing=0
+          for key in \
+            GCP_PROJECT_ID \
+            GCP_REGION \
+            GCP_WORKLOAD_IDENTITY_PROVIDER \
+            GCP_SERVICE_ACCOUNT \
+            CLOUD_RUN_SERVICE \
+            SUPABASE_URL \
+            SUPABASE_ANON_KEY \
+            SUPABASE_SERVICE_ROLE_KEY \
+            OPENAI_API_KEY \
+            STRIPE_SECRET_KEY \
+            STRIPE_WEBHOOK_SECRET \
+            STRIPE_MODE \
+            APP_URL \
+            PIXABAY_API_KEY \
+            SMOKE_TEST_AUTH_TOKEN
+          do
+            if [ -z "${!key}" ]; then
+              echo "Missing required secret: ${key}"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Build container image
+        run: |
+          IMAGE_URI="gcr.io/${GCP_PROJECT_ID}/${CLOUD_RUN_SERVICE}:${GITHUB_SHA}"
+          gcloud builds submit generation-api \
+            --tag "${IMAGE_URI}" \
+            --project "${GCP_PROJECT_ID}"
+          echo "IMAGE_URI=${IMAGE_URI}" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run (production)
+        id: deploy
+        run: |
+          cat > cloudrun.env <<EOF
+          NODE_ENV=production
+          SUPABASE_URL=${SUPABASE_URL}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+          SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+          STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+          STRIPE_MODE=${STRIPE_MODE}
+          APP_URL=${APP_URL}
+          PIXABAY_API_KEY=${PIXABAY_API_KEY}
+          OLLAMA_AUTO_PULL=false
+          OLLAMA_WARMUP_TIMEOUT_MS=5000
+          EOF
+
+          DEPLOY_URL="$(
+            gcloud run deploy "${CLOUD_RUN_SERVICE}" \
+              --image "${IMAGE_URI}" \
+              --project "${GCP_PROJECT_ID}" \
+              --region "${GCP_REGION}" \
+              --platform managed \
+              --allow-unauthenticated \
+              --port 8080 \
+              --env-vars-file cloudrun.env \
+              --quiet \
+              --format='value(status.url)'
+          )"
+
+          echo "deploy_url=${DEPLOY_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node for smoke test
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run production smoke test (/health + /estimate)
+        run: |
+          API_BASE_URL="${{ steps.deploy.outputs.deploy_url }}" \
+          API_BEARER_TOKEN="${SMOKE_TEST_AUTH_TOKEN}" \
+          SMOKE_LABEL="production" \
+          node scripts/smoke-api.cjs
