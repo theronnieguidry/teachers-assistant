@@ -89,5 +89,8 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Scan build artifacts for leaked secrets
+        run: npm run scan:artifact-secrets
+
       - name: Check Tauri build
         run: cd src-tauri && cargo check

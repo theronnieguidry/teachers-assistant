@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   isHostedApiBaseUrl,
   type ApiEndpointPreset,
@@ -40,6 +41,12 @@ export function EndpointSettingsDialog({
   const customApiEndpoint = useSettingsStore((state) => state.customApiEndpoint);
   const setApiEndpointPreset = useSettingsStore((state) => state.setApiEndpointPreset);
   const setCustomApiEndpoint = useSettingsStore((state) => state.setCustomApiEndpoint);
+  const allowPremiumOnLocalDev = useSettingsStore(
+    (state) => state.allowPremiumOnLocalDev
+  );
+  const setAllowPremiumOnLocalDev = useSettingsStore(
+    (state) => state.setAllowPremiumOnLocalDev
+  );
   const resolvedApiBaseUrl = useSettingsStore((state) => state.getResolvedApiBaseUrl());
 
   const hosted = isHostedApiBaseUrl(resolvedApiBaseUrl);
@@ -100,6 +107,26 @@ export function EndpointSettingsDialog({
               Endpoint type: <span className="font-medium text-foreground">{hosted ? "Hosted (HTTPS)" : "Local/Unhosted"}</span>
             </p>
           </div>
+
+          {!hosted && (
+            <div className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">
+                    Developer override for Premium
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Allow Premium on local/unhosted endpoints. Keep this off for teacher-facing builds.
+                  </p>
+                </div>
+                <Switch
+                  checked={allowPremiumOnLocalDev}
+                  onCheckedChange={setAllowPremiumOnLocalDev}
+                  aria-label="Allow premium on local endpoint"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

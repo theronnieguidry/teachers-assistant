@@ -4,7 +4,7 @@ AI-powered teaching materials generator for K-3 educators. Create worksheets, le
 
 ## Features
 
-- **AI-Powered Generation**: Premium cloud models (Claude/OpenAI) plus free local generation
+- **AI-Powered Generation**: Premium cloud generation plus free local generation
 - **Multiple Output Formats**: Worksheets, lesson plans, and answer keys
 - **Print-Ready**: PDF export with professional formatting
 - **Inspiration Support**: Upload PDFs, images, or URLs to guide content generation
@@ -18,7 +18,7 @@ AI-powered teaching materials generator for K-3 educators. Create worksheets, le
 - **State**: Zustand
 - **Backend**: Supabase (Auth, Database, Storage)
 - **Generation API**: Node.js + Express
-- **AI**: Claude API / OpenAI API / Ollama (local, backend-managed)
+- **AI**: OpenAI API / Ollama (local, backend-managed)
 
 ## Getting Started
 
@@ -60,6 +60,15 @@ Health endpoint (`generation-api`) includes local readiness fields:
 - `localModelReady`
 - `activeLocalModel`
 - `warmingUp`
+
+### Premium Safety Policy
+
+- Teacher-facing desktop builds must not contain provider or billing secrets.
+- Premium mode is only enabled when the app targets a hosted HTTPS Generation API endpoint.
+- Local/unhosted endpoints keep Premium disabled by default.
+- A local dev override exists in runtime settings for development only and should remain disabled for teacher distributions.
+- CI and release workflows run `npm run scan:artifact-secrets` against built artifacts to catch leaked key patterns before shipping.
+- Detailed policy/runbook: `docs/security/no-keys-on-teacher-machines.md`.
 
 ### Testing
 

@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report e2e-report",
-    "bench:ollama": "node scripts/benchmark-ollama-models.cjs"
+    "bench:ollama": "node scripts/benchmark-ollama-models.cjs",
+    "scan:artifact-secrets": "node scripts/scan-artifact-secrets.cjs dist src-tauri/target/release/bundle"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
