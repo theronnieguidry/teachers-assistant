@@ -62,6 +62,28 @@ const generateRequestSchema = z.object({
   prePolished: z.boolean().optional().default(false),
 });
 
+function extractQualityFailureDetails(error: unknown): {
+  code?: string;
+  statusCode?: number;
+  qualityReport?: unknown;
+} {
+  if (!error || typeof error !== "object") {
+    return {};
+  }
+
+  const maybe = error as {
+    code?: unknown;
+    statusCode?: unknown;
+    qualityReport?: unknown;
+  };
+
+  return {
+    code: typeof maybe.code === "string" ? maybe.code : undefined,
+    statusCode: typeof maybe.statusCode === "number" ? maybe.statusCode : undefined,
+    qualityReport: maybe.qualityReport,
+  };
+}
+
 // Fetch inspiration items by IDs from database
 async function fetchInspirationItems(ids: string[], userId: string): Promise<InspirationItem[]> {
   if (ids.length === 0) return [];
@@ -181,16 +203,31 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
     console.error("Generation error:", error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const qualityDetails = extractQualityFailureDetails(error);
 
     // Check if headers already sent (SSE mode)
     if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({ type: "error", message: errorMessage })}\n\n`);
+      const payload: Record<string, unknown> = { type: "error", message: errorMessage };
+      if (qualityDetails.code) payload.code = qualityDetails.code;
+      if (qualityDetails.statusCode) payload.statusCode = qualityDetails.statusCode;
+      if (qualityDetails.qualityReport) payload.qualityReport = qualityDetails.qualityReport;
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
       res.end();
       return;
     }
 
     if (error instanceof Error && error.message === "Insufficient credits") {
       res.status(402).json({ error: "Insufficient credits" });
+      return;
+    }
+
+    if (qualityDetails.qualityReport) {
+      res.status(422).json({
+        error: "Quality check failed",
+        message: errorMessage,
+        code: qualityDetails.code || "quality_gate_failed",
+        qualityReport: qualityDetails.qualityReport,
+      });
       return;
     }
 

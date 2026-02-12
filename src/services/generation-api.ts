@@ -122,7 +122,7 @@ export async function generateTeacherPack(
     throw new GenerationApiError(
       error.error || "Generation failed",
       response.status,
-      error.details
+      error.details || error
     );
   }
 
@@ -218,7 +218,14 @@ async function handleStreamingResponse(
               result = data.result;
             } else if (data.type === "error") {
               console.error("[generation-api] Stream error:", data.message);
-              throw new GenerationApiError(data.message, 500);
+              throw new GenerationApiError(
+                data.message,
+                typeof data.statusCode === "number" ? data.statusCode : 500,
+                {
+                  code: typeof data.code === "string" ? data.code : undefined,
+                  qualityReport: data.qualityReport,
+                }
+              );
             }
           } catch (parseError) {
             if (parseError instanceof GenerationApiError) throw parseError;

@@ -217,6 +217,46 @@ describe("Generate Route", () => {
     expect(response.text).toContain("AI provider error");
   });
 
+  it("should include quality report payload for quality gate failures", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    const qualityError = new Error("Quality check failed") as Error & {
+      code: string;
+      statusCode: number;
+      qualityReport: {
+        score: number;
+        threshold: number;
+        summary: string;
+        issues: Array<{ category: string; message: string }>;
+        retrySuggestion: string;
+      };
+    };
+    qualityError.code = "quality_gate_failed";
+    qualityError.statusCode = 422;
+    qualityError.qualityReport = {
+      score: 42,
+      threshold: 50,
+      summary: "Quality checks failed. Credits were refunded.",
+      issues: [{ category: "Content clarity", message: "Missing answer key details" }],
+      retrySuggestion: "Try again with a simpler request.",
+    };
+    mockGenerateTeacherPack.mockRejectedValue(qualityError);
+
+    const response = await request(app)
+      .post("/generate")
+      .set("Authorization", "Bearer valid-token")
+      .send(validRequestBody);
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/event-stream");
+    expect(response.text).toContain('"type":"error"');
+    expect(response.text).toContain('"code":"quality_gate_failed"');
+    expect(response.text).toContain('"qualityReport"');
+  });
+
   it("should accept optional aiProvider parameter", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "user-123", email: "test@example.com" } },

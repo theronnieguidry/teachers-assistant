@@ -379,6 +379,39 @@ describe("Generation API Service", () => {
       ).rejects.toThrow("Generation failed due to API error");
     });
 
+    it("preserves quality report details from SSE error events", async () => {
+      const sseData =
+        'data: {"type":"error","message":"Quality check failed","statusCode":422,"code":"quality_gate_failed","qualityReport":{"summary":"Quality checks failed","retrySuggestion":"Retry","issues":[]}}';
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(sseData));
+          controller.close();
+        },
+      });
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: () => "text/event-stream",
+        },
+        body: stream,
+      });
+
+      await expect(
+        generateTeacherPack(mockRequest, "test-token")
+      ).rejects.toMatchObject({
+        statusCode: 422,
+        details: expect.objectContaining({
+          code: "quality_gate_failed",
+          qualityReport: expect.objectContaining({
+            summary: "Quality checks failed",
+          }),
+        }),
+      });
+    });
+
     it("should throw when no result received from stream", async () => {
       const sseData = 'data: {"type":"progress","step":"worksheet","progress":25,"message":"Working..."}';
 
