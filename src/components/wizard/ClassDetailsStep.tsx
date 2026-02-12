@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -83,6 +83,8 @@ export function ClassDetailsStep() {
 
   // "Help me choose" state - only show for K-3 which has curriculum packs
   const [needsObjectiveHelp, setNeedsObjectiveHelp] = useState(false);
+  // Keep lesson plan extras collapsed by default so primary actions stay reachable.
+  const [lessonOptionsExpanded, setLessonOptionsExpanded] = useState(false);
 
   // Combine grades based on toggle state
   const grades = showAdvancedGrades
@@ -116,6 +118,12 @@ export function ClassDetailsStep() {
   const watchedFormat = useWatch({ control, name: "format" });
   const showLessonPlanOptions = watchedFormat === "lesson_plan" || watchedFormat === "both";
 
+  useEffect(() => {
+    if (!showLessonPlanOptions) {
+      setLessonOptionsExpanded(false);
+    }
+  }, [showLessonPlanOptions]);
+
   // Watch grade and subject for ObjectiveChooser
   const watchedGrade = useWatch({ control, name: "grade" });
   const watchedSubject = useWatch({ control, name: "subject" });
@@ -148,7 +156,7 @@ export function ClassDetailsStep() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
       {/* Title */}
       <div className="space-y-2">
         <Label htmlFor="title">Project Title</Label>
@@ -325,125 +333,141 @@ export function ClassDetailsStep() {
 
       {/* Lesson Plan Options - shown when format includes lesson_plan (Issue #17) */}
       {showLessonPlanOptions && (
-        <div className="space-y-4 pt-4 border-t">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <GraduationCap className="h-4 w-4" />
-            Lesson Plan Options
-          </div>
-
-          {/* Lesson Length + Teaching Confidence (stacked for readability) */}
-          <div className="space-y-4" data-testid="lesson-options-layout">
-            <div className="space-y-2" data-testid="lesson-length-section">
-              <Label className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Lesson Length
-              </Label>
-              <Controller
-                name="lessonLength"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    onValueChange={(v) => field.onChange(parseInt(v) as LessonLength)}
-                    value={field.value?.toString()}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select length" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {lessonLengthOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value.toString()}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+        <div className="space-y-3 pt-3 border-t">
+          <button
+            type="button"
+            onClick={() => setLessonOptionsExpanded((prev) => !prev)}
+            className="w-full flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-left"
+            data-testid="lesson-options-toggle"
+          >
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <GraduationCap className="h-4 w-4" />
+              Lesson Plan Options
             </div>
+            {lessonOptionsExpanded ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
 
-            {/* Teaching Confidence */}
-            <div className="space-y-2" data-testid="teaching-confidence-section">
-              <Label>Your Teaching Experience</Label>
-              <p className="text-xs text-muted-foreground">
-                Choose the level of scaffolding you want in the lesson plan.
-              </p>
-              <Controller
-                name="teachingConfidence"
-                control={control}
-                render={({ field }) => (
-                  <RadioGroup
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    className="space-y-2 rounded-md border bg-muted/20 p-3"
-                  >
-                    {teachingConfidenceOptions.map((opt) => (
-                      <div key={opt.value} className="flex items-start space-x-2">
-                        <RadioGroupItem value={opt.value} id={`confidence-${opt.value}`} className="mt-0.5" />
-                        <Label
-                          htmlFor={`confidence-${opt.value}`}
-                          className="text-sm font-normal cursor-pointer"
-                        >
-                          <span className="font-medium">{opt.label}</span>
-                          <span className="text-muted-foreground text-xs block">{opt.description}</span>
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
-                )}
-              />
-            </div>
-          </div>
-
-          {/* Student Profile */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Student Profile (optional)
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Select any that apply to help tailor the lesson
-            </p>
-            <Controller
-              name="studentProfile"
-              control={control}
-              render={({ field }) => (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                  {studentProfileOptions.map((opt) => {
-                    const isChecked = field.value?.includes(opt.value) || false;
-                    return (
-                      <label
-                        key={opt.value}
-                        className={`flex items-start gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
-                          isChecked ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                        }`}
+          {lessonOptionsExpanded && (
+            <div className="space-y-3" data-testid="lesson-options-content">
+              {/* Lesson Length + Teaching Confidence (stacked for readability) */}
+              <div className="space-y-4" data-testid="lesson-options-layout">
+                <div className="space-y-2" data-testid="lesson-length-section">
+                  <Label className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Lesson Length
+                  </Label>
+                  <Controller
+                    name="lessonLength"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        onValueChange={(v) => field.onChange(parseInt(v) as LessonLength)}
+                        value={field.value?.toString()}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            const newValue = e.target.checked
-                              ? [...(field.value || []), opt.value]
-                              : (field.value || []).filter((v) => v !== opt.value);
-                            field.onChange(newValue);
-                          }}
-                          className="w-4 h-4 mt-0.5 rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <span className="text-sm">
-                          <span className="font-medium">{opt.label}</span>
-                          <span className="text-muted-foreground text-xs block">{opt.description}</span>
-                        </span>
-                      </label>
-                    );
-                  })}
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select length" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {lessonLengthOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value.toString()}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
-              )}
-            />
-          </div>
+
+                {/* Teaching Confidence */}
+                <div className="space-y-2" data-testid="teaching-confidence-section">
+                  <Label>Your Teaching Experience</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Choose the level of scaffolding you want in the lesson plan.
+                  </p>
+                  <Controller
+                    name="teachingConfidence"
+                    control={control}
+                    render={({ field }) => (
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        className="space-y-2 rounded-md border bg-muted/20 p-3"
+                      >
+                        {teachingConfidenceOptions.map((opt) => (
+                          <div key={opt.value} className="flex items-start space-x-2">
+                            <RadioGroupItem value={opt.value} id={`confidence-${opt.value}`} className="mt-0.5" />
+                            <Label
+                              htmlFor={`confidence-${opt.value}`}
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              <span className="font-medium">{opt.label}</span>
+                              <span className="text-muted-foreground text-xs block">{opt.description}</span>
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Student Profile */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Student Profile (optional)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Select any that apply to help tailor the lesson
+                </p>
+                <Controller
+                  name="studentProfile"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                      {studentProfileOptions.map((opt) => {
+                        const isChecked = field.value?.includes(opt.value) || false;
+                        return (
+                          <label
+                            key={opt.value}
+                            className={`flex items-start gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
+                              isChecked ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const newValue = e.target.checked
+                                  ? [...(field.value || []), opt.value]
+                                  : (field.value || []).filter((v) => v !== opt.value);
+                                field.onChange(newValue);
+                              }}
+                              className="w-4 h-4 mt-0.5 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <span className="text-sm">
+                              <span className="font-medium">{opt.label}</span>
+                              <span className="text-muted-foreground text-xs block">{opt.description}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Options */}
-      <div className="grid grid-cols-2 gap-4 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -463,8 +487,13 @@ export function ClassDetailsStep() {
         </label>
       </div>
 
-      <div className="flex justify-end pt-4">
+      <div
+        className="sticky bottom-0 -mx-1 border-t bg-background/95 px-1 pb-1 pt-3 backdrop-blur"
+        data-testid="class-details-footer"
+      >
+        <div className="flex justify-end">
         <Button type="submit">Next</Button>
+        </div>
       </div>
     </form>
   );

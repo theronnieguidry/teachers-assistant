@@ -13,7 +13,7 @@ export function WizardDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeWizard()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] min-h-[500px] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-3xl w-[95vw] h-[min(94vh,760px)] min-h-[480px] sm:min-h-[520px] flex flex-col overflow-hidden">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-lg">
             {currentStep === 6 ? "Generating..." : `Create: ${title}`}

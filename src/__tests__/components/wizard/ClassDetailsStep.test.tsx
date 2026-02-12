@@ -122,14 +122,25 @@ describe("ClassDetailsStep", () => {
     expect(questionCountInput).toHaveAttribute("max", "20");
   });
 
-  it("uses stacked layout for lesson length and teaching confidence", () => {
+  it("collapses lesson plan options by default", () => {
     render(<ClassDetailsStep />);
+
+    expect(screen.getByTestId("lesson-options-toggle")).toBeInTheDocument();
+    expect(screen.queryByTestId("lesson-options-content")).not.toBeInTheDocument();
+  });
+
+  it("uses stacked layout for lesson length and teaching confidence when expanded", async () => {
+    const user = userEvent.setup();
+    render(<ClassDetailsStep />);
+
+    await user.click(screen.getByTestId("lesson-options-toggle"));
 
     const layout = screen.getByTestId("lesson-options-layout");
     expect(layout).toHaveClass("space-y-4");
     expect(layout).not.toHaveClass("grid-cols-2");
     expect(screen.getByTestId("lesson-length-section")).toBeInTheDocument();
     expect(screen.getByTestId("teaching-confidence-section")).toBeInTheDocument();
+    expect(screen.getByTestId("class-details-footer")).toBeInTheDocument();
   });
 
   // Note: Detailed Select dropdown interaction tests are better handled in E2E tests

@@ -76,6 +76,16 @@ describe("WizardDialog", () => {
     expect(screen.getByTestId("wizard-steps")).toBeInTheDocument();
   });
 
+  it("uses taller dialog sizing for step visibility", () => {
+    useWizardStore.setState({ isOpen: true });
+
+    render(<WizardDialog />);
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("h-[min(94vh,760px)]");
+    expect(dialog).toHaveClass("w-[95vw]");
+  });
+
   it("calls closeWizard when dialog is closed", async () => {
     const user = userEvent.setup();
     const closeWizard = vi.fn();
