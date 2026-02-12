@@ -331,9 +331,9 @@ export function ClassDetailsStep() {
             Lesson Plan Options
           </div>
 
-          {/* Lesson Length */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          {/* Lesson Length + Teaching Confidence (stacked for readability) */}
+          <div className="space-y-4" data-testid="lesson-options-layout">
+            <div className="space-y-2" data-testid="lesson-length-section">
               <Label className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 Lesson Length
@@ -362,8 +362,11 @@ export function ClassDetailsStep() {
             </div>
 
             {/* Teaching Confidence */}
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="teaching-confidence-section">
               <Label>Your Teaching Experience</Label>
+              <p className="text-xs text-muted-foreground">
+                Choose the level of scaffolding you want in the lesson plan.
+              </p>
               <Controller
                 name="teachingConfidence"
                 control={control}
@@ -371,7 +374,7 @@ export function ClassDetailsStep() {
                   <RadioGroup
                     onValueChange={field.onChange}
                     value={field.value}
-                    className="space-y-1"
+                    className="space-y-2 rounded-md border bg-muted/20 p-3"
                   >
                     {teachingConfidenceOptions.map((opt) => (
                       <div key={opt.value} className="flex items-start space-x-2">
