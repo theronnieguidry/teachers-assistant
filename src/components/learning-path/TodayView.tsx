@@ -15,6 +15,7 @@ import {
   Clock,
   UserPlus,
   ArrowRight,
+  PlusCircle,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -55,6 +56,9 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
 
   const openWizardFromObjective = useWizardStore(
     (state) => state.openWizardFromObjective
+  );
+  const openWizardOneOffForLearner = useWizardStore(
+    (state) => state.openWizardOneOffForLearner
   );
 
   // Load profiles and mastery on mount
@@ -162,6 +166,11 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
     );
   };
 
+  const handleCreateOneOff = () => {
+    if (!activeProfile) return;
+    openWizardOneOffForLearner(activeProfile, nextObjective?.subject);
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Greeting */}
@@ -215,6 +224,10 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
                 <FileText className="h-4 w-4" />
                 Quick Practice
               </Button>
+              <Button variant="secondary" onClick={handleCreateOneOff} className="gap-2">
+                <PlusCircle className="h-4 w-4" />
+                Create one-off
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -233,6 +246,14 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
             >
               Explore Learning Path
               <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button
+              variant="secondary"
+              className="mt-2"
+              onClick={handleCreateOneOff}
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create one-off
             </Button>
           </CardContent>
         </Card>

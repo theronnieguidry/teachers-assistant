@@ -699,4 +699,46 @@ describe("wizardStore", () => {
       });
     });
   });
+
+  describe("openWizardOneOffForLearner", () => {
+    const learner = {
+      learnerId: "learner-99",
+      displayName: "Kai",
+      grade: "3" as const,
+      avatarEmoji: "🦊",
+      preferences: {
+        favoriteSubjects: ["Science"],
+        sessionDuration: 45 as const,
+        visualLearner: true,
+      },
+      adultConfidence: "novice" as const,
+      createdAt: "2026-02-12T00:00:00Z",
+      updatedAt: "2026-02-12T00:00:00Z",
+    };
+
+    it("opens one-off worksheet flow with objective cleared", () => {
+      useWizardStore.getState().openWizardOneOffForLearner(learner);
+
+      const state = useWizardStore.getState();
+      expect(state.objectiveId).toBeNull();
+      expect(state.prompt).toContain("one-off worksheet");
+      expect(state.classDetails).toMatchObject({
+        grade: "3",
+        subject: "Science",
+        format: "worksheet",
+        questionCount: 10,
+        includeAnswerKey: true,
+        lessonLength: 45,
+        teachingConfidence: "novice",
+      });
+    });
+
+    it("allows overriding subject while keeping learner defaults", () => {
+      useWizardStore.getState().openWizardOneOffForLearner(learner, "Math");
+      const state = useWizardStore.getState();
+      expect(state.objectiveId).toBeNull();
+      expect(state.classDetails?.subject).toBe("Math");
+      expect(state.classDetails?.grade).toBe("3");
+    });
+  });
 });

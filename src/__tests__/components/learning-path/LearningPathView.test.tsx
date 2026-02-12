@@ -98,6 +98,7 @@ let mockProfiles: Array<{ learnerId: string; displayName: string; grade: string 
 let mockActiveLearnerId: string | null = null;
 let mockMasteryData: { objectives: Record<string, { state: string }> } | null = null;
 const mockLoadMastery = vi.fn();
+const mockOpenWizardOneOffForLearner = vi.fn();
 
 vi.mock("@/stores/learnerStore", () => ({
   useLearnerStore: vi.fn((selector) =>
@@ -106,6 +107,14 @@ vi.mock("@/stores/learnerStore", () => ({
       activeLearnerId: mockActiveLearnerId,
       masteryData: mockMasteryData,
       loadMastery: mockLoadMastery,
+    })
+  ),
+}));
+
+vi.mock("@/stores/wizardStore", () => ({
+  useWizardStore: vi.fn((selector) =>
+    selector({
+      openWizardOneOffForLearner: mockOpenWizardOneOffForLearner,
     })
   ),
 }));
@@ -135,6 +144,7 @@ describe("LearningPathView", () => {
     mockProfiles = [];
     mockActiveLearnerId = null;
     mockMasteryData = null;
+    mockOpenWizardOneOffForLearner.mockReset();
   });
 
   describe("no active profile", () => {
@@ -210,6 +220,15 @@ describe("LearningPathView", () => {
     it("loads mastery on mount", () => {
       render(<LearningPathView />);
       expect(mockLoadMastery).toHaveBeenCalledWith("learner-1");
+    });
+
+    it("shows create one-off action and calls one-off launcher", () => {
+      render(<LearningPathView />);
+      fireEvent.click(screen.getByRole("button", { name: /create one-off/i }));
+      expect(mockOpenWizardOneOffForLearner).toHaveBeenCalledWith(
+        expect.objectContaining({ learnerId: "learner-1" }),
+        "Math"
+      );
     });
   });
 
