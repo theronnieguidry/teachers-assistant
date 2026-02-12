@@ -134,6 +134,28 @@ describe("AIProviderStep", () => {
     expect(screen.getByText(/Design inspiration will be limited/i)).toBeInTheDocument();
   });
 
+  it("shows K-6 soft-limit warning for grade 4-6 regardless of provider", () => {
+    useWizardStore.setState({
+      aiProvider: "local",
+      classDetails: {
+        grade: "5",
+        subject: "Math",
+        format: "worksheet",
+        questionCount: 10,
+        includeVisuals: true,
+        difficulty: "medium",
+        includeAnswerKey: true,
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
+      },
+    });
+
+    render(<AIProviderStep />);
+
+    expect(screen.getByText(/K-3 is still the strongest fit/i)).toBeInTheDocument();
+  });
+
   it("calls prevStep and nextStep from buttons", async () => {
     const user = userEvent.setup();
     render(<AIProviderStep />);

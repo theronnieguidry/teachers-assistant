@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, AlertTriangle, Coins, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -9,6 +9,7 @@ import { ProviderSelector } from "./ProviderSelector";
 import { VisualOptionsPanel } from "./VisualOptionsPanel";
 import { PurchaseDialog } from "@/components/purchase";
 import { isHostedApiBaseUrl, useSettingsStore } from "@/stores/settingsStore";
+import { K6SoftLimitAlert } from "./K6SoftLimitAlert";
 
 // Minimum credits required to start a Premium AI generation
 const MINIMUM_CREDITS = 5;
@@ -54,10 +55,6 @@ export function AIProviderStep() {
 
   // Show warning if Local AI selected with design inspiration
   const showDesignWarning = aiProvider === "local" && hasDesignInspiration;
-
-  // Show soft-limit warning for grades 4-6
-  const gradeNum = classDetails?.grade ? parseInt(classDetails.grade) : 0;
-  const showGradeWarning = aiProvider === "premium" && gradeNum >= 4 && !isNaN(gradeNum);
 
   return (
     <div className="space-y-4">
@@ -143,16 +140,7 @@ export function AIProviderStep() {
         </Alert>
       )}
 
-      {showGradeWarning && (
-        <Alert variant="default" className="border-blue-500 bg-blue-50 dark:bg-blue-950">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-700 dark:text-blue-300">
-            <strong>Best results for K-3.</strong> Grades 4-6 are supported but
-            content quality is optimized for K-3. The premium pipeline includes
-            grade-appropriate vocabulary and pedagogy checks.
-          </AlertDescription>
-        </Alert>
-      )}
+      <K6SoftLimitAlert grade={classDetails?.grade} />
 
       {aiProvider === "premium" && (
         <div className="space-y-3">

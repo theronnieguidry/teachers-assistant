@@ -19,6 +19,7 @@ import { useWizardStore } from "@/stores/wizardStore";
 import { classDetailsSchema, type ClassDetailsFormData } from "@/lib/validators";
 import type { StudentProfileFlag, TeachingConfidence, LessonLength, ObjectiveRecommendation, Grade } from "@/types";
 import { ObjectiveChooser } from "./ObjectiveChooser";
+import { K6SoftLimitAlert } from "./K6SoftLimitAlert";
 
 // Extended schema with title field (string, not enum)
 const classDetailsWithTitleSchema = classDetailsSchema.extend({
@@ -239,6 +240,8 @@ export function ClassDetailsStep() {
           )}
         </div>
       </div>
+
+      <K6SoftLimitAlert grade={watchedGrade} />
 
       {/* Help me choose - shown for K-3 grades with a selected subject */}
       {hasObjectivePacks && watchedSubject && (
