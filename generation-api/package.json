@@ -16,7 +16,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "openai": "^4.77.0",
+    "openai": "^6.21.0",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
     "playwright": "^1.58.0",
