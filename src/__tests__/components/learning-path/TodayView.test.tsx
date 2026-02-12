@@ -7,6 +7,7 @@ const mockLoadProfiles = vi.fn();
 const mockLoadMastery = vi.fn();
 const mockMarkObjectiveStarted = vi.fn();
 const mockOpenWizardFromObjective = vi.fn();
+const mockOpenWizardOneOffForLearner = vi.fn();
 
 let mockProfiles: Array<{
   learnerId: string;
@@ -44,6 +45,7 @@ vi.mock("@/stores/wizardStore", () => ({
   useWizardStore: vi.fn((selector) =>
     selector({
       openWizardFromObjective: mockOpenWizardFromObjective,
+      openWizardOneOffForLearner: mockOpenWizardOneOffForLearner,
     })
   ),
 }));
@@ -190,6 +192,15 @@ describe("TodayView", () => {
       render(<TodayView />);
       expect(screen.getByText("Quick Practice")).toBeInTheDocument();
     });
+
+    it("shows Create one-off button and launches one-off flow with learner context", () => {
+      render(<TodayView />);
+      fireEvent.click(screen.getByText("Create one-off"));
+      expect(mockOpenWizardOneOffForLearner).toHaveBeenCalledWith(
+        expect.objectContaining({ learnerId: "1", grade: "2" }),
+        "Math"
+      );
+    });
   });
 
   describe("all caught up state", () => {
@@ -211,6 +222,11 @@ describe("TodayView", () => {
     it("shows explore learning path button", () => {
       render(<TodayView />);
       expect(screen.getByText("Explore Learning Path")).toBeInTheDocument();
+    });
+
+    it("shows Create one-off button when all caught up", () => {
+      render(<TodayView />);
+      expect(screen.getByText("Create one-off")).toBeInTheDocument();
     });
 
     it("calls onNavigateToLearningPath when explore button clicked", () => {

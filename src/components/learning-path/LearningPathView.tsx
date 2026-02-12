@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ObjectiveCard } from "./ObjectiveCard";
 import { MasteryBadge } from "./MasteryBadge";
 import { useLearnerStore } from "@/stores/learnerStore";
+import { useWizardStore } from "@/stores/wizardStore";
 import {
   getUnitsForGrade,
   getSubjects,
@@ -22,6 +23,7 @@ import {
   PenTool,
   Microscope,
   Globe,
+  PlusCircle,
 } from "lucide-react";
 
 interface LearningPathViewProps {
@@ -52,6 +54,9 @@ export function LearningPathView({
   const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
   const masteryData = useLearnerStore((state) => state.masteryData);
   const loadMastery = useLearnerStore((state) => state.loadMastery);
+  const openWizardOneOffForLearner = useWizardStore(
+    (state) => state.openWizardOneOffForLearner
+  );
 
   // Compute derived values with useMemo
   const activeProfile = useMemo(() => {
@@ -191,13 +196,23 @@ export function LearningPathView({
         </div>
 
         {/* Progress summary */}
-        {currentProgress && (
-          <div className="text-right">
-            <div className="text-2xl font-bold text-primary">
-              {currentProgress.percentComplete}%
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {currentProgress.mastered} of {currentProgress.totalObjectives} mastered
+        {currentProgress && activeProfile && (
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => openWizardOneOffForLearner(activeProfile, selectedSubject)}
+              className="gap-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Create one-off
+            </Button>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-primary">
+                {currentProgress.percentComplete}%
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {currentProgress.mastered} of {currentProgress.totalObjectives} mastered
+              </div>
             </div>
           </div>
         )}

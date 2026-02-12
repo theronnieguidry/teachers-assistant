@@ -126,6 +126,7 @@ interface WizardState {
     learner: LearnerProfile,
     format?: "worksheet" | "lesson_plan" | "both"
   ) => void;
+  openWizardOneOffForLearner: (learner: LearnerProfile, subject?: string) => void;
   closeWizard: () => void;
   setStep: (step: WizardStep) => void;
   nextStep: () => void;
@@ -317,6 +318,50 @@ export const useWizardStore = create<WizardState>((set, get) => ({
         lessonLength,
         studentProfile: [],
         teachingConfidence: learner.adultConfidence,
+      },
+      selectedInspiration: [],
+      outputPath: null,
+      aiProvider: defaultProvider,
+      generationMode: defaultMode,
+      visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
+      polishedPrompt: null,
+      usePolishedPrompt: true,
+      regeneratingProjectId: null,
+      targetProjectId: null,
+      isGenerating: false,
+      generationProgress: 0,
+      generationMessage: "",
+      generationError: null,
+    });
+  },
+
+  openWizardOneOffForLearner: (learner, subject) => {
+    const resolvedSubject =
+      subject || learner.preferences?.favoriteSubjects?.[0] || "Math";
+    const lessonLength = normalizeLessonLength(learner.preferences?.sessionDuration || 30);
+    const prompt = `Create a one-off worksheet for Grade ${learner.grade} ${resolvedSubject}.`;
+    const title = `One-off ${resolvedSubject} worksheet`;
+
+    const defaultProvider = useSettingsStore.getState().defaultAiProvider;
+    const defaultMode = resolveGenerationMode(defaultProvider, "worksheet");
+
+    set({
+      isOpen: true,
+      currentStep: 1,
+      prompt,
+      title,
+      objectiveId: null,
+      classDetails: {
+        grade: learner.grade,
+        subject: resolvedSubject,
+        format: "worksheet",
+        questionCount: 10,
+        includeVisuals: true,
+        difficulty: "medium",
+        includeAnswerKey: true,
+        lessonLength,
+        studentProfile: [],
+        teachingConfidence: learner.adultConfidence || "intermediate",
       },
       selectedInspiration: [],
       outputPath: null,
