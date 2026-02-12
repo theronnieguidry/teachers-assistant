@@ -34,6 +34,22 @@ export interface CheckoutSession {
   url: string;
 }
 
+export type CreditLedgerEntryType =
+  | "reserve"
+  | "deduct"
+  | "refund"
+  | "purchase"
+  | "grant";
+
+export interface CreditLedgerEntry {
+  id: string;
+  amount: number;
+  type: CreditLedgerEntryType;
+  description: string;
+  createdAt: string;
+  projectId: string | null;
+}
+
 interface CheckoutErrorPayload {
   error?: string;
   message?: string;
@@ -154,6 +170,32 @@ export async function createCheckoutSession(
     sessionId: data.sessionId,
     url: data.url,
   };
+}
+
+/**
+ * Get recent credit ledger entries for the authenticated user.
+ */
+export async function getCreditsLedger(
+  accessToken: string,
+  limit: number = 20
+): Promise<CreditLedgerEntry[]> {
+  const clampedLimit = Math.max(1, Math.min(100, Math.floor(limit || 20)));
+  const response = await fetchWithAuth(
+    `/credits/ledger?limit=${clampedLimit}`,
+    { method: "GET" },
+    accessToken
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new GenerationApiError(
+      error.error || "Failed to fetch credits ledger",
+      response.status
+    );
+  }
+
+  const data = await response.json();
+  return data.entries || [];
 }
 
 /**

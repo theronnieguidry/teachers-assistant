@@ -9,6 +9,8 @@ import { resetClient as resetCreditsClient } from "../../services/credits.js";
 const mockGetUser = vi.fn();
 const mockSelect = vi.fn().mockReturnThis();
 const mockEq = vi.fn().mockReturnThis();
+const mockOrder = vi.fn().mockReturnThis();
+const mockLimit = vi.fn();
 const mockSingle = vi.fn();
 
 vi.mock("@supabase/supabase-js", () => ({
@@ -19,6 +21,8 @@ vi.mock("@supabase/supabase-js", () => ({
     from: vi.fn(() => ({
       select: mockSelect,
       eq: mockEq,
+      order: mockOrder,
+      limit: mockLimit,
       single: mockSingle,
     })),
   })),
@@ -36,6 +40,7 @@ describe("Credits Route", () => {
     process.env.SUPABASE_URL = "https://test.supabase.co";
     process.env.SUPABASE_ANON_KEY = "test-anon-key";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-key";
+    mockLimit.mockResolvedValue({ data: [], error: null });
   });
 
   afterEach(() => {
@@ -97,5 +102,85 @@ describe("Credits Route", () => {
 
     expect(response.status).toBe(500);
     expect(response.body.error).toBe("Failed to fetch credits");
+  });
+
+  it("should return recent ledger entries when authenticated", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    mockLimit.mockResolvedValue({
+      data: [
+        {
+          id: "tx-1",
+          amount: -5,
+          transaction_type: "generation",
+          description: "Credits reserved for project generation",
+          project_id: "project-1",
+          created_at: "2026-02-12T02:00:00Z",
+        },
+        {
+          id: "tx-2",
+          amount: -3,
+          transaction_type: "generation",
+          description: "Generation complete",
+          project_id: "project-1",
+          created_at: "2026-02-12T02:01:00Z",
+        },
+        {
+          id: "tx-3",
+          amount: 3,
+          transaction_type: "refund",
+          description: "Quality gate failed",
+          project_id: "project-1",
+          created_at: "2026-02-12T02:02:00Z",
+        },
+      ],
+      error: null,
+    });
+
+    const response = await request(app)
+      .get("/credits/ledger?limit=3")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.entries).toHaveLength(3);
+    expect(response.body.entries[0]).toMatchObject({
+      id: "tx-1",
+      type: "reserve",
+      amount: -5,
+    });
+    expect(response.body.entries[1]).toMatchObject({
+      id: "tx-2",
+      type: "deduct",
+      amount: -3,
+    });
+    expect(response.body.entries[2]).toMatchObject({
+      id: "tx-3",
+      type: "refund",
+      amount: 3,
+    });
+    expect(mockLimit).toHaveBeenCalledWith(3);
+  });
+
+  it("should return 500 when ledger fetch fails", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    mockLimit.mockResolvedValue({
+      data: null,
+      error: { message: "Ledger query failed" },
+    });
+
+    const response = await request(app)
+      .get("/credits/ledger")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).toBe("Failed to fetch credits ledger");
   });
 });

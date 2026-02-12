@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   getCreditPacks,
+  getCreditsLedger,
   createCheckoutSession,
   getPurchaseHistory,
   type CreditPack,
+  type CreditLedgerEntry,
   type Purchase,
 } from "@/services/checkout-api";
 import { GenerationApiError } from "@/services/generation-api";
@@ -245,6 +247,72 @@ describe("Checkout API Service", () => {
       const fetchCall = mockFetch.mock.calls[0];
       const body = JSON.parse(fetchCall[1].body);
       expect(body).toEqual({ packId: "pack-100" });
+    });
+  });
+
+  describe("getCreditsLedger", () => {
+    const mockLedger: CreditLedgerEntry[] = [
+      {
+        id: "tx-1",
+        amount: -5,
+        type: "reserve",
+        description: "Credits reserved for generation",
+        createdAt: "2026-02-12T00:00:00Z",
+        projectId: "project-1",
+      },
+      {
+        id: "tx-2",
+        amount: 100,
+        type: "purchase",
+        description: "Credits added from purchase",
+        createdAt: "2026-02-12T00:01:00Z",
+        projectId: null,
+      },
+    ];
+
+    it("should call /credits/ledger with limit query", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ entries: mockLedger }),
+      });
+
+      await getCreditsLedger(mockAccessToken, 20);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/credits/ledger?limit=20"),
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${mockAccessToken}`,
+          }),
+        })
+      );
+    });
+
+    it("should return ledger entries on success", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ entries: mockLedger }),
+      });
+
+      const result = await getCreditsLedger(mockAccessToken);
+
+      expect(result).toEqual(mockLedger);
+      expect(result[0].type).toBe("reserve");
+      expect(result[1].type).toBe("purchase");
+    });
+
+    it("should throw GenerationApiError when request fails", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: "Failed to fetch credits ledger" }),
+      });
+
+      await expect(getCreditsLedger(mockAccessToken)).rejects.toMatchObject({
+        statusCode: 500,
+        message: "Failed to fetch credits ledger",
+      });
     });
   });
 
