@@ -1,7 +1,5 @@
 import { GenerationApiError } from "./generation-api";
-
-const API_BASE_URL =
-  import.meta.env.VITE_GENERATION_API_URL || "http://localhost:3001";
+import { resolveApiUrl } from "@/services/api-endpoint-resolver";
 
 export interface CreditPack {
   id: string;
@@ -31,7 +29,7 @@ async function fetchWithAuth(
   options: RequestInit,
   accessToken: string
 ): Promise<Response> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(resolveApiUrl(endpoint), {
     ...options,
     headers: {
       "Content-Type": "application/json",

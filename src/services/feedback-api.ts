@@ -1,8 +1,6 @@
 import { GenerationApiError } from "./generation-api";
 import { TIMEOUTS } from "@/lib/async-utils";
-
-const API_BASE_URL =
-  import.meta.env.VITE_GENERATION_API_URL || "http://localhost:3001";
+import { resolveApiUrl } from "@/services/api-endpoint-resolver";
 
 export interface FeedbackRequest {
   type: "bug" | "feature";
@@ -36,7 +34,7 @@ export async function submitFeedback(
   );
 
   try {
-    const response = await fetch(`${API_BASE_URL}/feedback`, {
+    const response = await fetch(resolveApiUrl("/feedback"), {
       method: "POST",
       signal: controller.signal,
       headers: {
