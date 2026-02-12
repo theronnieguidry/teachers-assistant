@@ -10,6 +10,7 @@ import {
   getSubjects,
   getSubjectProgress,
   getAllSubjectProgress,
+  getObjectiveById,
 } from "@/lib/curriculum";
 import type { MasteryState, CurriculumUnit } from "@/types";
 import {
@@ -25,6 +26,7 @@ import {
 
 interface LearningPathViewProps {
   initialSubject?: string;
+  highlightObjectiveId?: string | null;
 }
 
 type MasteryFilter = "all" | MasteryState;
@@ -37,7 +39,10 @@ const subjectIcons: Record<string, typeof BookOpen> = {
   "Social Studies": Globe,
 };
 
-export function LearningPathView({ initialSubject }: LearningPathViewProps) {
+export function LearningPathView({
+  initialSubject,
+  highlightObjectiveId = null,
+}: LearningPathViewProps) {
   const [selectedSubject, setSelectedSubject] = useState(initialSubject || "Math");
   const [masteryFilter, setMasteryFilter] = useState<MasteryFilter>("all");
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
@@ -65,6 +70,42 @@ export function LearningPathView({ initialSubject }: LearningPathViewProps) {
       setSelectedSubject(initialSubject);
     }
   }, [initialSubject]);
+
+  useEffect(() => {
+    if (!highlightObjectiveId || !activeProfile) return;
+
+    const objectiveInfo = getObjectiveById(highlightObjectiveId);
+    if (!objectiveInfo) return;
+
+    if (objectiveInfo.subject !== selectedSubject) {
+      setSelectedSubject(objectiveInfo.subject);
+    }
+
+    setMasteryFilter("all");
+    setExpandedUnits((prev) => {
+      const next = new Set(prev);
+      next.add(objectiveInfo.unit.unitId);
+      return next;
+    });
+
+    if (typeof window === "undefined") return;
+
+    const selector = `[data-objective-id="${highlightObjectiveId}"]`;
+    const tryScroll = (attempt = 0) => {
+      const element = document.querySelector(selector);
+      if (element instanceof HTMLElement) {
+        if (typeof element.scrollIntoView === "function") {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        return;
+      }
+      if (attempt < 8) {
+        window.setTimeout(() => tryScroll(attempt + 1), 80);
+      }
+    };
+
+    window.setTimeout(() => tryScroll(), 50);
+  }, [highlightObjectiveId, activeProfile, selectedSubject]);
 
   // Load mastery when profile changes
   useEffect(() => {
@@ -295,6 +336,7 @@ export function LearningPathView({ initialSubject }: LearningPathViewProps) {
                                 unit={unit}
                                 subject={subject}
                                 masteryState={getMasteryState(objective.id)}
+                                highlighted={highlightObjectiveId === objective.id}
                               />
                             ))}
                           </div>

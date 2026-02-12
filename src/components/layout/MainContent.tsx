@@ -12,11 +12,21 @@ type MainTab = "today" | "learning-path" | "library" | "projects";
 export function MainContent() {
   const [activeTab, setActiveTab] = useState<MainTab>("today");
   const [selectedSubject, setSelectedSubject] = useState<string | undefined>();
+  const [highlightObjectiveId, setHighlightObjectiveId] = useState<string | null>(null);
 
   const currentProject = useProjectStore((state) => state.currentProject);
 
   const handleNavigateToLearningPath = (subject?: string) => {
     setSelectedSubject(subject);
+    setHighlightObjectiveId(null);
+    setActiveTab("learning-path");
+  };
+
+  const handleNavigateToObjective = (objectiveId: string, subject?: string) => {
+    if (subject) {
+      setSelectedSubject(subject);
+    }
+    setHighlightObjectiveId(objectiveId);
     setActiveTab("learning-path");
   };
 
@@ -24,7 +34,16 @@ export function MainContent() {
     <div className="h-full flex flex-col">
       {/* Tab Navigation */}
       <div className="border-b px-4 pt-2">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as MainTab)}>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => {
+            const nextTab = v as MainTab;
+            setActiveTab(nextTab);
+            if (nextTab !== "learning-path") {
+              setHighlightObjectiveId(null);
+            }
+          }}
+        >
           <TabsList className="bg-transparent border-none gap-1">
             <TabsTrigger
               value="today"
@@ -64,9 +83,14 @@ export function MainContent() {
           <TodayView onNavigateToLearningPath={handleNavigateToLearningPath} />
         )}
         {activeTab === "learning-path" && (
-          <LearningPathView initialSubject={selectedSubject} />
+          <LearningPathView
+            initialSubject={selectedSubject}
+            highlightObjectiveId={highlightObjectiveId}
+          />
         )}
-        {activeTab === "library" && <LibraryView />}
+        {activeTab === "library" && (
+          <LibraryView onNavigateToObjective={handleNavigateToObjective} />
+        )}
         {activeTab === "projects" && (
           currentProject ? (
             <ProjectPreview project={currentProject} />

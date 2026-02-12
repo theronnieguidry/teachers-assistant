@@ -66,6 +66,31 @@ vi.mock("@/lib/curriculum", () => ({
     { subject: "Math", percentComplete: 33 },
     { subject: "Reading", percentComplete: 50 },
   ],
+  getObjectiveById: vi.fn((objectiveId: string) => {
+    if (objectiveId === "obj-2") {
+      return {
+        subject: "Math",
+        unit: {
+          unitId: "math-2-u1",
+          title: "Numbers and Place Value",
+          grade: "2",
+          sequence: 1,
+          objectives: [],
+        },
+        objective: {
+          id: "obj-2",
+          text: "Understand place value",
+          difficulty: "standard",
+          estimatedMinutes: 20,
+          vocabulary: [],
+          activities: [],
+          prereqs: [],
+          misconceptions: [],
+        },
+      };
+    }
+    return null;
+  }),
 }));
 
 // Mock learner store - now uses profiles + activeLearnerId instead of getActiveProfile
@@ -87,8 +112,20 @@ vi.mock("@/stores/learnerStore", () => ({
 
 // Mock ObjectiveCard to simplify testing
 vi.mock("@/components/learning-path/ObjectiveCard", () => ({
-  ObjectiveCard: ({ objective }: { objective: { text: string } }) => (
-    <div data-testid="objective-card">{objective.text}</div>
+  ObjectiveCard: ({
+    objective,
+    highlighted,
+  }: {
+    objective: { id: string; text: string };
+    highlighted?: boolean;
+  }) => (
+    <div
+      data-testid="objective-card"
+      data-objective-id={objective.id}
+      data-highlighted={highlighted ? "true" : "false"}
+    >
+      {objective.text}
+    </div>
   ),
 }));
 
@@ -234,6 +271,15 @@ describe("LearningPathView", () => {
       // Collapse
       fireEvent.click(screen.getByText("Numbers and Place Value"));
       expect(screen.queryAllByTestId("objective-card")).toHaveLength(0);
+    });
+
+    it("expands and highlights objective when highlightObjectiveId is provided", () => {
+      render(<LearningPathView highlightObjectiveId="obj-2" />);
+      const highlighted = screen.getAllByTestId("objective-card").find((node) =>
+        node.getAttribute("data-objective-id") === "obj-2"
+      );
+      expect(highlighted).toBeTruthy();
+      expect(highlighted?.getAttribute("data-highlighted")).toBe("true");
     });
   });
 
