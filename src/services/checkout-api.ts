@@ -1,6 +1,16 @@
 import { GenerationApiError } from "./generation-api";
 import { resolveApiUrl } from "@/services/api-endpoint-resolver";
 
+export type CheckoutErrorCode =
+  | "credit_packs_table_missing"
+  | "credit_packs_unavailable"
+  | "stripe_pack_not_configured"
+  | "stripe_not_configured"
+  | "stripe_mode_mismatch"
+  | "checkout_packs_query_failed"
+  | "stripe_runtime_error"
+  | "checkout_internal_error";
+
 export interface CreditPack {
   id: string;
   name: string;
@@ -22,6 +32,35 @@ export interface Purchase {
 export interface CheckoutSession {
   sessionId: string;
   url: string;
+}
+
+interface CheckoutErrorPayload {
+  error?: string;
+  message?: string;
+  code?: string;
+  details?: unknown;
+}
+
+function mapCreditPacksErrorMessage(
+  code: string | undefined,
+  payload: CheckoutErrorPayload
+): string {
+  switch (code) {
+    case "credit_packs_table_missing":
+      return "Billing setup is incomplete on this server. Credit packs are not available yet.";
+    case "credit_packs_unavailable":
+      return "No credit packs are currently available for this environment.";
+    case "stripe_pack_not_configured":
+      return "Purchases are not configured yet for this environment.";
+    case "stripe_not_configured":
+      return "Payments are currently unavailable because Stripe is not configured.";
+    case "stripe_mode_mismatch":
+      return "Payments are temporarily unavailable due to a billing configuration mismatch.";
+    default:
+      return (
+        payload.message || payload.error || "Failed to fetch credit packs"
+      );
+  }
 }
 
 async function fetchWithAuth(
@@ -54,10 +93,21 @@ export async function getCreditPacks(
   );
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
+    const error = (await response
+      .json()
+      .catch(() => ({}))) as CheckoutErrorPayload;
+    const code =
+      typeof error.code === "string"
+        ? (error.code as CheckoutErrorCode)
+        : undefined;
+
     throw new GenerationApiError(
-      error.error || "Failed to fetch credit packs",
-      response.status
+      mapCreditPacksErrorMessage(code, error),
+      response.status,
+      {
+        ...error,
+        code,
+      }
     );
   }
 

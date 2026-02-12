@@ -105,6 +105,24 @@ describe("Checkout API Service", () => {
       });
     });
 
+    it("maps known configuration error codes to actionable messages", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: () =>
+          Promise.resolve({
+            code: "stripe_not_configured",
+            message: "internal message",
+          }),
+      });
+
+      await expect(getCreditPacks(mockAccessToken)).rejects.toMatchObject({
+        statusCode: 503,
+        message:
+          "Payments are currently unavailable because Stripe is not configured.",
+      });
+    });
+
     it("should use correct API base URL from environment", async () => {
       mockFetch.mockResolvedValue({
         ok: true,

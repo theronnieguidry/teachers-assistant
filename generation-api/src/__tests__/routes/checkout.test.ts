@@ -129,7 +129,7 @@ describe("Checkout Routes", () => {
       });
     });
 
-    it("should return empty array when no packs available", async () => {
+    it("should return 503 when no packs are configured", async () => {
       mockGetUser.mockResolvedValue({
         data: { user: { id: "user-123", email: "test@example.com" } },
         error: null,
@@ -144,8 +144,54 @@ describe("Checkout Routes", () => {
         .get("/checkout/packs")
         .set("Authorization", "Bearer valid-token");
 
-      expect(response.status).toBe(200);
-      expect(response.body.packs).toEqual([]);
+      expect(response.status).toBe(503);
+      expect(response.body.code).toBe("credit_packs_unavailable");
+    });
+
+    it("should return 503 when credit packs table is missing", async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "user-123", email: "test@example.com" } },
+        error: null,
+      });
+
+      mockOrder.mockResolvedValue({
+        data: null,
+        error: { code: "42P01", message: "relation does not exist" },
+      });
+
+      const response = await request(app)
+        .get("/checkout/packs")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(503);
+      expect(response.body.code).toBe("credit_packs_table_missing");
+    });
+
+    it("should return 503 when all pack prices are placeholders", async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "user-123", email: "test@example.com" } },
+        error: null,
+      });
+
+      mockOrder.mockResolvedValue({
+        data: [
+          {
+            id: "pack-1",
+            name: "Starter Pack",
+            credits: 100,
+            price_cents: 500,
+            stripe_price_id: "price_placeholder_1",
+          },
+        ],
+        error: null,
+      });
+
+      const response = await request(app)
+        .get("/checkout/packs")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(503);
+      expect(response.body.code).toBe("stripe_pack_not_configured");
     });
   });
 
