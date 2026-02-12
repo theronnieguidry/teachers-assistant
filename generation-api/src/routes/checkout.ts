@@ -101,7 +101,22 @@ router.get("/packs", async (req: AuthenticatedRequest, res: Response) => {
       .order("sort_order", { ascending: true });
 
     if (error) {
-      throw new Error(`Failed to fetch credit packs: ${error.message}`);
+      if ((error as { code?: string }).code === "42P01") {
+        res.status(503).json({
+          error: "Credit packs unavailable",
+          message:
+            "Billing setup is incomplete. Credit packs table is not available yet.",
+          code: "credit_packs_table_missing",
+        });
+        return;
+      }
+
+      res.status(500).json({
+        error: "Failed to fetch credit packs",
+        message: error.message,
+        code: "checkout_packs_query_failed",
+      });
+      return;
     }
 
     const formattedPacks: CreditPack[] = (packs || []).map((pack) => ({
@@ -112,6 +127,36 @@ router.get("/packs", async (req: AuthenticatedRequest, res: Response) => {
       priceDisplay: `$${(pack.price_cents / 100).toFixed(2)}`,
       stripePriceId: pack.stripe_price_id,
     }));
+
+    if (formattedPacks.length === 0) {
+      res.status(503).json({
+        error: "No credit packs configured",
+        message:
+          "No purchasable credit packs are configured for this environment yet.",
+        code: "credit_packs_unavailable",
+      });
+      return;
+    }
+
+    const hasConfiguredPrices = formattedPacks.some(
+      (pack) =>
+        !!pack.stripePriceId && !pack.stripePriceId.includes("placeholder")
+    );
+    if (!hasConfiguredPrices) {
+      res.status(503).json({
+        error: "Payment system not configured",
+        message:
+          "Credit pack prices are placeholders. Configure real Stripe prices to enable purchases.",
+        code: "stripe_pack_not_configured",
+      });
+      return;
+    }
+
+    const stripeConfig = getStripeClient();
+    if ("error" in stripeConfig) {
+      res.status(stripeConfig.error.status).json(stripeConfig.error);
+      return;
+    }
 
     res.json({
       success: true,

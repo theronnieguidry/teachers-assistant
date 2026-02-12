@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "../../utils";
 import { PurchaseDialog } from "@/components/purchase/PurchaseDialog";
+import { GenerationApiError } from "@/services/generation-api";
 
 // Mock the auth hook
 const mockUseAuth = vi.fn();
@@ -238,6 +239,24 @@ describe("PurchaseDialog", () => {
     await waitFor(() => {
       expect(
         screen.getByRole("button", { name: /try again/i })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows configuration guidance for setup-related errors", async () => {
+    mockGetCreditPacks.mockRejectedValue(
+      new GenerationApiError(
+        "Payments are currently unavailable because Stripe is not configured.",
+        503,
+        { code: "stripe_not_configured" }
+      )
+    );
+
+    render(<PurchaseDialog open={true} onOpenChange={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/billing is not configured for this environment yet/i)
       ).toBeInTheDocument();
     });
   });

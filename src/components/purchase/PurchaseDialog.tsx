@@ -19,9 +19,11 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   getCreditPacks,
   createCheckoutSession,
+  type CheckoutErrorCode,
   type CreditPack,
 } from "@/services/checkout-api";
 import { useToastStore } from "@/stores/toastStore";
+import { GenerationApiError } from "@/services/generation-api";
 
 interface PurchaseDialogProps {
   open: boolean;
@@ -35,6 +37,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   const [loading, setLoading] = useState(false);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<CheckoutErrorCode | null>(null);
 
   useEffect(() => {
     if (open && session?.access_token) {
@@ -42,21 +45,58 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
     }
   }, [open, session?.access_token]);
 
-  const loadPacks = async () => {
+  const loadPacks = async (attempt: number = 0) => {
     if (!session?.access_token) return;
 
-    setLoading(true);
-    setError(null);
+    if (attempt === 0) {
+      setLoading(true);
+      setError(null);
+      setErrorCode(null);
+    }
+
+    let willRetry = false;
 
     try {
       const creditPacks = await getCreditPacks(session.access_token);
       setPacks(creditPacks);
+      setErrorCode(null);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load credit packs"
-      );
+      const code =
+        err instanceof GenerationApiError &&
+        err.details &&
+        typeof (err.details as { code?: unknown }).code === "string"
+          ? ((err.details as { code: CheckoutErrorCode }).code as CheckoutErrorCode)
+          : null;
+
+      const message =
+        err instanceof Error ? err.message : "Failed to load credit packs";
+      setErrorCode(code);
+
+      const nonRetryableCodes: CheckoutErrorCode[] = [
+        "credit_packs_table_missing",
+        "credit_packs_unavailable",
+        "stripe_pack_not_configured",
+        "stripe_not_configured",
+        "stripe_mode_mismatch",
+      ];
+      const canRetryAutomatically =
+        err instanceof GenerationApiError &&
+        err.statusCode >= 500 &&
+        (!code || !nonRetryableCodes.includes(code));
+
+      if (canRetryAutomatically && attempt < 1) {
+        willRetry = true;
+        setError(`${message} Retrying...`);
+        window.setTimeout(() => {
+          void loadPacks(attempt + 1);
+        }, 1200);
+      } else {
+        setError(message);
+      }
     } finally {
-      setLoading(false);
+      if (!willRetry) {
+        setLoading(false);
+      }
     }
   };
 
@@ -65,6 +105,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
 
     setPurchasing(pack.id);
     setError(null);
+    setErrorCode(null);
 
     try {
       const { url } = await createCheckoutSession(
@@ -115,6 +156,13 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
       : null;
   };
 
+  const showConfigGuidance =
+    errorCode === "credit_packs_table_missing" ||
+    errorCode === "credit_packs_unavailable" ||
+    errorCode === "stripe_pack_not_configured" ||
+    errorCode === "stripe_not_configured" ||
+    errorCode === "stripe_mode_mismatch";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
@@ -145,10 +193,16 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
         {error && (
           <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
             <p className="text-sm text-destructive">{error}</p>
+            {showConfigGuidance && (
+              <p className="text-xs text-destructive/80 mt-2">
+                This usually means billing is not configured for this environment yet.
+                If this is a teacher build, contact support/admin.
+              </p>
+            )}
             <Button
               variant="outline"
               size="sm"
-              onClick={loadPacks}
+              onClick={() => loadPacks(0)}
               className="mt-2"
             >
               Try Again
