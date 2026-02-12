@@ -46,6 +46,8 @@ const mockProjects = [
 const mockFetchProjects = vi.fn();
 const mockSetCurrentProject = vi.fn();
 const mockDeleteProject = vi.fn();
+const mockOpenFolder = vi.fn();
+const mockIsTauriContext = vi.fn(() => true);
 
 let mockStoreState = {
   projects: [] as typeof mockProjects,
@@ -54,15 +56,30 @@ let mockStoreState = {
   fetchProjects: mockFetchProjects,
   setCurrentProject: mockSetCurrentProject,
   deleteProject: mockDeleteProject,
+  createProject: vi.fn(),
 };
 
 vi.mock("@/stores/projectStore", () => ({
   useProjectStore: () => mockStoreState,
 }));
 
+vi.mock("@/services/tauri-bridge", () => ({
+  openFolder: (...args: unknown[]) => mockOpenFolder(...args),
+  isTauriContext: () => mockIsTauriContext(),
+}));
+
+vi.mock("@/stores/toastStore", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
 describe("ProjectsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("confirm", vi.fn(() => true));
     mockStoreState = {
       projects: [],
       currentProject: null,
@@ -70,6 +87,7 @@ describe("ProjectsPanel", () => {
       fetchProjects: mockFetchProjects,
       setCurrentProject: mockSetCurrentProject,
       deleteProject: mockDeleteProject,
+      createProject: vi.fn(),
     };
   });
 
@@ -83,7 +101,7 @@ describe("ProjectsPanel", () => {
     it("should render refresh button", () => {
       render(<ProjectsPanel />);
 
-      expect(screen.getByRole("button")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /refresh projects/i })).toBeInTheDocument();
     });
 
     it("should call fetchProjects on mount", () => {
@@ -217,13 +235,44 @@ describe("ProjectsPanel", () => {
     it("should have refresh projects button", async () => {
       const { user } = render(<ProjectsPanel />);
 
-      // Click the refresh button in the header
-      const refreshButtons = document.querySelectorAll("button");
-      const headerRefresh = refreshButtons[0]; // First button is the header refresh
-      await user.click(headerRefresh);
+      await user.click(screen.getByRole("button", { name: /refresh projects/i }));
 
       // Called once on mount, once on click
       expect(mockFetchProjects).toHaveBeenCalledTimes(2);
+    });
+
+    it("supports multi-select and batch delete", async () => {
+      const { user } = render(<ProjectsPanel />);
+
+      await user.click(screen.getByLabelText("Select Math Worksheet"));
+      await user.click(screen.getByLabelText("Select Science Quiz"));
+
+      expect(screen.getByText("2 selected")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /delete selected/i }));
+
+      await waitFor(() => {
+        expect(mockDeleteProject).toHaveBeenCalledWith("project-1");
+        expect(mockDeleteProject).toHaveBeenCalledWith("project-2");
+      });
+    });
+
+    it("opens folders for selected projects in batch", async () => {
+      mockStoreState.projects = [
+        { ...mockProjects[0], outputPath: "/tmp/project-1" },
+        { ...mockProjects[1], outputPath: "/tmp/project-2" },
+      ];
+
+      const { user } = render(<ProjectsPanel />);
+
+      await user.click(screen.getByLabelText("Select Math Worksheet"));
+      await user.click(screen.getByLabelText("Select Science Quiz"));
+      await user.click(screen.getByRole("button", { name: /open folders/i }));
+
+      await waitFor(() => {
+        expect(mockOpenFolder).toHaveBeenCalledWith("/tmp/project-1");
+        expect(mockOpenFolder).toHaveBeenCalledWith("/tmp/project-2");
+      });
     });
   });
 });
