@@ -28,6 +28,14 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | **Total** | **850** |
 | **Pass Rate** | **100%** |
 
+### Provider Naming Note
+
+As of 2026-02-11, the product-facing provider names are:
+- **Premium AI** (cloud provider path; currently OpenAI-backed)
+- **Local AI** (Ollama-backed)
+
+Some historical entries below still reference legacy labels (`Claude`/`OpenAI`/`Ollama`) from earlier sessions.
+
 ---
 
 ## Test Categories
@@ -77,9 +85,9 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 | WIZ-009 | Close wizard via close button | ✅ | ✅ | ✅ | |
 | WIZ-010 | Step 2 shows Skip button | ✅ | ✅ | ✅ | |
 | WIZ-011 | Step 3 shows AI provider selection | ✅ | ✅ | ✅ | |
-| WIZ-012 | Claude is selected by default | ✅ | ✅ | ✅ | |
+| WIZ-012 | Local AI is selected by default | ✅ | ✅ | ✅ | |
 | WIZ-013 | Can select different provider | ✅ | ✅ | ✅ | |
-| WIZ-014 | Recommended badge on Claude | ✅ | ✅ | ✅ | |
+| WIZ-014 | Best Quality badge on Premium AI | ✅ | ✅ | ✅ | |
 | WIZ-015 | Dialog maintains minimum height across steps | ✅ | ✅ | ✅ | New - QA-008 fix |
 
 ### 4. Inspiration Panel Tests (`e2e/inspiration.spec.ts`)
@@ -142,15 +150,15 @@ This document tracks the comprehensive QA testing status for the TA desktop appl
 
 | Test ID | Description | Status | Notes |
 |---------|-------------|:------:|-------|
-| TC-PROV-001 | Renders all three provider options | ✅ | Already implemented |
-| TC-PROV-002 | Claude has Recommended badge | ✅ | Already implemented |
-| TC-PROV-003 | Ollama has Free badge | ✅ | Already implemented |
+| TC-PROV-001 | Renders Premium AI and Local AI options | ✅ | Already implemented |
+| TC-PROV-002 | Premium AI has Best Quality badge | ✅ | Already implemented |
+| TC-PROV-003 | Local AI has Free badge | ✅ | Already implemented |
 | TC-PROV-004 | onChange called when provider clicked | ✅ | Already implemented |
-| TC-PROV-005 | Shows Ollama status (Running/Not running) | ✅ | Already implemented |
-| TC-PROV-006 | Model dropdown when Ollama selected | ✅ | Already implemented |
-| TC-PROV-007 | Auto-select first model for Ollama | ✅ | Already implemented |
-| TC-PROV-008 | Warning shown when Ollama unavailable | ✅ | Already implemented |
-| TC-PROV-009 | Generate button validation with Ollama | ⏳ | Component integration test |
+| TC-PROV-005 | Shows Local AI status (Running/Not running) | ✅ | Already implemented |
+| TC-PROV-006 | Model dropdown when Local AI selected | ✅ | Already implemented |
+| TC-PROV-007 | Auto-select first model for Local AI | ✅ | Already implemented |
+| TC-PROV-008 | Warning shown when Local AI unavailable | ✅ | Already implemented |
+| TC-PROV-009 | Generate button validation with Local AI | ⏳ | Component integration test |
 
 ### 9. Premium Generation Tests (`e2e/premium-generation.spec.ts`)
 
@@ -246,7 +254,7 @@ The current E2E tests verify **UI element visibility and basic interactions**, n
 | OAuth Sign-In (Apple) | Requires Apple Developer account setup | ⏳ Not configured |
 | Email Sign-In | Would require test Supabase credentials | ⏳ Not tested |
 | Email Sign-Up | Would create real user accounts | ⏳ Not tested |
-| AI Generation Flow | Would incur API costs (Anthropic/OpenAI) | ⏳ Not tested |
+| AI Generation Flow | Would incur API costs (Premium AI/OpenAI) | ⏳ Not tested |
 | PDF Export | Requires completed project | ⏳ Not tested |
 | Project Save/Load | Requires authenticated session | ⏳ Not tested |
 | Credits Deduction | Requires real generation | ⏳ Not tested |
@@ -267,7 +275,7 @@ The E2E tests have two modes:
 
 2. **Direct Provider Testing**: Verifies actual AI providers work
    - Tested via: Direct API calls with `dotenv` loaded
-   - Confirms: Ollama, Claude, OpenAI all generate valid HTML output
+   - Confirms: Local AI (Ollama) and Premium AI (OpenAI) generate valid HTML output
 
 **For full E2E with real generation:**
 1. Set `USE_MOCK_AUTH = false` in `e2e/qa-full-e2e.spec.ts`
@@ -282,7 +290,7 @@ The E2E tests have two modes:
 
 | Date | Features Explored | Bugs Found | Bugs Fixed | Status |
 |------|-------------------|------------|------------|--------|
-| 2026-01-25 | Full E2E: Real Auth, Real Generation (All 3 Providers), Credits Deduction | 1 bug fixed | 0 | ✅ Complete |
+| 2026-01-25 | Full E2E: Real Auth, Real Generation (legacy provider labels), Credits Deduction | 1 bug fixed | 0 | ✅ Complete |
 
 ### Latest Interactive Session - 2026-01-25
 
@@ -293,9 +301,9 @@ The E2E tests have two modes:
 | Authentication | ✓ | Login page, mock auth configured |
 | Dashboard | ✓ | Three-panel layout, prompt validation |
 | Wizard Flow (6 steps) | ✓ | All steps navigate correctly |
-| Ollama Selection | ✓ | Provider selected, model dropdown works |
-| Claude Selection | ✓ | Provider selected with Recommended badge |
-| OpenAI Selection | ✓ | Provider selected |
+| Local AI Selection | ✓ | Provider selected, model dropdown works |
+| Premium AI Selection | ✓ | Provider selected with Best Quality badge |
+| Cloud Model Selection | ✓ | OpenAI-backed premium path selected |
 | Output Configuration | ✓ | Path input, file preview |
 | Review Step | ✓ | Prompt review, Continue button |
 | Generate Step | ✓ | Generation UI works |
@@ -305,11 +313,11 @@ The E2E tests have two modes:
 
 | Provider | Status | Generation Time | Credits Used |
 |----------|--------|-----------------|--------------|
-| Ollama (llama3.2) | ✅ Completed | 32.6s | ~3-5 |
-| Claude | ✅ Completed* | 67.2s | ~3-5 |
+| Local AI (llama3.2) | ✅ Completed | 32.6s | ~3-5 |
+| Premium AI (legacy label: Claude) | ✅ Completed* | 67.2s | ~3-5 |
 | OpenAI (gpt-4o-mini) | ✅ Completed | 55.5s | ~3-5 |
 
-*Claude had a client-side streaming timeout but generation completed successfully on server.
+*The legacy cloud-provider run had a client-side streaming timeout, but generation completed successfully on server.*
 
 **Test Account**: `ronnie.guidry+ta@gmail.com` / `QaTest123!`
 **Credits Used**: 10 total (50 → 40)
@@ -330,13 +338,13 @@ The E2E tests have two modes:
 - Grade, Subject, Difficulty dropdowns
 - Project title field
 - Answer key and lesson plan toggles
-- Claude/OpenAI/Ollama provider selection
-- Model dropdown for Ollama
+- Premium AI/Local AI provider selection
+- Model dropdown for Local AI
 - Output path field
 - File list preview
 - Review step with prompt display
 - Generate button and progress UI
-- Settings dialog with Ollama status
+- Settings dialog with Local AI status
 
 **No bugs found during UI exploration or AI provider testing.**
 

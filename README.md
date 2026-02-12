@@ -1,10 +1,10 @@
 # Teacher's Assistant
 
-AI-powered teaching materials generator for K-3 educators. Create worksheets, lesson plans, and answer keys in minutes.
+AI-powered teaching materials generator for K-6 educators. Create worksheets, lesson plans, and answer keys in minutes.
 
 ## Features
 
-- **AI-Powered Generation**: Uses Claude or OpenAI to create grade-appropriate content
+- **AI-Powered Generation**: Premium AI (cloud) and Local AI (Ollama) generation modes
 - **Multiple Output Formats**: Worksheets, lesson plans, and answer keys
 - **Print-Ready**: PDF export with professional formatting
 - **Inspiration Support**: Upload PDFs, images, or URLs to guide content generation
@@ -18,7 +18,7 @@ AI-powered teaching materials generator for K-3 educators. Create worksheets, le
 - **State**: Zustand
 - **Backend**: Supabase (Auth, Database, Storage)
 - **Generation API**: Node.js + Express
-- **AI**: Claude API / OpenAI API
+- **AI**: OpenAI API (Premium) + Ollama (Local)
 
 ## Getting Started
 
@@ -43,6 +43,47 @@ npm run dev
 
 # Run Tauri desktop app
 npm run tauri dev
+```
+
+### Local Dev Auth Setup (Hosted Supabase)
+
+For local testing, keep auth in hosted Supabase and Google Cloud:
+
+```bash
+# Frontend env
+cp .env.example .env
+
+# API env
+cp generation-api/.env.example generation-api/.env
+```
+
+Set these values in `/Users/ronnieguidry/code/Teachers-Assistant/.env`:
+
+- `VITE_SUPABASE_URL` (your hosted Supabase URL)
+- `VITE_SUPABASE_ANON_KEY` (your Supabase anon key)
+- `VITE_GENERATION_API_URL=http://localhost:3001`
+- `VITE_OAUTH_REDIRECT_URL=http://localhost:1420`
+
+Set these values in `/Users/ronnieguidry/code/Teachers-Assistant/generation-api/.env`:
+
+- `SUPABASE_URL` (same hosted Supabase URL)
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY` (if you use premium generation/improvements)
+
+Supabase + Google OAuth configuration:
+
+1. In Supabase dashboard, enable Google provider and paste your Google Client ID/Secret.
+2. In Google Cloud OAuth client, add redirect URI:
+   - `https://<your-project-ref>.supabase.co/auth/v1/callback`
+3. In Supabase URL configuration, allow:
+   - `http://localhost:1420`
+   - `tauri://localhost` (for desktop deep-link flow later)
+
+Then run:
+
+```bash
+npm run dev:watch
 ```
 
 ### Testing

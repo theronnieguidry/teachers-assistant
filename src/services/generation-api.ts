@@ -284,31 +284,6 @@ export async function generatePdf(
   return response.blob();
 }
 
-export async function parseInspiration(
-  items: Array<{ id: string; type: string; sourceUrl?: string; content?: string }>,
-  accessToken: string
-): Promise<Array<{ id: string; extractedContent: string }>> {
-  const response = await fetchWithAuth(
-    "/inspiration/parse",
-    {
-      method: "POST",
-      body: JSON.stringify({ items }),
-    },
-    accessToken
-  );
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new GenerationApiError(
-      error.error || "Inspiration parsing failed",
-      response.status
-    );
-  }
-
-  const data = await response.json();
-  return data.results;
-}
-
 export async function polishPrompt(
   context: PolishContext,
   accessToken: string

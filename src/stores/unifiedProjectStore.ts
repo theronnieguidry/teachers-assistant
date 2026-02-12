@@ -81,7 +81,8 @@ interface UnifiedProjectState {
   createQuickProject: (
     name: string,
     grade: Grade,
-    subjects: string[]
+    subjects: string[],
+    defaultDesignPackId?: string
   ) => Promise<UnifiedProject>;
 
   // Utility actions
@@ -424,12 +425,13 @@ export const useUnifiedProjectStore = create<UnifiedProjectState>()((set, get) =
     });
   },
 
-  createQuickProject: async (name, grade, subjects) => {
+  createQuickProject: async (name, grade, subjects, defaultDesignPackId) => {
     return get().createProject({
       type: "quick_create",
       name,
       grade,
       subjectFocus: subjects,
+      defaultDesignPackId,
     });
   },
 

@@ -33,6 +33,7 @@ const mockArtifact2: Omit<LocalArtifact, "htmlContent"> = {
   grade: "2",
   subject: "Math",
   objectiveTags: ["2.MATH.ADD.BASIC"],
+  designPackId: "pack-math",
   createdAt: new Date().toISOString(),
 };
 
@@ -45,6 +46,7 @@ const mockArtifact3: Omit<LocalArtifact, "htmlContent"> = {
   grade: "K",
   subject: "Reading",
   objectiveTags: ["K.READING.PHONICS"],
+  designPackId: "pack-reading",
   createdAt: new Date().toISOString(),
 };
 
@@ -200,6 +202,24 @@ describe("artifactStore", () => {
       const filtered = useArtifactStore.getState().getFilteredArtifacts();
       expect(filtered).toHaveLength(1);
       expect(filtered[0].objectiveTags).toContain("K.READING.PHONICS");
+    });
+
+    it("getFilteredArtifacts respects design pack filter", () => {
+      useArtifactStore.setState({
+        artifacts: [mockArtifact, mockArtifact2, mockArtifact3],
+        filters: {
+          projects: [],
+          grades: [],
+          subjects: [],
+          types: [],
+          objectiveTags: [],
+          designPackId: "pack-reading",
+        },
+      });
+
+      const filtered = useArtifactStore.getState().getFilteredArtifacts();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].designPackId).toBe("pack-reading");
     });
 
     it("getFilteredArtifacts respects search query", () => {

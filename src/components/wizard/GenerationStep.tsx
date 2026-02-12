@@ -7,6 +7,7 @@ import { useInspirationStore } from "@/stores/inspirationStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useArtifactStore } from "@/stores/artifactStore";
 import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/stores/toastStore";
 import { generateTeacherPack, estimateCredits, GenerationApiError } from "@/services/generation-api";
@@ -47,6 +48,7 @@ export function GenerationStep() {
   const { persistLocalItems } = useInspirationStore();
   const { session } = useAuthStore();
   const { credits } = useAuth();
+  const selectedPackId = useDesignPackStore((state) => state.selectedPackId);
   const startedRef = useRef(false);
   const estimateFetchedRef = useRef(false);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
@@ -266,6 +268,7 @@ export function GenerationStep() {
           subject: classDetails.subject,
           title,
           objectiveTags: result.lessonMetadata?.objective ? [result.lessonMetadata.objective] : [],
+          designPackId: selectedPackId || undefined,
           contents: {
             studentPage: result.worksheetHtml,
             teacherScript: result.teacherScriptHtml,
@@ -285,12 +288,16 @@ export function GenerationStep() {
             // Use the user-selected existing project
             unifiedProjectId = targetProjectId;
             console.log(`[GenerationStep] Using existing unified project: ${targetProjectId}`);
+            if (selectedPackId) {
+              await unifiedStore.setDesignPack(targetProjectId, selectedPackId);
+            }
           } else {
             // Create a new Quick Create project
             const unifiedProject = await unifiedStore.createQuickProject(
               title,
               classDetails.grade,
-              [classDetails.subject]
+              [classDetails.subject],
+              selectedPackId || undefined
             );
             unifiedProjectId = unifiedProject.projectId;
           }
@@ -299,6 +306,7 @@ export function GenerationStep() {
           for (const artifact of savedArtifacts) {
             await unifiedStore.addArtifact(unifiedProjectId, artifact.artifactId);
           }
+          unifiedStore.setCurrentProject(unifiedProjectId);
           console.log("[GenerationStep] Unified project synced with artifacts");
         } catch (syncError) {
           console.error("[GenerationStep] Failed to sync unified project:", syncError);
@@ -493,8 +501,7 @@ export function GenerationStep() {
         <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg space-y-3">
           <p className="text-sm text-amber-700 dark:text-amber-300">
             You don't have enough credits to generate this content. Purchase
-            credits to continue using Claude or OpenAI, or switch to Ollama
-            (free local AI).
+            credits to continue using Premium AI, or switch to Local AI (free).
           </p>
           <Button
             onClick={() => setPurchaseDialogOpen(true)}

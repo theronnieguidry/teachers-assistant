@@ -124,8 +124,7 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
             Buy Credits
           </DialogTitle>
           <DialogDescription>
-            Purchase credits to generate worksheets and lesson plans with Claude
-            or OpenAI.
+            Purchase credits to generate worksheets and lesson plans with Premium AI.
           </DialogDescription>
         </DialogHeader>
 

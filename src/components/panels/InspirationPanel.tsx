@@ -13,21 +13,7 @@ import { useInspirationStore } from "@/stores/inspirationStore";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
-
-// Helper to read file as base64
-async function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Remove data URL prefix (e.g., "data:application/pdf;base64,")
-      const base64 = result.split(",")[1];
-      resolve(base64);
-    };
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
+import { readFileAsBase64 } from "@/lib/file-encoding";
 
 export function InspirationPanel() {
   const { items, isLoading, addItem, removeItem, fetchItems } = useInspirationStore();

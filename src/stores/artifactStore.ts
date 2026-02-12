@@ -89,6 +89,7 @@ const DEFAULT_FILTERS: LibraryFilters = {
   subjects: [],
   types: [],
   objectiveTags: [],
+  designPackId: undefined,
 };
 
 export const useArtifactStore = create<ArtifactState>()((set, get) => ({
@@ -138,6 +139,9 @@ export const useArtifactStore = create<ArtifactState>()((set, get) => ({
       filtered = filtered.filter((a) =>
         a.objectiveTags.some((t) => filters.objectiveTags.includes(t))
       );
+    }
+    if (filters.designPackId) {
+      filtered = filtered.filter((a) => a.designPackId === filters.designPackId);
     }
     if (filters.dateRange) {
       const fromDate = new Date(filters.dateRange.from);
