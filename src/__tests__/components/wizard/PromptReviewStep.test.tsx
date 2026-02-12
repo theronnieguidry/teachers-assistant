@@ -78,6 +78,27 @@ describe("PromptReviewStep", () => {
     expect(screen.getByText(/refining your request/i)).toBeInTheDocument();
   });
 
+  it("shows K-6 soft-limit warning for grades 4-6", async () => {
+    useWizardStore.setState({
+      classDetails: {
+        ...defaultClassDetails,
+        grade: "6",
+      },
+    });
+
+    mockPolishPrompt.mockResolvedValue({
+      original: "Original",
+      polished: "Polished",
+      wasPolished: true,
+    });
+
+    render(<PromptReviewStep />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/K-3 is still the strongest fit/i)).toBeInTheDocument();
+    });
+  });
+
   describe("final prompt display", () => {
     it("displays polished prompt in 'What will be sent to AI' section by default", async () => {
       const polishedText = "Create a comprehensive 3rd grade math worksheet focusing on fraction concepts...";

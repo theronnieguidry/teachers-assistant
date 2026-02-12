@@ -7,6 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useAuthStore } from "@/stores/authStore";
 import { polishPrompt, type PolishSkipReason } from "@/services/generation-api";
+import { K6SoftLimitAlert } from "./K6SoftLimitAlert";
 
 type PromptChoice = "polished" | "original" | "edited";
 
@@ -162,6 +163,8 @@ export function PromptReviewStep() {
           </p>
         </div>
       </div>
+
+      <K6SoftLimitAlert grade={classDetails?.grade} />
 
       {/* Error state */}
       {polishError && (

@@ -66,6 +66,27 @@ describe("ClassDetailsStep", () => {
     expect(screen.getByLabelText(/number of questions/i)).toHaveValue(15);
   });
 
+  it("shows K-6 soft-limit warning when grade is 4-6", () => {
+    useWizardStore.setState({
+      classDetails: {
+        grade: "4",
+        subject: "Science",
+        format: "worksheet",
+        questionCount: 15,
+        includeVisuals: true,
+        difficulty: "medium",
+        includeAnswerKey: true,
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
+      },
+    });
+
+    render(<ClassDetailsStep />);
+
+    expect(screen.getByText(/K-3 is still the strongest fit/i)).toBeInTheDocument();
+  });
+
   it("allows typing in title field", async () => {
     const user = userEvent.setup();
     render(<ClassDetailsStep />);
