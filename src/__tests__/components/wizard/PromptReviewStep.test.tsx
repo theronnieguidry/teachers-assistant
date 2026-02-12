@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { PromptReviewStep } from "@/components/wizard/PromptReviewStep";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
 
 // Mock the polishPrompt API function
 const mockPolishPrompt = vi.fn();
@@ -65,6 +66,11 @@ describe("PromptReviewStep", () => {
         expires_at: Date.now() + 3600000,
       },
     });
+
+    useDesignPackStore.setState({
+      packs: [],
+      selectedPackId: null,
+    });
   });
 
   it("shows loading state while polishing", async () => {
@@ -96,6 +102,41 @@ describe("PromptReviewStep", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/K-3 is still the strongest fit/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows selected design-pack context in review", async () => {
+    useDesignPackStore.setState({
+      selectedPackId: "pack-1",
+      packs: [
+        {
+          packId: "pack-1",
+          name: "Spring Theme Pack",
+          items: [
+            {
+              itemId: "item-1",
+              type: "url",
+              title: "Classroom Theme",
+              sourceUrl: "https://example.com/theme",
+            },
+          ],
+          createdAt: "2026-02-12T00:00:00Z",
+          updatedAt: "2026-02-12T00:00:00Z",
+        },
+      ],
+    });
+
+    mockPolishPrompt.mockResolvedValue({
+      original: "Original",
+      polished: "Polished",
+      wasPolished: true,
+    });
+
+    render(<PromptReviewStep />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("design-pack-context")).toBeInTheDocument();
+      expect(screen.getByText(/Spring Theme Pack/)).toBeInTheDocument();
     });
   });
 

@@ -13,6 +13,15 @@ const router = Router();
 // Default provider from environment, fallback to openai (Claude removed)
 const DEFAULT_AI_PROVIDER = (process.env.AI_PROVIDER || "openai") as AIProvider;
 
+const inspirationItemSchema = z.object({
+  id: z.string(),
+  type: z.enum(["url", "pdf", "image", "text"]),
+  title: z.string(),
+  sourceUrl: z.string().optional(),
+  content: z.string().optional(),
+  storagePath: z.string().optional(),
+});
+
 const generateRequestSchema = z.object({
   projectId: z.string().min(1),
   prompt: z.string().min(10).max(2000),
@@ -32,19 +41,13 @@ const generateRequestSchema = z.object({
     })
     .optional()
     .default({}),
-  inspiration: z
-    .array(
-      z.object({
-        id: z.string(),
-        type: z.enum(["url", "pdf", "image", "text"]),
-        title: z.string(),
-        sourceUrl: z.string().optional(),
-        content: z.string().optional(),
-        storagePath: z.string().optional(),
-      })
-    )
-    .optional()
-    .default([]),
+  inspiration: z.array(inspirationItemSchema).optional().default([]),
+  designPackContext: z
+    .object({
+      packId: z.string().min(1),
+      items: z.array(inspirationItemSchema).default([]),
+    })
+    .optional(),
   inspirationIds: z.array(z.string()).optional(),
   objectiveId: z.string().optional().nullable(),
   // Accept both user-facing (premium, local) and legacy (claude, openai, ollama) provider values
@@ -111,6 +114,23 @@ async function fetchInspirationItems(ids: string[], userId: string): Promise<Ins
   }));
 }
 
+function createInspirationMergeKey(item: InspirationItem): string {
+  return [item.type, item.sourceUrl || "", item.title || "", item.content || "", item.storagePath || ""].join(
+    "|"
+  );
+}
+
+function mergeInspirationItems(primary: InspirationItem[], secondary: InspirationItem[]): InspirationItem[] {
+  const merged = new Map<string, InspirationItem>();
+  for (const item of [...primary, ...secondary]) {
+    const key = createInspirationMergeKey(item);
+    if (!merged.has(key)) {
+      merged.set(key, item);
+    }
+  }
+  return Array.from(merged.values());
+}
+
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.userId) {
@@ -136,6 +156,9 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
     if (data.inspirationIds && data.inspirationIds.length > 0) {
       inspiration = await fetchInspirationItems(data.inspirationIds, req.userId);
     }
+    if (data.designPackContext?.items?.length) {
+      inspiration = mergeInspirationItems(inspiration, data.designPackContext.items);
+    }
 
     // Build visual settings with defaults
     const visualSettings: VisualSettings = {
@@ -155,6 +178,12 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       options: data.options,
       inspiration,
       objectiveId: data.objectiveId || undefined,
+      designPackContext: data.designPackContext
+        ? {
+            packId: data.designPackContext.packId,
+            items: data.designPackContext.items,
+          }
+        : undefined,
       aiProvider,
       prePolished: data.prePolished,
     };

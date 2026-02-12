@@ -101,6 +101,7 @@ export async function generateTeacherPack(
         objectiveId: request.objectiveId,
         options: request.options,
         inspiration: request.inspiration,
+        designPackContext: request.designPackContext,
         aiProvider: request.aiProvider || "premium",
         aiModel: request.aiModel,
         prePolished: request.prePolished,

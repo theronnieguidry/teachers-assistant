@@ -6,6 +6,7 @@ export type {
   LessonLength,
   ProjectOptions,
   InspirationItem,
+  DesignPackContext,
   LessonMetadata,
   GenerationProgress,
   GenerationResult,
@@ -13,7 +14,7 @@ export type {
 } from "@shared/types";
 
 // Import shared types used by local interfaces below
-import type { Grade, ProjectOptions, InspirationItem, ImageStats } from "@shared/types";
+import type { Grade, ProjectOptions, InspirationItem, DesignPackContext, ImageStats } from "@shared/types";
 
 // User-facing provider types + legacy internal types for backward compatibility
 export type AIProvider = "premium" | "local" | "claude" | "openai" | "ollama";
@@ -30,6 +31,7 @@ export interface GenerationRequest {
   inspiration?: InspirationItem[];
   inspirationIds?: string[];
   objectiveId?: string | null;
+  designPackContext?: DesignPackContext;
   aiProvider?: AIProvider;
   prePolished?: boolean;
 }

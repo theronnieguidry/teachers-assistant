@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useWizardStore } from "@/stores/wizardStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
 import { useAuthStore } from "@/stores/authStore";
 import { polishPrompt, type PolishSkipReason } from "@/services/generation-api";
 import { K6SoftLimitAlert } from "./K6SoftLimitAlert";
@@ -30,7 +31,13 @@ export function PromptReviewStep() {
     nextStep,
     prevStep,
   } = useWizardStore();
+  const selectedPack = useDesignPackStore((state) => state.getSelectedPack());
   const { session } = useAuthStore();
+
+  const designPackTitles = selectedPack?.items.map((item) => item.title || item.itemId) || [];
+  const inspirationTitles = Array.from(
+    new Set([...selectedInspiration.map((i) => i.title || i.id), ...designPackTitles])
+  );
 
   const [isPolishing, setIsPolishing] = useState(false);
   const [polishError, setPolishError] = useState<string | null>(null);
@@ -65,7 +72,7 @@ export function PromptReviewStep() {
           questionCount: classDetails.questionCount,
           difficulty: classDetails.difficulty,
           includeVisuals: classDetails.includeVisuals,
-          inspirationTitles: selectedInspiration.map((i) => i.title || i.id),
+          inspirationTitles,
         },
         session.access_token
       );
@@ -165,6 +172,19 @@ export function PromptReviewStep() {
       </div>
 
       <K6SoftLimitAlert grade={classDetails?.grade} />
+
+      {selectedPack && (
+        <div className="p-3 bg-muted/40 rounded-lg border" data-testid="design-pack-context">
+          <p className="text-sm font-medium">
+            Design Pack Context: {selectedPack.name}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {selectedPack.items.length} item
+            {selectedPack.items.length !== 1 ? "s" : ""} will be merged with ad-hoc inspiration
+            for generation.
+          </p>
+        </div>
+      )}
 
       {/* Error state */}
       {polishError && (

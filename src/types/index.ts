@@ -16,6 +16,7 @@ export type {
   ImageStats,
   ProjectOptions,
   InspirationItem,
+  DesignPackContext,
   GenerationProgress,
   GenerationResult,
   EstimateRequest,
@@ -32,6 +33,7 @@ export { DEFAULT_VISUAL_SETTINGS } from "@shared/types";
 import type {
   ProjectOptions,
   InspirationItem,
+  DesignPackContext,
   LessonMetadata,
   GenerationMode,
   VisualSettings,
@@ -90,6 +92,7 @@ export interface GenerationRequest {
   options: ProjectOptions;
   inspiration: InspirationItem[];
   objectiveId?: string | null;
+  designPackContext?: DesignPackContext;
   aiProvider?: "premium" | "local" | "claude" | "openai" | "ollama";
   aiModel?: string;
   prePolished?: boolean;

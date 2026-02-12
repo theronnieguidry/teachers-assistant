@@ -91,6 +91,11 @@ export interface InspirationItem {
   createdAt?: Date;
 }
 
+export interface DesignPackContext {
+  packId: string;
+  items: InspirationItem[];
+}
+
 // ============================================
 // Image Stats
 // ============================================
