@@ -25,6 +25,7 @@ describe("wizardStore", () => {
       expect(state.currentStep).toBe(1);
       expect(state.prompt).toBe("");
       expect(state.title).toBe("");
+      expect(state.objectiveId).toBeNull();
       expect(state.classDetails).toBeNull();
       expect(state.selectedInspiration).toEqual([]);
       expect(state.outputPath).toBeNull();
@@ -46,6 +47,7 @@ describe("wizardStore", () => {
       expect(state.currentStep).toBe(1);
       expect(state.prompt).toBe("Create a math worksheet for grade 2");
       expect(state.title).toBe("Create a math worksheet for grade 2");
+      expect(state.objectiveId).toBeNull();
     });
 
     it("should truncate long prompts for title", () => {
@@ -301,6 +303,7 @@ describe("wizardStore", () => {
       expect(state.currentStep).toBe(1);
       expect(state.prompt).toBe("");
       expect(state.title).toBe("");
+      expect(state.objectiveId).toBeNull();
       expect(state.classDetails).toBeNull();
       expect(state.selectedInspiration).toEqual([]);
       expect(state.outputPath).toBeNull();
@@ -392,6 +395,21 @@ describe("wizardStore", () => {
 
       const state = useWizardStore.getState();
       expect(state.regeneratingProjectId).toBe("project-123");
+    });
+
+    it("should restore objectiveId from project options when present", async () => {
+      const projectWithObjective = {
+        ...mockProject,
+        options: {
+          ...mockProject.options,
+          objectiveId: "math_3_01",
+        },
+      };
+
+      const { openWizardForRegeneration } = useWizardStore.getState();
+      await openWizardForRegeneration(projectWithObjective);
+
+      expect(useWizardStore.getState().objectiveId).toBe("math_3_01");
     });
 
     it("REGEN-002: should pre-fill prompt from existing project", async () => {
@@ -576,6 +594,39 @@ describe("wizardStore", () => {
       openWizard("New prompt");
 
       expect(useWizardStore.getState().regeneratingProjectId).toBeNull();
+    });
+  });
+
+  describe("openWizardFromObjective", () => {
+    it("captures objectiveId when launching from learning path objective", () => {
+      const { openWizardFromObjective } = useWizardStore.getState();
+
+      openWizardFromObjective(
+        {
+          id: "math_2_01",
+          text: "Add within 20",
+          difficulty: "standard",
+          estimatedMinutes: 20,
+          unitTitle: "Math - Addition Basics",
+          whyRecommended: "Next objective",
+        },
+        {
+          learnerId: "learner-1",
+          displayName: "Ava",
+          grade: "2",
+          avatarEmoji: "🙂",
+          preferences: {
+            favoriteSubjects: ["Math"],
+            sessionDuration: 30,
+            visualLearner: true,
+          },
+          adultConfidence: "intermediate",
+          createdAt: "2026-02-12T00:00:00Z",
+          updatedAt: "2026-02-12T00:00:00Z",
+        }
+      );
+
+      expect(useWizardStore.getState().objectiveId).toBe("math_2_01");
     });
   });
 });

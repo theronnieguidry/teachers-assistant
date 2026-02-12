@@ -48,6 +48,7 @@ interface WizardState {
   currentStep: WizardStep;
   prompt: string;
   title: string;
+  objectiveId: string | null;
   classDetails: ClassDetails | null;
   selectedInspiration: InspirationItem[];
   outputPath: string | null;
@@ -126,6 +127,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   currentStep: 1,
   prompt: "",
   title: "",
+  objectiveId: null,
   classDetails: null,
   selectedInspiration: [],
   outputPath: null,
@@ -153,6 +155,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       currentStep: 1,
       prompt,
       title,
+      objectiveId: null,
       classDetails: { ...defaultClassDetails },
       selectedInspiration: [],
       outputPath: null,
@@ -173,6 +176,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   openWizardForRegeneration: async (project) => {
     // Extract options with defaults
     const options = project.options || {};
+    const objectiveId = typeof options.objectiveId === "string" ? options.objectiveId : null;
 
     // Try to fetch inspiration from junction table first (proper relational approach)
     let inspiration = await useProjectStore.getState().fetchProjectInspiration(project.id);
@@ -192,6 +196,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       currentStep: 1,
       prompt: project.prompt,
       title: project.title,
+      objectiveId,
       classDetails: {
         grade: project.grade,
         subject: project.subject,
@@ -248,6 +253,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       currentStep: 1,
       prompt,
       title,
+      objectiveId: objective.id,
       classDetails: {
         grade: learner.grade,
         subject: subject,
@@ -365,6 +371,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       currentStep: 1,
       prompt: "",
       title: "",
+      objectiveId: null,
       classDetails: null,
       selectedInspiration: [],
       outputPath: null,

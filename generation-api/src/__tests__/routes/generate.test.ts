@@ -372,4 +372,38 @@ describe("Generate Route", () => {
       expect.any(Function)
     );
   });
+
+  it("should pass objectiveId through to generator request", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    mockGenerateTeacherPack.mockResolvedValue({
+      projectId: "project-123",
+      versionId: "version-456",
+      worksheetHtml: "<html>Worksheet</html>",
+      lessonPlanHtml: "",
+      answerKeyHtml: "",
+      creditsUsed: 5,
+    });
+
+    const response = await request(app)
+      .post("/generate")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        ...validRequestBody,
+        objectiveId: "math_2_01",
+      });
+
+    expect(response.status).toBe(200);
+    expect(mockGenerateTeacherPack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objectiveId: "math_2_01",
+      }),
+      expect.anything(),
+      expect.anything(),
+      expect.any(Function)
+    );
+  });
 });

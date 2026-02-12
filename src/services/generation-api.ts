@@ -98,6 +98,7 @@ export async function generateTeacherPack(
         prompt: request.prompt,
         grade: request.grade,
         subject: request.subject,
+        objectiveId: request.objectiveId,
         options: request.options,
         inspiration: request.inspiration,
         aiProvider: request.aiProvider || "premium",

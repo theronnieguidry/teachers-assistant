@@ -61,6 +61,7 @@ interface ArtifactState {
     subject: string;
     title: string;
     objectiveTags: string[];
+    objectiveId?: string;
     designPackId?: string;
     contents: {
       studentPage?: string;
@@ -137,7 +138,8 @@ export const useArtifactStore = create<ArtifactState>()((set, get) => ({
     }
     if (filters.objectiveTags.length > 0) {
       filtered = filtered.filter((a) =>
-        a.objectiveTags.some((t) => filters.objectiveTags.includes(t))
+        a.objectiveTags.some((t) => filters.objectiveTags.includes(t)) ||
+        (!!a.objectiveId && filters.objectiveTags.includes(a.objectiveId))
       );
     }
     if (filters.designPackId) {
@@ -306,6 +308,7 @@ export const useArtifactStore = create<ArtifactState>()((set, get) => ({
         params.subject,
         params.title,
         params.objectiveTags,
+        params.objectiveId,
         params.designPackId,
         params.contents
       );

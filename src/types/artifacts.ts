@@ -140,6 +140,7 @@ export interface LocalArtifact {
   grade: Grade;
   subject: string;
   objectiveTags: string[];  // Array of objective IDs
+  objectiveId?: string;     // Primary linked objective (when generated from learning path)
   designPackId?: string;    // If generated with a design pack
   filePath?: string;        // Local file path if saved
   createdAt: string;        // ISO string

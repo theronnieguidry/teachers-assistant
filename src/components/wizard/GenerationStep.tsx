@@ -73,6 +73,7 @@ export function GenerationStep() {
     polishedPrompt,
     usePolishedPrompt,
     title,
+    objectiveId,
     classDetails,
     selectedInspiration,
     outputPath,
@@ -238,6 +239,7 @@ export function GenerationStep() {
             difficulty: classDetails.difficulty,
             format: classDetails.format,
             includeAnswerKey: classDetails.includeAnswerKey,
+            objectiveId: objectiveId || undefined,
           },
           inspiration: persistedInspiration,
           inspirationIds,
@@ -263,6 +265,7 @@ export function GenerationStep() {
           prompt: finalPrompt,
           grade: classDetails.grade,
           subject: classDetails.subject,
+          objectiveId: objectiveId || undefined,
           options: {
             questionCount: classDetails.questionCount,
             includeVisuals: classDetails.includeVisuals,
@@ -309,7 +312,12 @@ export function GenerationStep() {
           grade: classDetails.grade,
           subject: classDetails.subject,
           title,
-          objectiveTags: result.lessonMetadata?.objective ? [result.lessonMetadata.objective] : [],
+          objectiveTags: objectiveId
+            ? [objectiveId]
+            : result.lessonMetadata?.objective
+            ? [result.lessonMetadata.objective]
+            : [],
+          objectiveId: objectiveId || undefined,
           designPackId: selectedPackId || undefined,
           contents: {
             studentPage: result.worksheetHtml,
@@ -333,6 +341,9 @@ export function GenerationStep() {
             if (selectedPackId) {
               await unifiedStore.setDesignPack(targetProjectId, selectedPackId);
             }
+            if (objectiveId) {
+              await unifiedStore.linkObjective(targetProjectId, objectiveId);
+            }
           } else {
             // Create a new Quick Create project
             const unifiedProject = await unifiedStore.createQuickProject(
@@ -342,6 +353,9 @@ export function GenerationStep() {
               selectedPackId || undefined
             );
             unifiedProjectId = unifiedProject.projectId;
+            if (objectiveId) {
+              await unifiedStore.linkObjective(unifiedProjectId, objectiveId);
+            }
           }
 
           // Link saved artifacts to the unified project

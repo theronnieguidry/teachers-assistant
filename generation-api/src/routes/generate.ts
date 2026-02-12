@@ -46,6 +46,7 @@ const generateRequestSchema = z.object({
     .optional()
     .default([]),
   inspirationIds: z.array(z.string()).optional(),
+  objectiveId: z.string().optional().nullable(),
   // Accept both user-facing (premium, local) and legacy (claude, openai, ollama) provider values
   aiProvider: z.enum(["premium", "local", "claude", "openai", "ollama"]).optional(),
   aiModel: z.string().optional(),
@@ -153,6 +154,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       subject: data.subject,
       options: data.options,
       inspiration,
+      objectiveId: data.objectiveId || undefined,
       aiProvider,
       prePolished: data.prePolished,
     };
