@@ -18,12 +18,15 @@ import { Coins, CreditCard, Loader2, ExternalLink, Sparkles } from "lucide-react
 import { useAuth } from "@/hooks/useAuth";
 import {
   getCreditPacks,
+  getCreditsLedger,
   createCheckoutSession,
   type CheckoutErrorCode,
   type CreditPack,
+  type CreditLedgerEntry,
 } from "@/services/checkout-api";
 import { useToastStore } from "@/stores/toastStore";
 import { GenerationApiError } from "@/services/generation-api";
+import { Badge } from "@/components/ui/badge";
 
 interface PurchaseDialogProps {
   open: boolean;
@@ -38,10 +41,14 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<CheckoutErrorCode | null>(null);
+  const [ledger, setLedger] = useState<CreditLedgerEntry[]>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && session?.access_token) {
-      loadPacks();
+      void loadPacks();
+      void loadLedger();
     }
   }, [open, session?.access_token]);
 
@@ -97,6 +104,23 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
       if (!willRetry) {
         setLoading(false);
       }
+    }
+  };
+
+  const loadLedger = async () => {
+    if (!session?.access_token) return;
+
+    setLedgerLoading(true);
+    setLedgerError(null);
+    try {
+      const entries = await getCreditsLedger(session.access_token, 20);
+      setLedger(entries);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load credit activity";
+      setLedgerError(message);
+    } finally {
+      setLedgerLoading(false);
     }
   };
 
@@ -163,6 +187,25 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
     errorCode === "stripe_not_configured" ||
     errorCode === "stripe_mode_mismatch";
 
+  const ledgerTypeLabel: Record<CreditLedgerEntry["type"], string> = {
+    reserve: "Reserve",
+    deduct: "Deduct",
+    refund: "Refund",
+    purchase: "Purchase",
+    grant: "Grant",
+  };
+
+  const ledgerTypeVariant: Record<
+    CreditLedgerEntry["type"],
+    "default" | "outline" | "secondary"
+  > = {
+    reserve: "outline",
+    deduct: "outline",
+    refund: "secondary",
+    purchase: "default",
+    grant: "secondary",
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
@@ -202,7 +245,10 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => loadPacks(0)}
+              onClick={() => {
+                void loadPacks(0);
+                void loadLedger();
+              }}
               className="mt-2"
             >
               Try Again
@@ -282,6 +328,56 @@ export function PurchaseDialog({ open, onOpenChange }: PurchaseDialogProps) {
             <p className="text-sm mt-1">Please check back later.</p>
           </div>
         )}
+
+        {/* Credits ledger */}
+        <div className="space-y-2 pt-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">Recent credit activity</h3>
+            <span className="text-xs text-muted-foreground">Last 20</span>
+          </div>
+          {ledgerLoading ? (
+            <div className="flex items-center justify-center py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : ledgerError ? (
+            <p className="text-xs text-muted-foreground">
+              {ledgerError}
+            </p>
+          ) : ledger.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No credit transactions yet.</p>
+          ) : (
+            <div className="max-h-44 overflow-y-auto rounded-md border">
+              {ledger.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-start justify-between gap-3 border-b p-2 last:border-b-0"
+                >
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={ledgerTypeVariant[entry.type]} className="text-[10px]">
+                        {ledgerTypeLabel[entry.type]}
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground">
+                        {new Date(entry.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {entry.description}
+                    </p>
+                  </div>
+                  <div
+                    className={`text-xs font-medium ${
+                      entry.amount >= 0 ? "text-green-600" : "text-amber-700"
+                    }`}
+                  >
+                    {entry.amount >= 0 ? "+" : ""}
+                    {entry.amount}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Payment Methods Info */}
         <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">

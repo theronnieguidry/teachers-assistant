@@ -11,9 +11,11 @@ vi.mock("@/hooks/useAuth", () => ({
 
 // Mock the checkout API
 const mockGetCreditPacks = vi.fn();
+const mockGetCreditsLedger = vi.fn();
 const mockCreateCheckoutSession = vi.fn();
 vi.mock("@/services/checkout-api", () => ({
   getCreditPacks: () => mockGetCreditPacks(),
+  getCreditsLedger: () => mockGetCreditsLedger(),
   createCheckoutSession: (packId: string, token: string) =>
     mockCreateCheckoutSession(packId, token),
 }));
@@ -82,6 +84,7 @@ describe("PurchaseDialog", () => {
       refreshCredits: vi.fn(),
     });
     mockGetCreditPacks.mockResolvedValue(mockPacks);
+    mockGetCreditsLedger.mockResolvedValue([]);
     mockWindowOpen.mockReturnValue(null);
   });
 
@@ -283,6 +286,37 @@ describe("PurchaseDialog", () => {
       expect(
         screen.getByText(/no credit packs available/i)
       ).toBeInTheDocument();
+    });
+  });
+
+  it("renders recent credit ledger entries", async () => {
+    mockGetCreditsLedger.mockResolvedValue([
+      {
+        id: "tx-1",
+        amount: -5,
+        type: "reserve",
+        description: "Credits reserved for generation",
+        createdAt: "2026-02-12T00:00:00Z",
+        projectId: "project-1",
+      },
+      {
+        id: "tx-2",
+        amount: 100,
+        type: "purchase",
+        description: "Credit pack purchase",
+        createdAt: "2026-02-12T01:00:00Z",
+        projectId: null,
+      },
+    ]);
+
+    render(<PurchaseDialog open={true} onOpenChange={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/recent credit activity/i)).toBeInTheDocument();
+      expect(screen.getByText("Reserve")).toBeInTheDocument();
+      expect(screen.getByText("Purchase")).toBeInTheDocument();
+      expect(screen.getByText("Credits reserved for generation")).toBeInTheDocument();
+      expect(screen.getByText("Credit pack purchase")).toBeInTheDocument();
     });
   });
 });

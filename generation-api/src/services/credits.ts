@@ -3,6 +3,22 @@ import type { CreditsInfo } from "../types.js";
 
 let supabaseClient: SupabaseClient | null = null;
 
+export type CreditLedgerEntryType =
+  | "reserve"
+  | "deduct"
+  | "refund"
+  | "purchase"
+  | "grant";
+
+export interface CreditLedgerEntry {
+  id: string;
+  amount: number;
+  type: CreditLedgerEntryType;
+  description: string;
+  createdAt: string;
+  projectId: string | null;
+}
+
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClient) {
     const url = process.env.SUPABASE_URL;
@@ -41,6 +57,68 @@ export async function getCredits(userId: string): Promise<CreditsInfo> {
     lifetimeGranted: data.lifetime_granted,
     lifetimeUsed: data.lifetime_used,
   };
+}
+
+function mapLedgerType(transactionType: string, amount: number, description: string): CreditLedgerEntryType {
+  if (transactionType === "purchase") return "purchase";
+  if (transactionType === "refund") return "refund";
+  if (transactionType === "trial_grant") return "grant";
+  if (transactionType === "generation") {
+    if (amount < 0 && description.toLowerCase().includes("reserve")) {
+      return "reserve";
+    }
+    return "deduct";
+  }
+  return amount >= 0 ? "refund" : "deduct";
+}
+
+function defaultLedgerDescription(type: CreditLedgerEntryType): string {
+  switch (type) {
+    case "reserve":
+      return "Credits reserved for generation";
+    case "deduct":
+      return "Credits used for generation";
+    case "refund":
+      return "Credits refunded";
+    case "purchase":
+      return "Credits added from purchase";
+    case "grant":
+      return "Credits granted";
+    default:
+      return "Credit transaction";
+  }
+}
+
+export async function getCreditsLedger(userId: string, limit: number = 20): Promise<CreditLedgerEntry[]> {
+  const supabase = getSupabaseClient();
+  const clampedLimit = Math.max(1, Math.min(100, Math.floor(limit || 20)));
+
+  const { data, error } = await supabase
+    .from("credit_transactions")
+    .select("id, amount, transaction_type, description, project_id, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(clampedLimit);
+
+  if (error) {
+    throw new Error(`Failed to fetch credit ledger: ${error.message}`);
+  }
+
+  return (data || []).map((entry) => {
+    const type = mapLedgerType(
+      entry.transaction_type || "",
+      entry.amount || 0,
+      entry.description || ""
+    );
+    return {
+      id: entry.id,
+      amount: entry.amount,
+      type,
+      description: entry.description || defaultLedgerDescription(type),
+      createdAt: entry.created_at,
+      projectId: entry.project_id || null,
+    };
+  });
 }
 
 export async function reserveCredits(
