@@ -29,6 +29,48 @@ function resolveGenerationMode(
     : "premium_plan_pipeline";
 }
 
+const LESSON_LENGTH_OPTIONS: LessonLength[] = [15, 30, 45, 60];
+const KNOWN_SUBJECTS = ["Math", "Reading", "Writing", "Science", "Social Studies"] as const;
+
+function normalizeLessonLength(minutes: number): LessonLength {
+  return LESSON_LENGTH_OPTIONS.reduce((closest, option) =>
+    Math.abs(option - minutes) < Math.abs(closest - minutes) ? option : closest
+  );
+}
+
+function resolveSubjectFromUnitTitle(unitTitle: string): string {
+  const trimmed = unitTitle.trim();
+  const known = KNOWN_SUBJECTS.find((subject) =>
+    new RegExp(`^${subject}\\b`, "i").test(trimmed)
+  );
+  if (known) return known;
+
+  const beforeDash = trimmed.split("-")[0]?.trim();
+  if (beforeDash) return beforeDash;
+
+  return "Math";
+}
+
+function resolveObjectiveQuestionCount(
+  format: "worksheet" | "lesson_plan" | "both",
+  estimatedMinutes: number,
+  objectiveDifficulty: ObjectiveRecommendation["difficulty"]
+): number {
+  const baseByFormat: Record<"worksheet" | "lesson_plan" | "both", number> = {
+    worksheet: 10,
+    lesson_plan: 6,
+    both: 8,
+  };
+
+  const timeAdjustment =
+    estimatedMinutes >= 60 ? 4 : estimatedMinutes >= 45 ? 2 : estimatedMinutes <= 20 ? -2 : 0;
+  const difficultyAdjustment =
+    objectiveDifficulty === "challenge" ? 2 : objectiveDifficulty === "easy" ? -1 : 0;
+  const computed = baseByFormat[format] + timeAdjustment + difficultyAdjustment;
+
+  return Math.max(5, Math.min(20, computed));
+}
+
 interface ClassDetails {
   grade: Grade;
   subject: string;
@@ -227,8 +269,22 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   },
 
   openWizardFromObjective: (objective, learner, format = "both") => {
-    // Create a prompt from the objective
-    const prompt = `Create a ${objective.estimatedMinutes}-minute ${format === "worksheet" ? "practice worksheet" : "lesson"} about: ${objective.text}`;
+    const subject = resolveSubjectFromUnitTitle(objective.unitTitle);
+    const lessonLength = normalizeLessonLength(objective.estimatedMinutes);
+    const questionCount = resolveObjectiveQuestionCount(
+      format,
+      objective.estimatedMinutes,
+      objective.difficulty
+    );
+
+    // Create a deterministic prompt from objective context.
+    const outputInstruction =
+      format === "worksheet"
+        ? `${questionCount} student questions`
+        : format === "lesson_plan"
+        ? `${lessonLength}-minute lesson plan with teacher guidance`
+        : `${questionCount} questions plus a ${lessonLength}-minute lesson plan`;
+    const prompt = `Create ${outputInstruction} for Grade ${learner.grade} ${subject} focused on: ${objective.text}.`;
     const title = objective.text.length > 50
       ? objective.text.substring(0, 50) + "..."
       : objective.text;
@@ -244,10 +300,6 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
     const defaultMode = resolveGenerationMode(defaultProvider, format);
 
-    // Extract subject from unit title (first word typically)
-    const subjectMatch = objective.unitTitle.match(/^(Math|Reading|Writing|Science|Social Studies)/i);
-    const subject = subjectMatch ? subjectMatch[1] : objective.unitTitle.split(" ")[0];
-
     set({
       isOpen: true,
       currentStep: 1,
@@ -258,11 +310,11 @@ export const useWizardStore = create<WizardState>((set, get) => ({
         grade: learner.grade,
         subject: subject,
         format: format,
-        questionCount: format === "worksheet" ? 10 : 5,
+        questionCount,
         includeVisuals: true,
         difficulty: difficultyMap[objective.difficulty] || "medium",
-        includeAnswerKey: true,
-        lessonLength: objective.estimatedMinutes as LessonLength,
+        includeAnswerKey: format !== "lesson_plan",
+        lessonLength,
         studentProfile: [],
         teachingConfidence: learner.adultConfidence,
       },

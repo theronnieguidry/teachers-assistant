@@ -598,7 +598,22 @@ describe("wizardStore", () => {
   });
 
   describe("openWizardFromObjective", () => {
-    it("captures objectiveId when launching from learning path objective", () => {
+    const learner = {
+      learnerId: "learner-1",
+      displayName: "Ava",
+      grade: "2" as const,
+      avatarEmoji: "🙂",
+      preferences: {
+        favoriteSubjects: ["Math"],
+        sessionDuration: 30,
+        visualLearner: true,
+      },
+      adultConfidence: "intermediate" as const,
+      createdAt: "2026-02-12T00:00:00Z",
+      updatedAt: "2026-02-12T00:00:00Z",
+    };
+
+    it("captures objectiveId and applies deterministic defaults", () => {
       const { openWizardFromObjective } = useWizardStore.getState();
 
       openWizardFromObjective(
@@ -606,27 +621,82 @@ describe("wizardStore", () => {
           id: "math_2_01",
           text: "Add within 20",
           difficulty: "standard",
-          estimatedMinutes: 20,
+          estimatedMinutes: 30,
           unitTitle: "Math - Addition Basics",
           whyRecommended: "Next objective",
         },
-        {
-          learnerId: "learner-1",
-          displayName: "Ava",
-          grade: "2",
-          avatarEmoji: "🙂",
-          preferences: {
-            favoriteSubjects: ["Math"],
-            sessionDuration: 30,
-            visualLearner: true,
-          },
-          adultConfidence: "intermediate",
-          createdAt: "2026-02-12T00:00:00Z",
-          updatedAt: "2026-02-12T00:00:00Z",
-        }
+        learner
       );
 
-      expect(useWizardStore.getState().objectiveId).toBe("math_2_01");
+      const state = useWizardStore.getState();
+      expect(state.objectiveId).toBe("math_2_01");
+      expect(state.classDetails).toMatchObject({
+        grade: "2",
+        subject: "Math",
+        format: "both",
+        questionCount: 8,
+        difficulty: "medium",
+        includeAnswerKey: true,
+        lessonLength: 30,
+        teachingConfidence: "intermediate",
+      });
+      expect(state.prompt).toContain("Grade 2 Math");
+      expect(state.prompt).toContain("Add within 20");
+    });
+
+    it("uses worksheet/challenge presets for practice launches", () => {
+      const { openWizardFromObjective } = useWizardStore.getState();
+
+      openWizardFromObjective(
+        {
+          id: "math_2_99",
+          text: "Solve multi-step word problems",
+          difficulty: "challenge",
+          estimatedMinutes: 60,
+          unitTitle: "Math - Problem Solving",
+          whyRecommended: "Stretch goal",
+        },
+        learner,
+        "worksheet"
+      );
+
+      const state = useWizardStore.getState();
+      expect(state.objectiveId).toBe("math_2_99");
+      expect(state.classDetails).toMatchObject({
+        subject: "Math",
+        format: "worksheet",
+        questionCount: 16,
+        difficulty: "hard",
+        includeAnswerKey: true,
+        lessonLength: 60,
+      });
+    });
+
+    it("normalizes subject/lesson defaults for lesson-plan launches", () => {
+      const { openWizardFromObjective } = useWizardStore.getState();
+
+      openWizardFromObjective(
+        {
+          id: "ss_2_01",
+          text: "Identify community helpers",
+          difficulty: "easy",
+          estimatedMinutes: 37,
+          unitTitle: "Social Studies - Communities",
+          whyRecommended: "Core social studies skill",
+        },
+        learner,
+        "lesson_plan"
+      );
+
+      const state = useWizardStore.getState();
+      expect(state.classDetails).toMatchObject({
+        subject: "Social Studies",
+        format: "lesson_plan",
+        questionCount: 5,
+        difficulty: "easy",
+        includeAnswerKey: false,
+        lessonLength: 30,
+      });
     });
   });
 });
