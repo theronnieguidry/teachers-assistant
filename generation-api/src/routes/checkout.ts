@@ -5,13 +5,74 @@ import { getSupabaseClient } from "../services/credits.js";
 
 const router = Router();
 
+type StripeMode = "test" | "live";
+
+interface StripeConfigError {
+  status: number;
+  error: string;
+  message: string;
+  code:
+    | "stripe_not_configured"
+    | "stripe_mode_mismatch"
+    | "stripe_pack_not_configured"
+    | "stripe_runtime_error";
+}
+
+function getStripeMode(): StripeMode {
+  const configuredMode = process.env.STRIPE_MODE?.toLowerCase();
+  if (configuredMode === "live") {
+    return "live";
+  }
+  if (configuredMode === "test") {
+    return "test";
+  }
+  return process.env.NODE_ENV === "production" ? "live" : "test";
+}
+
+function getKeyMode(secretKey: string): StripeMode | null {
+  if (secretKey.startsWith("sk_live_")) {
+    return "live";
+  }
+  if (secretKey.startsWith("sk_test_")) {
+    return "test";
+  }
+  return null;
+}
+
 // Initialize Stripe client
-function getStripeClient(): Stripe {
+function getStripeClient():
+  | { client: Stripe; mode: StripeMode }
+  | { error: StripeConfigError } {
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) {
-    throw new Error("STRIPE_SECRET_KEY environment variable is required");
+    return {
+      error: {
+        status: 503,
+        error: "Payment system not configured",
+        message:
+          "Stripe is not configured for this environment. Please contact support.",
+        code: "stripe_not_configured",
+      },
+    };
   }
-  return new Stripe(secretKey);
+
+  const expectedMode = getStripeMode();
+  const keyMode = getKeyMode(secretKey);
+  if (keyMode && keyMode !== expectedMode) {
+    return {
+      error: {
+        status: 503,
+        error: "Payment system misconfigured",
+        message: `Stripe key mode (${keyMode}) does not match STRIPE_MODE (${expectedMode}).`,
+        code: "stripe_mode_mismatch",
+      },
+    };
+  }
+
+  return {
+    client: new Stripe(secretKey),
+    mode: expectedMode,
+  };
 }
 
 // Types
@@ -104,33 +165,52 @@ router.post(
           error: "Payment system not configured",
           message:
             "Credit pack prices have not been configured in Stripe yet. Please contact support.",
+          code: "stripe_pack_not_configured",
         });
         return;
       }
 
-      const stripe = getStripeClient();
+      const stripeConfig = getStripeClient();
+      if ("error" in stripeConfig) {
+        res.status(stripeConfig.error.status).json(stripeConfig.error);
+        return;
+      }
+
+      const stripe = stripeConfig.client;
       const appUrl = process.env.APP_URL || "http://localhost:1420";
 
       // Create Stripe Checkout session
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price: pack.stripe_price_id,
-            quantity: 1,
+      let session: Stripe.Checkout.Session;
+      try {
+        session = await stripe.checkout.sessions.create({
+          mode: "payment",
+          payment_method_types: ["card"],
+          line_items: [
+            {
+              price: pack.stripe_price_id,
+              quantity: 1,
+            },
+          ],
+          success_url: `${appUrl}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${appUrl}/purchase/cancel`,
+          client_reference_id: req.userId,
+          metadata: {
+            packId: pack.id,
+            userId: req.userId,
+            credits: pack.credits.toString(),
+            packName: pack.name,
+            stripeMode: stripeConfig.mode,
           },
-        ],
-        success_url: `${appUrl}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${appUrl}/purchase/cancel`,
-        client_reference_id: req.userId,
-        metadata: {
-          packId: pack.id,
-          userId: req.userId,
-          credits: pack.credits.toString(),
-          packName: pack.name,
-        },
-      });
+        });
+      } catch (stripeError) {
+        console.error("Stripe checkout session creation failed:", stripeError);
+        res.status(502).json({
+          error: "Payment provider unavailable",
+          message: "Unable to start checkout right now. Please try again shortly.",
+          code: "stripe_runtime_error",
+        });
+        return;
+      }
 
       // Create pending purchase record
       const { error: purchaseError } = await supabase
@@ -159,6 +239,7 @@ router.post(
       res.status(500).json({
         error: "Failed to create checkout session",
         message: error instanceof Error ? error.message : "Unknown error",
+        code: "checkout_internal_error",
       });
     }
   }
@@ -187,8 +268,12 @@ export async function handleWebhook(
   let event: Stripe.Event;
 
   try {
-    const stripe = getStripeClient();
-    event = stripe.webhooks.constructEvent(
+    const stripeConfig = getStripeClient();
+    if ("error" in stripeConfig) {
+      res.status(stripeConfig.error.status).json(stripeConfig.error);
+      return;
+    }
+    event = stripeConfig.client.webhooks.constructEvent(
       req.body,
       signature,
       webhookSecret
