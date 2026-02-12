@@ -373,6 +373,74 @@ describe("Generate Route", () => {
     );
   });
 
+  it("should merge design-pack context into inspiration and pass context to generator", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    mockGenerateTeacherPack.mockResolvedValue({
+      projectId: "project-123",
+      versionId: "version-456",
+      worksheetHtml: "<html>Worksheet</html>",
+      lessonPlanHtml: "",
+      answerKeyHtml: "",
+      creditsUsed: 5,
+    });
+
+    const response = await request(app)
+      .post("/generate")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        ...validRequestBody,
+        inspiration: [
+          {
+            id: "insp-1",
+            type: "url",
+            title: "Example",
+            sourceUrl: "https://example.com",
+          },
+        ],
+        designPackContext: {
+          packId: "pack-1",
+          items: [
+            {
+              id: "pack-item-duplicate",
+              type: "url",
+              title: "Example",
+              sourceUrl: "https://example.com",
+            },
+            {
+              id: "pack-item-2",
+              type: "pdf",
+              title: "Pack PDF",
+              content: "base64",
+            },
+          ],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(mockGenerateTeacherPack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        designPackContext: expect.objectContaining({
+          packId: "pack-1",
+        }),
+      }),
+      expect.anything(),
+      expect.anything(),
+      expect.any(Function)
+    );
+
+    const calledRequest = mockGenerateTeacherPack.mock.calls[0]?.[0] as {
+      inspiration: Array<{ id: string }>;
+    };
+    expect(calledRequest.inspiration).toHaveLength(2);
+    expect(calledRequest.inspiration.map((item) => item.id)).toEqual(
+      expect.arrayContaining(["insp-1", "pack-item-2"])
+    );
+  });
+
   it("should pass objectiveId through to generator request", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "user-123", email: "test@example.com" } },

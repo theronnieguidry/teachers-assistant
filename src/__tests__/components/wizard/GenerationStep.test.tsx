@@ -5,6 +5,7 @@ import { GenerationStep } from "@/components/wizard/GenerationStep";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
 
 // Mock external services
 vi.mock("@/services/generation-api", () => ({
@@ -121,6 +122,11 @@ describe("GenerationStep", () => {
 
     useAuthStore.setState({
       session: { access_token: "test-token" } as any,
+    });
+
+    useDesignPackStore.setState({
+      packs: [],
+      selectedPackId: null,
     });
 
     mockCreateProject.mockResolvedValue({ id: "project-123" });
@@ -357,6 +363,65 @@ describe("GenerationStep", () => {
 
     const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as Record<string, unknown>;
     expect(request.objectiveId).toBe("math_2_01");
+  });
+
+  it("merges selected design-pack items into generation request context", async () => {
+    useWizardStore.setState({
+      selectedInspiration: [
+        {
+          id: "insp-1",
+          type: "url",
+          title: "Ad-hoc Link",
+          sourceUrl: "https://adhoc.example.com",
+        },
+      ],
+    });
+
+    useDesignPackStore.setState({
+      selectedPackId: "pack-1",
+      packs: [
+        {
+          packId: "pack-1",
+          name: "Math Pack",
+          items: [
+            {
+              itemId: "item-1",
+              type: "url",
+              title: "Pack Link",
+              sourceUrl: "https://pack.example.com",
+            },
+          ],
+          createdAt: "2026-02-12T00:00:00Z",
+          updatedAt: "2026-02-12T00:00:00Z",
+        },
+      ],
+    });
+
+    render(<GenerationStep />);
+
+    await waitFor(() => {
+      expect(generateTeacherPack).toHaveBeenCalled();
+    }, { timeout: 5000 });
+
+    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as Record<string, unknown>;
+    const inspiration = request.inspiration as Array<{ id: string }>;
+    expect(inspiration).toHaveLength(2);
+    expect(inspiration.map((item) => item.id)).toEqual(
+      expect.arrayContaining(["insp-1", "pack:pack-1:item-1"])
+    );
+    expect(request.designPackContext).toEqual({
+      packId: "pack-1",
+      items: [
+        {
+          id: "pack:pack-1:item-1",
+          type: "url",
+          title: "Pack Link",
+          sourceUrl: "https://pack.example.com",
+          content: undefined,
+          storagePath: undefined,
+        },
+      ],
+    });
   });
 
   describe("store synchronization after generation", () => {

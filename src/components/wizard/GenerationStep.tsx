@@ -13,6 +13,7 @@ import { toast } from "@/stores/toastStore";
 import { generateTeacherPack, estimateCredits, GenerationApiError } from "@/services/generation-api";
 import { saveTeacherPack } from "@/services/tauri-bridge";
 import { cn } from "@/lib/utils";
+import { mapDesignPackItemsToInspiration, mergeInspirationItems } from "@/lib/inspiration-merge";
 import { PurchaseDialog } from "@/components/purchase";
 import { CreditEstimate } from "./CreditEstimate";
 import type { GenerationProgress, EstimateResponse } from "@/types";
@@ -92,6 +93,7 @@ export function GenerationStep() {
   const { session } = useAuthStore();
   const { credits } = useAuth();
   const selectedPackId = useDesignPackStore((state) => state.selectedPackId);
+  const selectedPack = useDesignPackStore((state) => state.getSelectedPack());
   const startedRef = useRef(false);
   const estimateFetchedRef = useRef(false);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
@@ -178,7 +180,20 @@ export function GenerationStep() {
 
     console.log("[GenerationStep] Starting generation...");
     console.log(`[GenerationStep] AI Provider: ${aiProvider}`);
-    console.log(`[GenerationStep] Selected inspiration items: ${selectedInspiration.length}`);
+    const designPackInspiration = selectedPack
+      ? mapDesignPackItemsToInspiration(selectedPack.packId, selectedPack.items)
+      : [];
+    const mergedInspiration = mergeInspirationItems(selectedInspiration, designPackInspiration);
+    const designPackContext = selectedPack
+      ? {
+          packId: selectedPack.packId,
+          items: designPackInspiration,
+        }
+      : undefined;
+
+    console.log(
+      `[GenerationStep] Selected inspiration items: ${selectedInspiration.length} (merged total: ${mergedInspiration.length})`
+    );
 
     setGenerationState({
       isGenerating: true,
@@ -276,7 +291,8 @@ export function GenerationStep() {
             studentProfile: classDetails.studentProfile,
             teachingConfidence: classDetails.teachingConfidence,
           },
-          inspiration: selectedInspiration,
+          inspiration: mergedInspiration,
+          designPackContext,
           aiProvider,
           prePolished: usePolishedPrompt && polishedPrompt !== null,
           // Premium pipeline parameters

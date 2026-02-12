@@ -95,6 +95,58 @@ describe("Generation API Service", () => {
         generateTeacherPack(mockRequest, "test-token")
       ).rejects.toThrow(GenerationApiError);
     });
+
+    it("should include designPackContext when provided", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: () => "application/json",
+        },
+        json: () =>
+          Promise.resolve({
+            result: {
+              projectId: "project-123",
+              versionId: "version-456",
+              worksheetHtml: "<p>Worksheet</p>",
+              lessonPlanHtml: "",
+              answerKeyHtml: "",
+              creditsUsed: 5,
+            },
+          }),
+      });
+
+      await generateTeacherPack(
+        {
+          ...mockRequest,
+          designPackContext: {
+            packId: "pack-1",
+            items: [
+              {
+                id: "pack:pack-1:item-1",
+                type: "url",
+                title: "Pack Link",
+                sourceUrl: "https://example.com/pack-link",
+              },
+            ],
+          },
+        },
+        "test-token"
+      );
+
+      const fetchArgs = mockFetch.mock.calls[0]?.[1] as { body?: string };
+      const body = fetchArgs?.body ? JSON.parse(fetchArgs.body) : {};
+      expect(body.designPackContext).toEqual({
+        packId: "pack-1",
+        items: [
+          {
+            id: "pack:pack-1:item-1",
+            type: "url",
+            title: "Pack Link",
+            sourceUrl: "https://example.com/pack-link",
+          },
+        ],
+      });
+    });
   });
 
   describe("getCredits", () => {
