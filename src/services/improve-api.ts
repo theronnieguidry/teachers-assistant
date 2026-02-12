@@ -1,6 +1,5 @@
 import type { ImprovementType, ImprovementResponse } from "@/types";
-
-const API_BASE_URL = import.meta.env.VITE_GENERATION_API_URL || "http://localhost:3001";
+import { resolveApiUrl } from "@/services/api-endpoint-resolver";
 
 export class ImproveApiError extends Error {
   constructor(
@@ -34,7 +33,7 @@ export async function applyImprovement(
   request: ImproveRequest,
   accessToken: string
 ): Promise<ImprovementResponse> {
-  const response = await fetch(`${API_BASE_URL}/improve`, {
+  const response = await fetch(resolveApiUrl("/improve"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -68,7 +67,7 @@ export async function getImprovementEstimate(
   accessToken: string
 ): Promise<ImproveEstimate> {
   const response = await fetch(
-    `${API_BASE_URL}/improve/estimate?type=${improvementType}`,
+    resolveApiUrl(`/improve/estimate?type=${improvementType}`),
     {
       method: "GET",
       headers: {

@@ -9,6 +9,7 @@ import type {
   ObjectiveRecommendation,
 } from "@/types";
 import { TIMEOUTS } from "@/lib/async-utils";
+import { resolveApiUrl } from "@/services/api-endpoint-resolver";
 
 export interface PolishContext {
   prompt: string;
@@ -35,8 +36,6 @@ export interface PolishResult {
   skipReason?: PolishSkipReason;
 }
 
-const API_BASE_URL = import.meta.env.VITE_GENERATION_API_URL || "http://localhost:3001";
-
 export class GenerationApiError extends Error {
   constructor(
     message: string,
@@ -58,7 +57,7 @@ async function fetchWithAuth(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(resolveApiUrl(endpoint), {
       ...options,
       signal: controller.signal,
       headers: {
@@ -313,7 +312,7 @@ export async function polishPrompt(
 
 export async function checkHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/health`);
+    const response = await fetch(resolveApiUrl("/health"));
     return response.ok;
   } catch {
     return false;

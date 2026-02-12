@@ -7,14 +7,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { LogOut, Coins, GraduationCap, User } from "lucide-react";
+import { LogOut, Coins, GraduationCap, User, Settings2 } from "lucide-react";
 import { FeedbackButton } from "@/components/feedback";
 import { PurchaseDialog } from "@/components/purchase";
 import { LearnerSwitcher } from "@/components/learner";
+import { EndpointSettingsDialog } from "@/components/settings";
 
 export function Header() {
   const { profile, credits, signOut } = useAuth();
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [endpointDialogOpen, setEndpointDialogOpen] = useState(false);
 
   // Always show credits badge when available (users may switch between Premium and Local AI)
   const showCredits = credits !== null;
@@ -71,6 +73,17 @@ export function Header() {
           {/* Feedback */}
           <FeedbackButton />
 
+          {/* Runtime endpoint settings */}
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Generation API settings"
+            aria-label="Open generation API settings"
+            onClick={() => setEndpointDialogOpen(true)}
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
+
           {/* User info */}
           <div className="flex items-center gap-2 pl-2 border-l">
             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
@@ -95,6 +108,10 @@ export function Header() {
       <PurchaseDialog
         open={purchaseDialogOpen}
         onOpenChange={setPurchaseDialogOpen}
+      />
+      <EndpointSettingsDialog
+        open={endpointDialogOpen}
+        onOpenChange={setEndpointDialogOpen}
       />
     </header>
   );

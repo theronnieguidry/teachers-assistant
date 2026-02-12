@@ -29,6 +29,14 @@ vi.mock("@/components/feedback", () => ({
   FeedbackButton: () => <button data-testid="feedback-button">Feedback</button>,
 }));
 
+vi.mock("@/components/settings", () => ({
+  EndpointSettingsDialog: ({
+    open,
+  }: {
+    open: boolean;
+  }) => (open ? <div data-testid="endpoint-settings-dialog">Endpoint Settings</div> : null),
+}));
+
 describe("Header", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -110,6 +118,17 @@ describe("Header", () => {
       render(<Header />);
 
       expect(screen.getByTitle("Sign out")).toBeInTheDocument();
+      expect(screen.getByTitle("Generation API settings")).toBeInTheDocument();
+    });
+  });
+
+  describe("settings", () => {
+    it("opens endpoint settings dialog", async () => {
+      const user = userEvent.setup();
+      render(<Header />);
+
+      await user.click(screen.getByTitle("Generation API settings"));
+      expect(screen.getByTestId("endpoint-settings-dialog")).toBeInTheDocument();
     });
   });
 });
