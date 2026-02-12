@@ -45,6 +45,12 @@ jobs:
       - name: Run API tests with coverage
         run: cd generation-api && npm run test:coverage
 
+      - name: Build frontend
+        run: npm run build
+
+      - name: Scan build artifacts for leaked secrets
+        run: npm run scan:artifact-secrets
+
       - name: Read release notes
         id: notes
         run: |

@@ -6,6 +6,8 @@ import type { AiProvider } from "@/stores/settingsStore";
 interface ProviderSelectorProps {
   value: AiProvider;
   onChange: (provider: AiProvider) => void;
+  premiumDisabled?: boolean;
+  premiumDisabledReason?: string;
 }
 
 interface ProviderOption {
@@ -36,8 +38,13 @@ const providers: ProviderOption[] = [
 export function ProviderSelector({
   value,
   onChange,
+  premiumDisabled = false,
+  premiumDisabledReason,
 }: ProviderSelectorProps) {
   const handleProviderSelect = (providerId: AiProvider) => {
+    if (providerId === "premium" && premiumDisabled) {
+      return;
+    }
     onChange(providerId);
   };
 
@@ -46,17 +53,22 @@ export function ProviderSelector({
       <div className="grid grid-cols-2 gap-3">
         {providers.map((provider) => {
           const isSelected = value === provider.id;
+          const isDisabled = provider.id === "premium" && premiumDisabled;
 
           return (
             <Card
               key={provider.id}
               className={cn(
-                "cursor-pointer transition-all hover:border-primary/50",
+                "transition-all",
+                isDisabled
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer hover:border-primary/50",
                 isSelected && "border-primary ring-2 ring-primary/20"
               )}
               onClick={() => handleProviderSelect(provider.id)}
               role="button"
               aria-pressed={isSelected}
+              aria-disabled={isDisabled}
               aria-label={`Select ${provider.name} as AI provider`}
             >
               <CardContent className="p-4">
@@ -88,6 +100,11 @@ export function ProviderSelector({
                     <p className="text-xs text-muted-foreground">
                       Uses credits (typically 3-6 per worksheet)
                     </p>
+                    {isDisabled && premiumDisabledReason && (
+                      <p className="text-xs text-amber-700 mt-1">
+                        {premiumDisabledReason}
+                      </p>
+                    )}
                   </div>
                 )}
               </CardContent>

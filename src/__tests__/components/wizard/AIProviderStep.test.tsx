@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AIProviderStep } from "@/components/wizard/AIProviderStep";
 import { useWizardStore } from "@/stores/wizardStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 let mockCreditsBalance = 50;
 
@@ -48,6 +49,12 @@ describe("AIProviderStep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCreditsBalance = 50;
+    useSettingsStore.setState({
+      defaultAiProvider: "local",
+      apiEndpointPreset: "local",
+      customApiEndpoint: "",
+      allowPremiumOnLocalDev: true,
+    });
 
     useWizardStore.setState({
       aiProvider: "premium",
@@ -136,5 +143,15 @@ describe("AIProviderStep", () => {
 
     expect(mockPrevStep).toHaveBeenCalledTimes(1);
     expect(mockNextStep).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks Premium AI on local endpoint when override is disabled", () => {
+    useSettingsStore.setState({ allowPremiumOnLocalDev: false });
+    render(<AIProviderStep />);
+
+    expect(
+      screen.getByText(/Premium AI is disabled on this endpoint/i)
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
   });
 });

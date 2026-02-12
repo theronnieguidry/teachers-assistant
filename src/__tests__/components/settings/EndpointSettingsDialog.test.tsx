@@ -23,6 +23,9 @@ describe("EndpointSettingsDialog", () => {
     expect(screen.getByTestId("endpoint-diagnostics")).toHaveTextContent(
       "Local/Unhosted"
     );
+    expect(
+      screen.getByLabelText("Allow premium on local endpoint")
+    ).toBeInTheDocument();
   });
 
   it("shows custom endpoint input when custom preset is selected", () => {
@@ -36,5 +39,8 @@ describe("EndpointSettingsDialog", () => {
     expect(screen.getByLabelText("Custom API Base URL")).toHaveValue(
       "https://api.example.com"
     );
+    expect(
+      screen.queryByLabelText("Allow premium on local endpoint")
+    ).not.toBeInTheDocument();
   });
 });

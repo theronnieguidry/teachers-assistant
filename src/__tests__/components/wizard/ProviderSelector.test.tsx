@@ -52,4 +52,23 @@ describe("ProviderSelector", () => {
 
     expect(onChange).toHaveBeenCalledWith("local");
   });
+
+  it("does not call onChange when Premium AI is disabled", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <ProviderSelector
+        {...defaultProps}
+        value="local"
+        onChange={onChange}
+        premiumDisabled
+        premiumDisabledReason="Premium requires hosted endpoint"
+      />
+    );
+    await user.click(screen.getByText("Premium AI").closest("[role='button']")!);
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByText(/Premium requires hosted endpoint/i)).toBeInTheDocument();
+  });
 });
