@@ -1,11 +1,12 @@
-import { useCallback, useState, useEffect } from "react";
-import { Link, FileText, Image, Plus, Upload, Loader2 } from "lucide-react";
+import { useEffect } from "react";
+import { Plus, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useInspirationStore } from "@/stores/inspirationStore";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
-import { readFileAsBase64 } from "@/lib/file-encoding";
+import { getInspirationIcon } from "@/lib/inspiration-icons";
+import { useInspirationDrop } from "@/hooks/useInspirationDrop";
 import type { InspirationItem } from "@/types";
 
 export function InspirationStep() {
@@ -13,7 +14,6 @@ export function InspirationStep() {
     useWizardStore();
   const { items: globalItems, isLoading, addLocalItem, fetchItems } = useInspirationStore();
   const { user } = useAuthStore();
-  const [isDragging, setIsDragging] = useState(false);
 
   // Load inspiration items if not already loaded
   useEffect(() => {
@@ -33,19 +33,6 @@ export function InspirationStep() {
     }
   };
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "url":
-        return Link;
-      case "pdf":
-        return FileText;
-      case "image":
-        return Image;
-      default:
-        return FileText;
-    }
-  };
-
   const handleAddUrl = () => {
     const url = prompt("Enter a URL for inspiration:");
     if (url && url.startsWith("http")) {
@@ -59,73 +46,19 @@ export function InspirationStep() {
     }
   };
 
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-
-      const files = Array.from(e.dataTransfer.files);
-      const text = e.dataTransfer.getData("text/plain");
-      const url = e.dataTransfer.getData("text/uri-list");
-
-      // Handle URL drop
-      if (url || (text && text.startsWith("http"))) {
-        const droppedUrl = url || text;
-        const newItem = addLocalItem({
-          type: "url",
-          title: new URL(droppedUrl).hostname,
-          sourceUrl: droppedUrl,
-        });
-        setSelectedInspiration([...selectedInspiration, newItem]);
-        return;
-      }
-
-      // Handle file drops - read files as base64 for backend processing
-      const newItems: InspirationItem[] = [];
-      for (const file of files) {
-        try {
-          if (file.type === "application/pdf") {
-            const base64Content = await readFileAsBase64(file);
-            const newItem = addLocalItem({
-              type: "pdf",
-              title: file.name,
-              content: base64Content,
-            });
-            newItems.push(newItem);
-          } else if (file.type.startsWith("image/")) {
-            const base64Content = await readFileAsBase64(file);
-            const mediaType = file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-            const newItem = addLocalItem({
-              type: "image",
-              title: file.name,
-              content: base64Content,
-              storagePath: mediaType, // Store media type for vision API
-            });
-            newItems.push(newItem);
-          }
-        } catch (error) {
-          console.error(`Failed to read file ${file.name}:`, error);
-        }
-      }
-      if (newItems.length > 0) {
-        setSelectedInspiration([...selectedInspiration, ...newItems]);
-      }
-    },
-    [addLocalItem, selectedInspiration, setSelectedInspiration]
-  );
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
+  const { isDragging, handleDrop, handleDragOver, handleDragLeave } =
+    useInspirationDrop<InspirationItem>({
+      onAddItem: (item) => addLocalItem(item),
+      onItemsAdded: (newItems) => {
+        if (newItems.length === 0) return;
+        const merged = [...selectedInspiration, ...newItems];
+        const deduped = Array.from(new Map(merged.map((item) => [item.id, item])).values());
+        setSelectedInspiration(deduped);
+      },
+      onError: (error, context) => {
+        console.error(`Failed to process dropped inspiration item: ${context || "unknown"}`, error);
+      },
+    });
 
   const handleContinue = () => {
     nextStep();
@@ -184,7 +117,7 @@ export function InspirationStep() {
       ) : (
         <div className="space-y-2 max-h-60 overflow-auto">
           {globalItems.map((item) => {
-            const Icon = getIcon(item.type);
+            const Icon = getInspirationIcon(item.type);
             const isSelected = selectedInspiration.some(
               (i) => i.id === item.id
             );

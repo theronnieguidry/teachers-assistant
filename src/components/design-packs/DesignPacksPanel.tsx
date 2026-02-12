@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Link,
-  FileText,
-  Image,
   X,
   Plus,
   Upload,
@@ -32,21 +29,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { useDesignPackStore } from "@/stores/designPackStore";
 import { cn } from "@/lib/utils";
-import { readFileAsBase64 } from "@/lib/file-encoding";
+import { getInspirationIcon } from "@/lib/inspiration-icons";
+import { useInspirationDrop, type DropInspirationInput } from "@/hooks/useInspirationDrop";
 import type { DesignPack, DesignPackItem } from "@/types";
-
-const getIcon = (type: string) => {
-  switch (type) {
-    case "url":
-      return Link;
-    case "pdf":
-      return FileText;
-    case "image":
-      return Image;
-    default:
-      return FileText;
-  }
-};
 
 export function DesignPacksPanel() {
   const {
@@ -95,62 +80,6 @@ export function DesignPacksPanel() {
     if (confirm("Are you sure you want to delete this design pack?")) {
       await deletePack(packId);
     }
-  };
-
-  const handleDrop = useCallback(
-    async (e: React.DragEvent, packId: string) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const files = Array.from(e.dataTransfer.files);
-      const text = e.dataTransfer.getData("text/plain");
-      const url = e.dataTransfer.getData("text/uri-list");
-
-      // Handle URL drop
-      if (url || (text && text.startsWith("http"))) {
-        const droppedUrl = url || text;
-        try {
-          await addItem(packId, {
-            type: "url",
-            title: new URL(droppedUrl).hostname,
-            sourceUrl: droppedUrl,
-          });
-        } catch {
-          // Error handled by store
-        }
-        return;
-      }
-
-      // Handle file drops
-      for (const file of files) {
-        try {
-          if (file.type === "application/pdf") {
-            const base64Content = await readFileAsBase64(file);
-            await addItem(packId, {
-              type: "pdf",
-              title: file.name,
-              content: base64Content,
-            });
-          } else if (file.type.startsWith("image/")) {
-            const base64Content = await readFileAsBase64(file);
-            await addItem(packId, {
-              type: "image",
-              title: file.name,
-              content: base64Content,
-              storagePath: file.type,
-            });
-          }
-        } catch {
-          // Error handled by store
-        }
-      }
-    },
-    [addItem]
-  );
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
   };
 
   const handleAddUrl = async (packId: string) => {
@@ -225,8 +154,7 @@ export function DesignPacksPanel() {
               onDelete={() => handleDeletePack(pack.packId)}
               onAddUrl={() => handleAddUrl(pack.packId)}
               onRemoveItem={(itemId) => removeItem(pack.packId, itemId)}
-              onDrop={(e) => handleDrop(e, pack.packId)}
-              onDragOver={handleDragOver}
+              onAddDroppedItem={(item) => addItem(pack.packId, item)}
             />
           ))}
         </div>
@@ -276,8 +204,7 @@ interface DesignPackCardProps {
   onDelete: () => void;
   onAddUrl: () => void;
   onRemoveItem: (itemId: string) => void;
-  onDrop: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
+  onAddDroppedItem: (item: DropInspirationInput) => Promise<DesignPackItem>;
 }
 
 function DesignPackCard({
@@ -289,9 +216,12 @@ function DesignPackCard({
   onDelete,
   onAddUrl,
   onRemoveItem,
-  onDrop,
-  onDragOver,
+  onAddDroppedItem,
 }: DesignPackCardProps) {
+  const { handleDrop, handleDragOver } = useInspirationDrop({
+    onAddItem: onAddDroppedItem,
+  });
+
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggleExpand}>
       <div
@@ -349,8 +279,8 @@ function DesignPackCard({
 
         <CollapsibleContent>
           <div
-            onDrop={onDrop}
-            onDragOver={onDragOver}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
             className={cn(
               "border-t mx-2 mb-2 p-2 rounded border-dashed",
               "hover:border-primary/50 hover:bg-primary/5 transition-colors"
@@ -366,7 +296,7 @@ function DesignPackCard({
             ) : (
               <div className="space-y-1">
                 {pack.items.map((item) => {
-                  const Icon = getIcon(item.type);
+                  const Icon = getInspirationIcon(item.type);
                   return (
                     <div
                       key={item.itemId}
