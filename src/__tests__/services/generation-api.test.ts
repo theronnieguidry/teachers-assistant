@@ -5,7 +5,6 @@ import {
   generatePdf,
   checkHealth,
   polishPrompt,
-  parseInspiration,
   GenerationApiError,
 } from "@/services/generation-api";
 import { TIMEOUTS } from "@/lib/async-utils";
@@ -301,60 +300,6 @@ describe("Generation API Service", () => {
 
       expect(result.wasPolished).toBe(false);
       expect(result.original).toBe(result.polished);
-    });
-  });
-
-  describe("parseInspiration", () => {
-    const mockItems = [
-      { id: "item-1", type: "url", sourceUrl: "https://example.com" },
-      { id: "item-2", type: "text", content: "Some text content" },
-    ];
-
-    it("should send items and return parsed results", async () => {
-      const mockResults = [
-        { id: "item-1", extractedContent: "Extracted from URL" },
-        { id: "item-2", extractedContent: "Summarized text content" },
-      ];
-
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ results: mockResults }),
-      });
-
-      const result = await parseInspiration(mockItems, "test-token");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/inspiration/parse"),
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ items: mockItems }),
-        })
-      );
-
-      expect(result).toEqual(mockResults);
-    });
-
-    it("should throw on error response", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: () => Promise.resolve({ error: "Parse failed" }),
-      });
-
-      await expect(parseInspiration(mockItems, "test-token")).rejects.toThrow(
-        GenerationApiError
-      );
-    });
-
-    it("should handle empty items array", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ results: [] }),
-      });
-
-      const result = await parseInspiration([], "test-token");
-
-      expect(result).toEqual([]);
     });
   });
 

@@ -13,7 +13,7 @@ import {
 import { useArtifactStore } from "@/stores/artifactStore";
 import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
 import { useDesignPackStore } from "@/stores/designPackStore";
-import type { Grade, ArtifactType, LibraryFilters as LibraryFiltersType } from "@/types";
+import type { Grade, ArtifactType } from "@/types";
 import { getArtifactTypeLabel } from "@/types";
 import { SUBJECTS } from "@/types/learner";
 
@@ -43,6 +43,7 @@ export function LibraryFilters({ onFilterChange }: LibraryFiltersProps) {
     filters.types.length > 0 ||
     filters.projects.length > 0 ||
     filters.objectiveTags.length > 0 ||
+    !!filters.designPackId ||
     !!filters.dateRange;
 
   const toggleGrade = (grade: Grade) => {
@@ -216,9 +217,9 @@ export function LibraryFilters({ onFilterChange }: LibraryFiltersProps) {
         <div>
           <label className="text-sm font-medium mb-2 block">Design Pack</label>
           <Select
-            value={(filters as LibraryFiltersType & { designPackId?: string }).designPackId || "all"}
+            value={filters.designPackId || "all"}
             onValueChange={(v) => {
-              setFilters({ designPackId: v === "all" ? undefined : v } as Partial<LibraryFiltersType>);
+              setFilters({ designPackId: v === "all" ? undefined : v });
               onFilterChange?.();
             }}
           >
@@ -294,6 +295,7 @@ export function LibraryFilters({ onFilterChange }: LibraryFiltersProps) {
 export function ActiveFilterChips() {
   const { filters, setFilters } = useArtifactStore();
   const { projects } = useUnifiedProjectStore();
+  const { packs } = useDesignPackStore();
 
   const removeGrade = (grade: Grade) => {
     setFilters({ grades: filters.grades.filter((g) => g !== grade) });
@@ -319,12 +321,17 @@ export function ActiveFilterChips() {
     setFilters({ dateRange: undefined });
   };
 
+  const clearDesignPack = () => {
+    setFilters({ designPackId: undefined });
+  };
+
   const hasFilters =
     filters.grades.length > 0 ||
     filters.subjects.length > 0 ||
     filters.types.length > 0 ||
     filters.projects.length > 0 ||
     filters.objectiveTags.length > 0 ||
+    !!filters.designPackId ||
     !!filters.dateRange;
 
   if (!hasFilters) return null;
@@ -367,6 +374,12 @@ export function ActiveFilterChips() {
           <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag)} />
         </Badge>
       ))}
+      {filters.designPackId && (
+        <Badge variant="secondary" className="gap-1">
+          {packs.find((p) => p.packId === filters.designPackId)?.name || "Design Pack"}
+          <X className="h-3 w-3 cursor-pointer" onClick={clearDesignPack} />
+        </Badge>
+      )}
       {filters.dateRange && (
         <Badge variant="secondary" className="gap-1">
           {filters.dateRange.from} - {filters.dateRange.to}

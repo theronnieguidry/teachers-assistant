@@ -300,6 +300,7 @@ export interface LibraryFilters {
   subjects: string[];
   types: ArtifactType[];
   objectiveTags: string[];
+  designPackId?: string;
   dateRange?: {
     from: string;
     to: string;
