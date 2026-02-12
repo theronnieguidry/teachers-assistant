@@ -67,6 +67,7 @@ describe("Checkout Routes", () => {
     process.env.SUPABASE_ANON_KEY = "test-anon-key";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-key";
     process.env.STRIPE_SECRET_KEY = "sk_test_123";
+    process.env.STRIPE_MODE = "test";
     process.env.APP_URL = "http://localhost:1420";
   });
 
@@ -75,6 +76,7 @@ describe("Checkout Routes", () => {
     delete process.env.SUPABASE_ANON_KEY;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.STRIPE_SECRET_KEY;
+    delete process.env.STRIPE_MODE;
     delete process.env.APP_URL;
   });
 
@@ -214,6 +216,62 @@ describe("Checkout Routes", () => {
 
       expect(response.status).toBe(503);
       expect(response.body.error).toBe("Payment system not configured");
+      expect(response.body.code).toBe("stripe_pack_not_configured");
+    });
+
+    it("should return 503 when Stripe key is missing", async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "user-123", email: "test@example.com" } },
+        error: null,
+      });
+
+      mockSingle.mockResolvedValue({
+        data: {
+          id: "pack-1",
+          name: "Starter Pack",
+          credits: 100,
+          price_cents: 500,
+          stripe_price_id: "price_real_123",
+        },
+        error: null,
+      });
+      delete process.env.STRIPE_SECRET_KEY;
+
+      const response = await request(app)
+        .post("/checkout/create-session")
+        .set("Authorization", "Bearer valid-token")
+        .send({ packId: "pack-1" });
+
+      expect(response.status).toBe(503);
+      expect(response.body.code).toBe("stripe_not_configured");
+    });
+
+    it("should return 503 when STRIPE_MODE mismatches key mode", async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "user-123", email: "test@example.com" } },
+        error: null,
+      });
+
+      mockSingle.mockResolvedValue({
+        data: {
+          id: "pack-1",
+          name: "Starter Pack",
+          credits: 100,
+          price_cents: 500,
+          stripe_price_id: "price_real_123",
+        },
+        error: null,
+      });
+      process.env.STRIPE_MODE = "live";
+      process.env.STRIPE_SECRET_KEY = "sk_test_abc123";
+
+      const response = await request(app)
+        .post("/checkout/create-session")
+        .set("Authorization", "Bearer valid-token")
+        .send({ packId: "pack-1" });
+
+      expect(response.status).toBe(503);
+      expect(response.body.code).toBe("stripe_mode_mismatch");
     });
 
     it("should create checkout session successfully", async () => {
@@ -263,9 +321,40 @@ describe("Checkout Routes", () => {
             packId: "pack-1",
             userId: "user-123",
             credits: "100",
+            stripeMode: "test",
           }),
         })
       );
+    });
+
+    it("should return 502 when Stripe API call fails", async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "user-123", email: "test@example.com" } },
+        error: null,
+      });
+
+      mockSingle.mockResolvedValue({
+        data: {
+          id: "pack-1",
+          name: "Starter Pack",
+          credits: 100,
+          price_cents: 500,
+          stripe_price_id: "price_real_123",
+        },
+        error: null,
+      });
+
+      mockCheckoutSessionCreate.mockRejectedValue(
+        new Error("Stripe temporarily unavailable")
+      );
+
+      const response = await request(app)
+        .post("/checkout/create-session")
+        .set("Authorization", "Bearer valid-token")
+        .send({ packId: "pack-1" });
+
+      expect(response.status).toBe(502);
+      expect(response.body.code).toBe("stripe_runtime_error");
     });
   });
 

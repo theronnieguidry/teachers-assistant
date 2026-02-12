@@ -69,6 +69,7 @@ Health endpoint (`generation-api`) includes local readiness fields:
 - A local dev override exists in runtime settings for development only and should remain disabled for teacher distributions.
 - CI and release workflows run `npm run scan:artifact-secrets` against built artifacts to catch leaked key patterns before shipping.
 - Detailed policy/runbook: `docs/security/no-keys-on-teacher-machines.md`.
+- Stripe staging/live setup runbook: `docs/ops/stripe-environments.md`.
 
 ### Testing
 
