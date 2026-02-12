@@ -70,6 +70,7 @@ Health endpoint (`generation-api`) includes local readiness fields:
 - CI and release workflows run `npm run scan:artifact-secrets` against built artifacts to catch leaked key patterns before shipping.
 - Detailed policy/runbook: `docs/security/no-keys-on-teacher-machines.md`.
 - Stripe staging/live setup runbook: `docs/ops/stripe-environments.md`.
+- Clean-machine QA checklist: `docs/qa/clean-machine.md`.
 
 ### Testing
 
