@@ -11,9 +11,11 @@ vi.mock("@/services/generation-api", () => ({
   generateTeacherPack: vi.fn(),
   GenerationApiError: class GenerationApiError extends Error {
     statusCode: number;
-    constructor(message: string, statusCode: number) {
+    details?: unknown;
+    constructor(message: string, statusCode: number, details?: unknown) {
       super(message);
       this.statusCode = statusCode;
+      this.details = details;
     }
   },
 }));
@@ -25,6 +27,7 @@ vi.mock("@/services/tauri-bridge", () => ({
 // Mock checkout-api (used by PurchaseDialog)
 vi.mock("@/services/checkout-api", () => ({
   getCreditPacks: vi.fn().mockResolvedValue([]),
+  getCreditsLedger: vi.fn().mockResolvedValue([]),
   createCheckoutSession: vi.fn(),
 }));
 
@@ -202,6 +205,50 @@ describe("GenerationStep", () => {
 
     expect(screen.getByText("Generation Failed")).toBeInTheDocument();
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+  });
+
+  it("shows quality report panel for quality-gate failures", async () => {
+    useWizardStore.setState({
+      setGenerationState: (state: {
+        isGenerating?: boolean;
+        progress?: number;
+        message?: string;
+        error?: string | null;
+      }) => {
+        useWizardStore.setState((current) => ({
+          isGenerating: state.isGenerating ?? current.isGenerating,
+          generationProgress: state.progress ?? current.generationProgress,
+          generationMessage: state.message ?? current.generationMessage,
+          generationError:
+            state.error !== undefined ? state.error : current.generationError,
+        }));
+      },
+    });
+
+    vi.mocked(generateTeacherPack).mockRejectedValueOnce(
+      new GenerationApiError("Quality check failed", 422, {
+        code: "quality_gate_failed",
+        qualityReport: {
+          score: 42,
+          threshold: 50,
+          summary: "Quality checks failed. Credits were refunded.",
+          issues: [{ category: "Content clarity", message: "Missing answer details" }],
+          retrySuggestion: "Try simplifying the prompt and retry.",
+        },
+      })
+    );
+
+    render(<GenerationStep />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Generation Failed")).toBeInTheDocument();
+      expect(screen.getByTestId("quality-report-panel")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/what happened/i)).toBeInTheDocument();
+    expect(screen.getByText(/quality checks failed\. credits were refunded/i)).toBeInTheDocument();
+    expect(screen.getByText(/content clarity: missing answer details/i)).toBeInTheDocument();
+    expect(screen.getByText(/try simplifying the prompt and retry/i)).toBeInTheDocument();
   });
 
   it("shows Close and Retry buttons on error", () => {

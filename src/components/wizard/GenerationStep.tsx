@@ -17,6 +17,49 @@ import { PurchaseDialog } from "@/components/purchase";
 import { CreditEstimate } from "./CreditEstimate";
 import type { GenerationProgress, EstimateResponse } from "@/types";
 
+interface QualityReportIssue {
+  category: string;
+  message: string;
+}
+
+interface TeacherSafeQualityReport {
+  score: number;
+  threshold: number;
+  summary: string;
+  issues: QualityReportIssue[];
+  retrySuggestion: string;
+}
+
+function parseQualityReport(details: unknown): TeacherSafeQualityReport | null {
+  if (!details || typeof details !== "object") return null;
+  const maybe = details as { qualityReport?: unknown };
+  if (!maybe.qualityReport || typeof maybe.qualityReport !== "object") return null;
+  const report = maybe.qualityReport as Partial<TeacherSafeQualityReport>;
+  if (
+    typeof report.summary !== "string" ||
+    typeof report.retrySuggestion !== "string" ||
+    !Array.isArray(report.issues)
+  ) {
+    return null;
+  }
+  return {
+    score: typeof report.score === "number" ? report.score : 0,
+    threshold: typeof report.threshold === "number" ? report.threshold : 0,
+    summary: report.summary,
+    issues: report.issues
+      .filter((issue): issue is QualityReportIssue => {
+        return (
+          !!issue &&
+          typeof issue === "object" &&
+          typeof (issue as { category?: unknown }).category === "string" &&
+          typeof (issue as { message?: unknown }).message === "string"
+        );
+      })
+      .slice(0, 5),
+    retrySuggestion: report.retrySuggestion,
+  };
+}
+
 export function GenerationStep() {
   const {
     isGenerating,
@@ -57,6 +100,7 @@ export function GenerationStep() {
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
   const [estimateConfirmed, setEstimateConfirmed] = useState(false);
+  const [qualityReport, setQualityReport] = useState<TeacherSafeQualityReport | null>(null);
 
   // Premium AI requires estimate confirmation before generation
   const isPremium = aiProvider === "premium";
@@ -341,6 +385,7 @@ export function GenerationStep() {
         message: "Complete!",
         isGenerating: false,
       });
+      setQualityReport(null);
 
       toast.success(
         "Generation Complete!",
@@ -363,15 +408,19 @@ export function GenerationStep() {
       }
 
       let errorMessage = "Generation failed";
+      let nextQualityReport: TeacherSafeQualityReport | null = null;
       if (error instanceof GenerationApiError) {
         if (error.statusCode === 402) {
           errorMessage = "Insufficient credits. Please purchase more credits to continue.";
         } else {
           errorMessage = error.message;
         }
+        nextQualityReport = parseQualityReport(error.details);
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }
+
+      setQualityReport(nextQualityReport);
 
       setGenerationState({
         isGenerating: false,
@@ -391,12 +440,14 @@ export function GenerationStep() {
   };
 
   const handleClose = () => {
+    setQualityReport(null);
     reset();
     closeWizard();
   };
 
   const handleRetry = () => {
     startedRef.current = false;
+    setQualityReport(null);
     setGenerationState({
       isGenerating: false,
       progress: 0,
@@ -508,6 +559,29 @@ export function GenerationStep() {
             <CreditCard className="mr-2 h-4 w-4" />
             Buy Credits
           </Button>
+        </div>
+      )}
+
+      {generationError && qualityReport && (
+        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg space-y-2" data-testid="quality-report-panel">
+          <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+            What happened
+          </p>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            {qualityReport.summary}
+          </p>
+          {qualityReport.issues.length > 0 && (
+            <div className="space-y-1">
+              {qualityReport.issues.map((issue, idx) => (
+                <p key={`${issue.category}-${idx}`} className="text-xs text-blue-700 dark:text-blue-300">
+                  - {issue.category}: {issue.message}
+                </p>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            {qualityReport.retrySuggestion}
+          </p>
         </div>
       )}
 

@@ -62,10 +62,108 @@ import type {
   TeachingConfidence,
   LessonLength,
 } from "../types/premium.js";
+import type { QualityIssue } from "../types/premium.js";
 
 const ESTIMATED_CREDITS = 5; // Conservative estimate for reservation
 const PREMIUM_ESTIMATED_CREDITS = 7; // Higher estimate for premium pipeline
 const PREMIUM_LESSON_PLAN_CREDITS = 8; // Estimate for lesson plan pipeline (includes teacher script)
+
+interface TeacherSafeQualityReportIssue {
+  category: string;
+  message: string;
+}
+
+interface TeacherSafeQualityReport {
+  score: number;
+  threshold: number;
+  summary: string;
+  issues: TeacherSafeQualityReportIssue[];
+  retrySuggestion: string;
+}
+
+function toTeacherSafeCategory(category: string): string {
+  switch (category) {
+    case "question_count":
+      return "Question coverage";
+    case "answer_key":
+      return "Answer key";
+    case "content_quality":
+      return "Content clarity";
+    case "print_friendly":
+      return "Print readiness";
+    case "html_structure":
+      return "Formatting";
+    case "image_count":
+    case "image_size":
+    case "image_missing":
+      return "Visuals";
+    default:
+      return "Content";
+  }
+}
+
+function createQualityGateFailureError(
+  score: number,
+  threshold: number,
+  issues: QualityIssue[]
+): Error {
+  const teacherSafeIssues = issues
+    .filter((issue) => issue.severity === "error" || issue.severity === "warning")
+    .slice(0, 5)
+    .map((issue) => ({
+      category: toTeacherSafeCategory(issue.category),
+      message: issue.message,
+    }));
+
+  const qualityReport: TeacherSafeQualityReport = {
+    score,
+    threshold,
+    summary:
+      "The generated result did not meet our classroom quality checks, so credits were automatically refunded.",
+    issues: teacherSafeIssues,
+    retrySuggestion:
+      "Try simplifying the request, reducing visuals, or lowering complexity, then run generation again.",
+  };
+
+  const qualityError = new Error(`Quality check failed (score: ${score}/${threshold}). Please try again.`) as Error & {
+    code: string;
+    statusCode: number;
+    qualityReport: TeacherSafeQualityReport;
+  };
+  qualityError.code = "quality_gate_failed";
+  qualityError.statusCode = 422;
+  qualityError.qualityReport = qualityReport;
+  return qualityError;
+}
+
+function createLessonPlanQualityFailureError(
+  score: number,
+  threshold: number,
+  issues: string[]
+): Error {
+  const qualityReport: TeacherSafeQualityReport = {
+    score,
+    threshold,
+    summary:
+      "The lesson output did not meet our quality checks, so credits were automatically refunded.",
+    issues: issues.slice(0, 5).map((message) => ({
+      category: "Lesson quality",
+      message,
+    })),
+    retrySuggestion:
+      "Try shortening the prompt or reducing scope (fewer sections/activities), then retry generation.",
+  };
+
+  const qualityError = new Error(`Quality check failed (score: ${score}/${threshold}). Please try again.`) as Error & {
+    code: string;
+    statusCode: number;
+    qualityReport: TeacherSafeQualityReport;
+  };
+  qualityError.code = "quality_gate_failed";
+  qualityError.statusCode = 422;
+  qualityError.qualityReport = qualityReport;
+  return qualityError;
+}
 
 export type ProgressCallback = (progress: GenerationProgress) => void;
 
@@ -681,7 +779,11 @@ async function generatePremiumTeacherPack(
           `Quality gate failed: score ${qualityResult.score}/100`
         );
       }
-      throw new Error(`Quality check failed (score: ${qualityResult.score}/100). Please try again.`);
+      throw createQualityGateFailureError(
+        qualityResult.score,
+        50,
+        qualityResult.issues
+      );
     }
 
     // Calculate actual credits used
@@ -1058,7 +1160,7 @@ async function generatePremiumLessonPlan(
           `Quality gate failed: score ${qualityScore}/100`
         );
       }
-      throw new Error(`Quality check failed (score: ${qualityScore}/100). Please try again.`);
+      throw createLessonPlanQualityFailureError(qualityScore, 60, qualityIssues);
     }
 
     // Calculate actual credits used
