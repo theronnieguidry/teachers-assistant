@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Search, Grid, List, SlidersHorizontal, BookOpen, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, Grid, List, SlidersHorizontal, BookOpen, Loader2, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,7 @@ import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
 import { ArtifactCard, ArtifactListItem } from "./ArtifactCard";
 import { LibraryFilters, ActiveFilterChips } from "./LibraryFilters";
 import { StandardizedPreviewTabs } from "@/components/preview/PreviewTabs";
+import { getObjectiveById } from "@/lib/curriculum";
 import type { LibrarySortBy, LibraryViewMode, LocalArtifact } from "@/types";
 
 const SORT_OPTIONS: { value: LibrarySortBy; label: string }[] = [
@@ -38,7 +39,11 @@ const SORT_OPTIONS: { value: LibrarySortBy; label: string }[] = [
   { value: "grade", label: "By Grade" },
 ];
 
-export function LibraryView() {
+interface LibraryViewProps {
+  onNavigateToObjective?: (objectiveId: string, subject?: string) => void;
+}
+
+export function LibraryView({ onNavigateToObjective }: LibraryViewProps = {}) {
   const {
     isLoading,
     error,
@@ -61,6 +66,11 @@ export function LibraryView() {
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [siblingArtifacts, setSiblingArtifacts] = useState<LocalArtifact[]>([]);
+  const linkedObjectiveId = currentArtifact?.objectiveId || null;
+  const linkedObjective = useMemo(
+    () => (linkedObjectiveId ? getObjectiveById(linkedObjectiveId) : null),
+    [linkedObjectiveId]
+  );
 
   // Load artifacts and projects on mount
   useEffect(() => {
@@ -135,6 +145,12 @@ export function LibraryView() {
     setIsPreviewOpen(false);
     setCurrentArtifact(null);
     setSiblingArtifacts([]);
+  };
+
+  const handleNavigateToLinkedObjective = () => {
+    if (!linkedObjectiveId || !onNavigateToObjective) return;
+    onNavigateToObjective(linkedObjectiveId, linkedObjective?.subject || currentArtifact?.subject);
+    handleClosePreview();
   };
 
   if (error) {
@@ -288,6 +304,23 @@ export function LibraryView() {
         <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{currentArtifact?.title || "Preview"}</DialogTitle>
+            {linkedObjectiveId && (
+              <div className="mt-2 flex flex-col gap-1 text-sm">
+                <span className="text-muted-foreground">Linked objective</span>
+                <button
+                  type="button"
+                  onClick={handleNavigateToLinkedObjective}
+                  className="inline-flex w-fit items-center gap-1 rounded px-1 py-0.5 text-left text-primary underline-offset-4 hover:underline"
+                >
+                  <span>
+                    {linkedObjective
+                      ? `${linkedObjective.objective.text} (${linkedObjective.subject} • ${linkedObjective.unit.title})`
+                      : linkedObjectiveId}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </DialogHeader>
           <div className="flex-1 overflow-hidden">
             <StandardizedPreviewTabs

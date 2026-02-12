@@ -4,6 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { LibraryView } from "@/components/library/LibraryView";
 import type { ArtifactType, Grade } from "@/types";
 
+const mockGetObjectiveById = vi.fn();
+
+vi.mock("@/lib/curriculum", () => ({
+  getObjectiveById: (...args: unknown[]) => mockGetObjectiveById(...args),
+}));
+
 // Default store state
 const defaultArtifactState = {
   isLoading: false,
@@ -66,9 +72,11 @@ const mockArtifact = {
   jobId: "job-1",
   type: "student_page" as ArtifactType,
   title: "Math Worksheet",
+  htmlContent: "<p>Worksheet</p>",
   grade: "2" as Grade,
   subject: "Math",
   objectiveTags: [],
+  objectiveId: undefined,
   createdAt: "2026-01-15T10:00:00Z",
 };
 
@@ -85,6 +93,7 @@ describe("LibraryView", () => {
     vi.clearAllMocks();
     artifactStoreState = { ...defaultArtifactState };
     filteredArtifacts = [];
+    mockGetObjectiveById.mockReturnValue(null);
   });
 
   it("should render the Library heading", () => {
@@ -191,5 +200,48 @@ describe("LibraryView", () => {
   it("should render active filter chips", () => {
     render(<LibraryView />);
     expect(screen.getByTestId("active-filter-chips")).toBeInTheDocument();
+  });
+
+  it("shows linked objective action in preview when objectiveId exists", async () => {
+    const user = userEvent.setup();
+    const onNavigateToObjective = vi.fn();
+    const artifactWithObjective = {
+      ...mockArtifact,
+      jobId: "",
+      objectiveId: "obj-1",
+      objectiveTags: ["obj-1"],
+    };
+
+    filteredArtifacts = [artifactWithObjective];
+    artifactStoreState.loadArtifact = vi.fn(async () => {
+      artifactStoreState.currentArtifact = artifactWithObjective;
+      return artifactWithObjective;
+    });
+    mockGetObjectiveById.mockReturnValue({
+      subject: "Math",
+      unit: { title: "Numbers and Place Value" },
+      objective: { text: "Understand place value" },
+    });
+
+    render(<LibraryView onNavigateToObjective={onNavigateToObjective} />);
+    await user.click(screen.getByRole("button", { name: /view/i }));
+    await user.click(await screen.findByRole("button", { name: /understand place value/i }));
+
+    expect(onNavigateToObjective).toHaveBeenCalledWith("obj-1", "Math");
+  });
+
+  it("does not show linked objective action when artifact has no objectiveId", async () => {
+    const user = userEvent.setup();
+    const artifactWithoutObjective = { ...mockArtifact, jobId: "" };
+    filteredArtifacts = [artifactWithoutObjective];
+    artifactStoreState.loadArtifact = vi.fn(async () => {
+      artifactStoreState.currentArtifact = artifactWithoutObjective;
+      return artifactWithoutObjective;
+    });
+
+    render(<LibraryView />);
+    await user.click(screen.getByRole("button", { name: /view/i }));
+
+    expect(screen.queryByText(/linked objective/i)).not.toBeInTheDocument();
   });
 });

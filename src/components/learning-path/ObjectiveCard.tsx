@@ -17,6 +17,7 @@ interface ObjectiveCardProps {
   unit: CurriculumUnit;
   subject: string;
   masteryState: MasteryState;
+  highlighted?: boolean;
   compact?: boolean;
   onStartLesson?: () => void;
   onPractice?: () => void;
@@ -28,6 +29,7 @@ export function ObjectiveCard({
   unit,
   subject,
   masteryState,
+  highlighted = false,
   compact = false,
   onStartLesson,
   onPractice,
@@ -120,7 +122,13 @@ export function ObjectiveCard({
   }
 
   return (
-    <Card className="group hover:shadow-md transition-shadow">
+    <Card
+      data-objective-id={objective.id}
+      className={cn(
+        "group hover:shadow-md transition-shadow",
+        highlighted && "border-primary ring-2 ring-primary/40 bg-primary/5"
+      )}
+    >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <MasteryBadge state={masteryState} />
