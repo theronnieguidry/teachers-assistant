@@ -19,6 +19,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate release prerequisites
+        run: |
+          $missing = @()
+          foreach ($name in @("TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD")) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item -Path "Env:$name" -ErrorAction SilentlyContinue).Value)) {
+              $missing += $name
+            }
+          }
+
+          if ($missing.Count -gt 0) {
+            Write-Error ("Missing required release secrets: " + ($missing -join ", "))
+            exit 1
+          }
+
+          if (-not (Test-Path "docs/ops/release-checklist.md")) {
+            Write-Error "Missing release checklist docs/ops/release-checklist.md"
+            exit 1
+          }
+
+          if (-not (Test-Path "RELEASE_NOTES.md")) {
+            Write-Error "Missing RELEASE_NOTES.md"
+            exit 1
+          }
+        shell: pwsh
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:

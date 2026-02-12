@@ -71,6 +71,7 @@ Health endpoint (`generation-api`) includes local readiness fields:
 - Detailed policy/runbook: `docs/security/no-keys-on-teacher-machines.md`.
 - Cloud Run deploy runbook: `docs/ops/cloud-run-deploy.md`.
 - Stripe staging/live setup runbook: `docs/ops/stripe-environments.md`.
+- Release preflight checklist: `docs/ops/release-checklist.md`.
 - Clean-machine QA checklist: `docs/qa/clean-machine.md`.
 - Inspiration/design-pack storage ADR: `docs/architecture/adr-0001-local-first-inspiration.md`.
 

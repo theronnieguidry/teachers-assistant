@@ -34,6 +34,42 @@ This document tracks the implementation progress of the TA MVP.
   - Frontend unit tests: 1023/1023 passing
   - Generation API unit tests: 614/614 passing (with test Supabase env vars)
 
+## Issue Program Milestone (2026-02-12)
+
+Program execution for open backlog issues `#29`, `#31-#50` completed in dependency waves.
+
+### Wave 0: Backlog Hygiene
+- Issue rewrites and Story Status scaffolding updated for implementation readiness.
+
+### Wave 1: Production Foundation
+- `#31` PR `#84` Cloud Run deploy workflow + smoke validation.
+- `#32` PR `#66` Runtime endpoint selection.
+- `#39` PR `#67` No-keys/premium-hosted gating.
+- `#43` PR `#68` Stripe environment separation.
+- `#50` PR `#69` Credit pack fetch/error-path hardening.
+- `#40` (this release flow issue) final release/tag closeout.
+- `#42` PR `#70` Clean-machine runbook.
+
+### Wave 2: Wizard UX and Guardrails
+- `#48` PR `#72` Step 1 scroll reduction.
+- `#49` PR `#71` Lesson plan options layout fix.
+- `#41` PR `#73` K-6 soft-limit warning placement.
+
+### Wave 3: Local-First + Learning Path Bridge
+- `#34` PR `#76` Local-first inspiration ADR.
+- `#33` PR `#82` Design-pack inspiration wiring.
+- `#36` PR `#81` Shared helper dedupe.
+- `#35` PR `#77` Objective metadata persistence.
+- `#37` PR `#78` Back-to-objective affordance.
+- `#38` PR `#79` Objective presets.
+- `#47` PR `#80` One-off worksheet flow.
+
+### Wave 4: Transparency and Power-User UX
+- `#44` PR `#75` Premium QA gate visibility.
+- `#45` PR `#74` Credits ledger API/UI.
+- `#46` PR `#83` Bulk project management.
+- `#29` PR `#85` Punycode-path dependency resolution.
+
 ---
 
 ## Completed Work
