@@ -344,6 +344,21 @@ describe("GenerationStep", () => {
     expect(Object.prototype.hasOwnProperty.call(request, "aiModel")).toBe(false);
   });
 
+  it("includes objectiveId in generation request when objective context exists", async () => {
+    useWizardStore.setState({
+      objectiveId: "math_2_01",
+    });
+
+    render(<GenerationStep />);
+
+    await waitFor(() => {
+      expect(generateTeacherPack).toHaveBeenCalled();
+    }, { timeout: 5000 });
+
+    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(request.objectiveId).toBe("math_2_01");
+  });
+
   describe("store synchronization after generation", () => {
     const mockFetchProjectVersion = vi.fn();
 

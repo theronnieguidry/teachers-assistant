@@ -89,6 +89,7 @@ export interface GenerationRequest {
   subject: string;
   options: ProjectOptions;
   inspiration: InspirationItem[];
+  objectiveId?: string | null;
   aiProvider?: "premium" | "local" | "claude" | "openai" | "ollama";
   aiModel?: string;
   prePolished?: boolean;

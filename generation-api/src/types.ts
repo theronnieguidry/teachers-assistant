@@ -29,6 +29,7 @@ export interface GenerationRequest {
   options: ProjectOptions;
   inspiration?: InspirationItem[];
   inspirationIds?: string[];
+  objectiveId?: string | null;
   aiProvider?: AIProvider;
   prePolished?: boolean;
 }

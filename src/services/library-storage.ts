@@ -103,6 +103,7 @@ export async function saveArtifact(artifact: LocalArtifact): Promise<void> {
       grade: artifact.grade,
       subject: artifact.subject,
       objectiveTags: artifact.objectiveTags,
+      objectiveId: artifact.objectiveId,
       designPackId: artifact.designPackId,
       filePath: artifact.filePath,
       createdAt: artifact.createdAt,
@@ -220,6 +221,7 @@ export async function saveArtifactsFromGeneration(
   subject: string,
   title: string,
   objectiveTags: string[],
+  objectiveId: string | undefined,
   designPackId: string | undefined,
   contents: {
     studentPage?: string;
@@ -242,6 +244,7 @@ export async function saveArtifactsFromGeneration(
       grade: grade as LocalArtifact["grade"],
       subject,
       objectiveTags,
+      objectiveId,
       designPackId,
       createdAt: now,
     };
@@ -260,6 +263,7 @@ export async function saveArtifactsFromGeneration(
       grade: grade as LocalArtifact["grade"],
       subject,
       objectiveTags,
+      objectiveId,
       designPackId,
       createdAt: now,
     };
@@ -278,6 +282,7 @@ export async function saveArtifactsFromGeneration(
       grade: grade as LocalArtifact["grade"],
       subject,
       objectiveTags,
+      objectiveId,
       designPackId,
       createdAt: now,
     };
@@ -296,6 +301,7 @@ export async function saveArtifactsFromGeneration(
       grade: grade as LocalArtifact["grade"],
       subject,
       objectiveTags,
+      objectiveId,
       designPackId,
       createdAt: now,
     };
