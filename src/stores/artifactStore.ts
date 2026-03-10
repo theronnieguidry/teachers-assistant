@@ -19,6 +19,117 @@ import {
   updateArtifactTags,
 } from "@/services/library-storage";
 
+interface FilterArtifactsParams {
+  artifacts: Omit<LocalArtifact, "htmlContent">[];
+  filters: LibraryFilters;
+  searchQuery: string;
+  sortBy: LibrarySortBy;
+}
+
+export function filterArtifacts({
+  artifacts,
+  filters,
+  searchQuery,
+  sortBy,
+}: FilterArtifactsParams): Omit<LocalArtifact, "htmlContent">[] {
+  const filtered = [...artifacts];
+
+  if (filters.projects.length > 0) {
+    filtered.splice(
+      0,
+      filtered.length,
+      ...filtered.filter((a) => filters.projects.includes(a.projectId))
+    );
+  }
+  if (filters.grades.length > 0) {
+    filtered.splice(
+      0,
+      filtered.length,
+      ...filtered.filter((a) => filters.grades.includes(a.grade))
+    );
+  }
+  if (filters.subjects.length > 0) {
+    filtered.splice(
+      0,
+      filtered.length,
+      ...filtered.filter((a) => filters.subjects.includes(a.subject))
+    );
+  }
+  if (filters.types.length > 0) {
+    filtered.splice(
+      0,
+      filtered.length,
+      ...filtered.filter((a) => filters.types.includes(a.type))
+    );
+  }
+  if (filters.objectiveTags.length > 0) {
+    filtered.splice(
+      0,
+      filtered.length,
+      ...filtered.filter((a) =>
+        a.objectiveTags.some((t) => filters.objectiveTags.includes(t))
+      )
+    );
+  }
+  if (filters.dateRange) {
+    const fromDate = new Date(filters.dateRange.from);
+    const toDate = new Date(filters.dateRange.to);
+    filtered.splice(
+      0,
+      filtered.length,
+      ...filtered.filter((a) => {
+        const createdAt = new Date(a.createdAt);
+        return createdAt >= fromDate && createdAt <= toDate;
+      })
+    );
+  }
+
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase();
+    filtered.splice(
+      0,
+      filtered.length,
+      ...filtered.filter((a) => a.title.toLowerCase().includes(query))
+    );
+  }
+
+  switch (sortBy) {
+    case "date_desc":
+      filtered.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      break;
+    case "date_asc":
+      filtered.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      break;
+    case "title_asc":
+      filtered.sort((a, b) => a.title.localeCompare(b.title));
+      break;
+    case "title_desc":
+      filtered.sort((a, b) => b.title.localeCompare(a.title));
+      break;
+    case "grade": {
+      const gradeOrder: Record<Grade, number> = {
+        K: 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+      };
+      filtered.sort((a, b) => gradeOrder[a.grade] - gradeOrder[b.grade]);
+      break;
+    }
+  }
+
+  return filtered;
+}
+
 interface ArtifactState {
   // Artifact list state
   artifacts: Omit<LocalArtifact, "htmlContent">[];
@@ -61,7 +172,6 @@ interface ArtifactState {
     subject: string;
     title: string;
     objectiveTags: string[];
-    objectiveId?: string;
     designPackId?: string;
     contents: {
       studentPage?: string;
@@ -90,7 +200,6 @@ const DEFAULT_FILTERS: LibraryFilters = {
   subjects: [],
   types: [],
   objectiveTags: [],
-  designPackId: undefined,
 };
 
 export const useArtifactStore = create<ArtifactState>()((set, get) => ({
@@ -121,74 +230,7 @@ export const useArtifactStore = create<ArtifactState>()((set, get) => ({
 
   getFilteredArtifacts: () => {
     const { artifacts, filters, searchQuery, sortBy } = get();
-    let filtered = [...artifacts];
-
-    // Apply filters
-    if (filters.projects.length > 0) {
-      filtered = filtered.filter((a) => filters.projects.includes(a.projectId));
-    }
-    if (filters.grades.length > 0) {
-      filtered = filtered.filter((a) => filters.grades.includes(a.grade));
-    }
-    if (filters.subjects.length > 0) {
-      filtered = filtered.filter((a) => filters.subjects.includes(a.subject));
-    }
-    if (filters.types.length > 0) {
-      filtered = filtered.filter((a) => filters.types.includes(a.type));
-    }
-    if (filters.objectiveTags.length > 0) {
-      filtered = filtered.filter((a) =>
-        a.objectiveTags.some((t) => filters.objectiveTags.includes(t)) ||
-        (!!a.objectiveId && filters.objectiveTags.includes(a.objectiveId))
-      );
-    }
-    if (filters.designPackId) {
-      filtered = filtered.filter((a) => a.designPackId === filters.designPackId);
-    }
-    if (filters.dateRange) {
-      const fromDate = new Date(filters.dateRange.from);
-      const toDate = new Date(filters.dateRange.to);
-      filtered = filtered.filter((a) => {
-        const createdAt = new Date(a.createdAt);
-        return createdAt >= fromDate && createdAt <= toDate;
-      });
-    }
-
-    // Apply search
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((a) =>
-        a.title.toLowerCase().includes(query)
-      );
-    }
-
-    // Apply sort
-    switch (sortBy) {
-      case "date_desc":
-        filtered.sort((a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        break;
-      case "date_asc":
-        filtered.sort((a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-        break;
-      case "title_asc":
-        filtered.sort((a, b) => a.title.localeCompare(b.title));
-        break;
-      case "title_desc":
-        filtered.sort((a, b) => b.title.localeCompare(a.title));
-        break;
-      case "grade":
-        const gradeOrder: Record<Grade, number> = {
-          K: 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
-        };
-        filtered.sort((a, b) => gradeOrder[a.grade] - gradeOrder[b.grade]);
-        break;
-    }
-
-    return filtered;
+    return filterArtifacts({ artifacts, filters, searchQuery, sortBy });
   },
 
   // ============================================
@@ -308,7 +350,6 @@ export const useArtifactStore = create<ArtifactState>()((set, get) => ({
         params.subject,
         params.title,
         params.objectiveTags,
-        params.objectiveId,
         params.designPackId,
         params.contents
       );
@@ -362,13 +403,6 @@ export const useArtifactStore = create<ArtifactState>()((set, get) => ({
       searchQuery: "",
     }),
 }));
-
-// Export convenience selector hooks
-export const useFilteredArtifacts = () =>
-  useArtifactStore((state) => state.getFilteredArtifacts());
-
-export const useArtifactsByProject = (projectId: string) =>
-  useArtifactStore((state) => state.getArtifactsByProject(projectId));
 
 export const useCurrentArtifact = () =>
   useArtifactStore((state) => state.currentArtifact);

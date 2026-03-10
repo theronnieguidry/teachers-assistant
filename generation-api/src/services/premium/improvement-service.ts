@@ -6,6 +6,7 @@ import type {
   Grade,
 } from "../../types/premium.js";
 import type { ProjectOptions } from "../../types.js";
+import { getDefaultOpenAIModel } from "../ai-provider.js";
 import { generateImage } from "./image-generator.js";
 
 // Local type for placing images during improvements
@@ -80,31 +81,18 @@ const CREDIT_COSTS: Record<ImprovementType, number> = {
 };
 
 export class ImprovementService {
-  private openai: OpenAI | null = null;
-  private apiKey?: string;
+  private openai: OpenAI;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.OPENAI_API_KEY;
-  }
-
-  /**
-   * Lazily instantiate the OpenAI client so service startup doesn't fail
-   * when improvement features are not being used.
-   */
-  private getOpenAIClient(): OpenAI {
-    if (!this.apiKey) {
-      this.apiKey = process.env.OPENAI_API_KEY;
-    }
-
-    if (!this.apiKey) {
+    const key = apiKey || process.env.OPENAI_API_KEY;
+    if (!key) {
       throw new Error("OpenAI API key is required for improvement service");
     }
+    this.openai = new OpenAI({ apiKey: key });
+  }
 
-    if (!this.openai) {
-      this.openai = new OpenAI({ apiKey: this.apiKey });
-    }
-
-    return this.openai;
+  getTextModel(): string {
+    return getDefaultOpenAIModel();
   }
 
   /**
@@ -152,8 +140,9 @@ ${improvementType === "add_visuals" ? "Return a JSON object with image prompts."
       return this.handleAddVisuals(context);
     }
 
-    const response = await this.getOpenAIClient().chat.completions.create({
-      model: "gpt-4o",
+    const model = this.getTextModel();
+    const response = await this.openai.chat.completions.create({
+      model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -179,8 +168,9 @@ ${improvementType === "add_visuals" ? "Return a JSON object with image prompts."
     const { currentHtml, grade, subject, visualSettings } = context;
 
     // First, get image suggestions from GPT
-    const response = await this.getOpenAIClient().chat.completions.create({
-      model: "gpt-4o",
+    const model = this.getTextModel();
+    const response = await this.openai.chat.completions.create({
+      model,
       messages: [
         {
           role: "system",

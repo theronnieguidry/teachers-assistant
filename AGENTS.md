@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -89,7 +89,7 @@ generation-api/
 │   │   ├── pdf.ts             # POST /pdf - HTML to PDF conversion
 │   │   └── health.ts          # GET /health - health check
 │   ├── services/
-│   │   ├── ai-provider.ts     # Claude/OpenAI abstraction
+│   │   ├── ai-provider.ts     # Codex/OpenAI abstraction
 │   │   ├── credits.ts         # Credit management (reserve/deduct/refund)
 │   │   ├── generator.ts       # Main generation orchestration
 │   │   └── inspiration-parser.ts  # URL/PDF content extraction
@@ -105,7 +105,7 @@ generation-api/
 1. Client sends JWT + generation request
 2. Auth middleware verifies JWT with Supabase
 3. Credits service reserves credits atomically
-4. Generator calls AI provider (Claude or OpenAI)
+4. Generator calls AI provider (Codex or OpenAI)
 5. Results stored in project_versions table
 6. Credits deducted, HTML returned to client
 
@@ -192,7 +192,7 @@ e2e/
 | `src/components/preview/PreviewTabs.tsx` | Tabbed preview with print/PDF |
 | `src/components/settings/OllamaSetup.tsx` | Local AI setup wizard |
 | `src/components/settings/UpdateDialog.tsx` | Update notification dialog |
-| `generation-api/src/services/ai-provider.ts` | Claude/OpenAI/Ollama abstraction |
+| `generation-api/src/services/ai-provider.ts` | Codex/OpenAI/Ollama abstraction |
 | `generation-api/src/prompts/templates.ts` | AI prompt templates |
 | `src-tauri/src/commands/ollama.rs` | Tauri commands for Ollama management |
 | `src-tauri/nsis/installer-hooks.nsh` | NSIS hooks for Ollama auto-install |
@@ -218,12 +218,10 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Premium AI (OpenAI - requires API key)
 OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL=gpt-4.1
-IMAGE_MODEL=gpt-image-1.5
 
 # Local AI (Ollama - free, no API key needed)
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=phi4-mini
+OLLAMA_MODEL=llama3.2
 ```
 
 ## AI Providers
@@ -235,14 +233,14 @@ The application supports two AI provider modes:
 | **Premium (OpenAI)** | Credits | Add `OPENAI_API_KEY` | Excellent |
 | **Local (Ollama)** | Free | Install Ollama locally | Good (model dependent) |
 
-> **Note**: Claude/Anthropic was removed from runtime. Legacy `project_versions` with `ai_provider=claude` remain viewable.
+> **Note**: Codex/Anthropic was removed from runtime. Legacy `project_versions` with `ai_provider=Codex` remain viewable.
 
 ### Using Ollama (Free Local LLM)
 
 Ollama runs AI models locally on your machine - completely free with no API costs.
 
 **Auto-Install (Recommended):**
-When you install TA Teachers Assistant, Ollama is automatically installed as part of the setup process. On first launch, if no models are available, the app will prompt you to download the recommended `phi4-mini` model.
+When you install TA Teachers Assistant, Ollama is automatically installed as part of the setup process. On first launch, if no models are available, the app will prompt you to download the recommended `llama3.2` model.
 
 The Settings (gear icon) in the header opens the Local AI Setup dialog where you can:
 - Install/manage Ollama
@@ -254,22 +252,23 @@ The Settings (gear icon) in the header opens the Local AI Setup dialog where you
 # 1. Download and install from https://ollama.com/download
 
 # 2. Pull a model (choose based on your RAM)
-ollama pull phi4-mini     # Recommended for most 8-16GB family PCs
-ollama pull llama3.2      # Most compatible fallback
-ollama pull mistral       # Heavier local option with stronger writing quality
+ollama pull llama3.2      # 2GB, good for 8GB RAM
+ollama pull llama3.1:8b   # 4.7GB, better quality
+ollama pull mistral       # 4GB, fast and capable
 
 # 3. Start the server
 ollama serve
 
 # 4. Set in generation-api/.env
 AI_PROVIDER=ollama
-OLLAMA_MODEL=phi4-mini
+OLLAMA_MODEL=llama3.2
 ```
 
 **Recommended Models for K-6 Content:**
-- `phi4-mini` - Best overall local default for worksheets and lesson plans on 8-16GB PCs
-- `llama3.2` - Most compatible fallback for smaller family PCs
-- `mistral` - Heavier local option if you have extra RAM and want stronger writing quality
+- `llama3.2` - Good balance of speed and quality (default)
+- `llama3.2:1b` - Fastest, smallest footprint
+- `mistral` - Fast, good for worksheets
+- `gemma2:2b` - Google's efficient model
 
 ## Local Development & Testing
 
@@ -370,14 +369,14 @@ Generates a comprehensive, evidence-based project state document for external AI
 12. Output artifact contract (folder structure, naming rules)
 13. Testing inventory + last verified run metadata
 14. Privacy + "Never Store" rules
-15. Legacy compatibility (Claude → OpenAI remap)
+15. Legacy compatibility (Codex → OpenAI remap)
 16. Open questions
 
 **Usage**: Type `/project-snapshot` to generate a new snapshot.
 
 **Output**: Creates a dated markdown file at:
 ```
-C:\Users\ronni\.claude\plans\TA-Project-Snapshot-{YYYY-MM-DD}.md
+C:\Users\ronni\.Codex\plans\TA-Project-Snapshot-{YYYY-MM-DD}.md
 ```
 
 **MVP Grade Range**: K-3 (soft-limit beyond MVP). The snapshot explicitly states this policy.
@@ -399,8 +398,9 @@ This project uses **issue-driven development**:
 3. **Implement** with appropriate unit and E2E tests
 4. **Run full test suite**: `npm run test:run && npx playwright test`
 5. **Commit** with descriptive message referencing issue
-6. **Close the issue** with implementation summary (see below)
-7. **Create PR**: `gh pr create` (if using branches)
+6. **Create a tracking issue if none exists yet** with completed-work details (status, details, acceptance criteria, test coverage, implementation notes)
+7. **Close the implementation issue** with implementation summary (see below)
+8. **Create PR**: `gh pr create` (if using branches)
 
 ### Closing Issues After Implementation
 
@@ -455,6 +455,37 @@ Added visual design analysis for URLs and PDFs using vision-capable AI providers
 "
 ```
 
+### Creating a Tracking Issue for Completed Work
+
+**IMPORTANT**: If work is completed and there was no pre-existing GitHub issue for it, create a new issue before wrapping up so the repository still has a durable issue record for the request.
+
+The completed-work tracking issue must include:
+1. **Status** - Current state (for example: implemented, partially implemented, blocked) and date
+2. **Details** - High-level summary of what changed
+3. **Acceptance Criteria** - Checklist of the expected outcomes
+4. **Test Coverage** - Tests run, test files updated/added, and any notable verification results
+5. **Implementation Notes** - Key files touched, follow-up considerations, or known gaps
+
+Recommended example:
+```bash
+gh issue create --title "Task: summarize completed work" --label documentation --body "## Status
+
+Implemented on YYYY-MM-DD
+
+## Details
+- Summary of the completed work
+
+## Acceptance Criteria
+- [x] Expected outcome
+
+## Test Coverage
+- \`npm run test:run -- path/to/test\`
+
+## Implementation Notes
+- Key files changed
+"
+```
+
 ### Creating Issues
 
 **IMPORTANT**: All bugs, feature requests, and tasks MUST be created as GitHub issues using the `gh` CLI:
@@ -470,7 +501,7 @@ gh issue create --title "Bug: description" --label "bug"
 gh issue create --title "Task: description" --label "task"
 ```
 
-When Claude identifies issues or the user requests new features, create GitHub issues rather than just noting them in conversation.
+When Codex identifies issues or the user requests new features, create GitHub issues rather than just noting them in conversation.
 
 ### Issue Templates
 

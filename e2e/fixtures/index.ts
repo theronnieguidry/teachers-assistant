@@ -37,6 +37,8 @@ type FixtureOptions = {
   withLearnerProfile: boolean;
   /** Credit balance for the test user (default: 50) */
   creditBalance: number;
+  /** Suppress the first-run Local AI setup dialog (default: true) */
+  suppressOllamaSetup: boolean;
 };
 
 /**
@@ -76,11 +78,27 @@ async function setupAuthRoutes(page: Page, creditBalance = 50, includeEmptyProje
     });
   });
 
+  await page.route("**/rest/v1/profiles**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/vnd.pgrst.object+json",
+      body: JSON.stringify({
+        id: "test-user-id",
+        email: "test@example.com",
+        display_name: "Test User",
+        avatar_url: null,
+      }),
+    });
+  });
+
   await page.route("**/rest/v1/credits**", async (route) => {
     await route.fulfill({
       status: 200,
-      contentType: "application/json",
-      body: JSON.stringify([{ ...mockCredits, balance: creditBalance }]),
+      contentType: "application/vnd.pgrst.object+json",
+      body: JSON.stringify({
+        ...mockCredits,
+        balance: creditBalance,
+      }),
     });
   });
 
@@ -111,8 +129,8 @@ async function setupProjectRoutes(page: Page) {
   await page.route("**/rest/v1/project_versions**", async (route) => {
     await route.fulfill({
       status: 200,
-      contentType: "application/json",
-      body: JSON.stringify([mockProjectVersion]),
+      contentType: "application/vnd.pgrst.object+json",
+      body: JSON.stringify(mockProjectVersion),
     });
   });
 }
@@ -120,7 +138,10 @@ async function setupProjectRoutes(page: Page) {
 /**
  * Generate the localStorage init script for authentication
  */
-function getAuthInitScript(includeLearnerProfile: boolean): string {
+function getAuthInitScript(
+  includeLearnerProfile: boolean,
+  suppressOllamaSetup: boolean
+): string {
   const authScript = `
     localStorage.setItem(
       "${SUPABASE_AUTH_KEY}",
@@ -138,6 +159,12 @@ function getAuthInitScript(includeLearnerProfile: boolean): string {
     );
   `;
 
+  const ollamaSetupScript = suppressOllamaSetup
+    ? `
+    localStorage.setItem("ta-ollama-setup-seen", "true");
+  `
+    : "";
+
   const learnerScript = includeLearnerProfile
     ? `
     localStorage.setItem(
@@ -148,7 +175,7 @@ function getAuthInitScript(includeLearnerProfile: boolean): string {
   `
     : "";
 
-  return authScript + learnerScript;
+  return authScript + ollamaSetupScript + learnerScript;
 }
 
 // ============================================
@@ -158,7 +185,11 @@ function getAuthInitScript(includeLearnerProfile: boolean): string {
 export const test = base.extend<Fixtures>({
   // Default fixture options (can be overridden with test.use())
   fixtureOptions: [
-    { withLearnerProfile: true, creditBalance: 50 },
+    {
+      withLearnerProfile: true,
+      creditBalance: 50,
+      suppressOllamaSetup: true,
+    },
     { option: true },
   ],
 
@@ -182,7 +213,12 @@ export const test = base.extend<Fixtures>({
     await setupAuthRoutes(page, fixtureOptions.creditBalance, true);
 
     // Set up localStorage via init script (runs before page load)
-    await page.addInitScript(getAuthInitScript(fixtureOptions.withLearnerProfile));
+    await page.addInitScript(
+      getAuthInitScript(
+        fixtureOptions.withLearnerProfile,
+        fixtureOptions.suppressOllamaSetup
+      )
+    );
 
     // Navigate and wait for app to load
     await page.goto("/");
@@ -214,7 +250,12 @@ export const test = base.extend<Fixtures>({
     await setupAuthRoutes(page, fixtureOptions.creditBalance, false);
 
     // Set up localStorage
-    await page.addInitScript(getAuthInitScript(fixtureOptions.withLearnerProfile));
+    await page.addInitScript(
+      getAuthInitScript(
+        fixtureOptions.withLearnerProfile,
+        fixtureOptions.suppressOllamaSetup
+      )
+    );
 
     // Navigate and wait
     await page.goto("/");

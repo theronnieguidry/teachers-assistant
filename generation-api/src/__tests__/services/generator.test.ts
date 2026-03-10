@@ -6,6 +6,10 @@ vi.mock("../../services/ai-provider.js", () => ({
   generateContent: vi.fn(),
   calculateCredits: vi.fn(),
   requiresCredits: vi.fn((provider: string) => provider !== "local" && provider !== "ollama"),
+  resolveModel: vi.fn(({ provider, model }: { provider: string; model?: string }) => {
+    if (model) return model;
+    return provider === "local" || provider === "ollama" ? "phi4-mini" : "gpt-4.1";
+  }),
 }));
 
 vi.mock("../../services/inspiration-parser.js", () => ({
@@ -394,6 +398,20 @@ describe("Generator Service", () => {
       );
     });
 
+    it("should persist the resolved default model when no model override is provided", async () => {
+      await generateTeacherPack(
+        baseRequest,
+        "user-123",
+        { aiProvider: "openai" }
+      );
+
+      expect(mockSupabase.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ai_model: "gpt-4.1",
+        })
+      );
+    });
+
     it("should not include imageStats in standard pipeline result", async () => {
       const result = await generateTeacherPack(
         baseRequest,
@@ -603,6 +621,48 @@ describe("Generator Service", () => {
         cached: 0,
         failed: 0,
         relevance: null,
+      });
+    });
+
+    it("should retry project version save without unsupported metadata columns", async () => {
+      setupPremiumMocks();
+      mockSupabase.single
+        .mockResolvedValueOnce({
+          data: { id: "plan-123" },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: null,
+          error: {
+            code: "PGRST204",
+            message:
+              "Could not find the 'generation_mode' column of 'project_versions' in the schema cache",
+          },
+        })
+        .mockResolvedValueOnce({
+          data: { id: "version-789" },
+          error: null,
+        });
+
+      const result = await generateTeacherPack(
+        baseRequest,
+        "user-123",
+        premiumConfig
+      );
+
+      const versionInsertCalls = mockSupabase.insert.mock.calls
+        .map(([payload]) => payload as Record<string, unknown>)
+        .filter((payload) => payload.project_id === "project-123" && payload.ai_provider);
+
+      expect(result.versionId).toBe("version-789");
+      expect(versionInsertCalls).toHaveLength(2);
+      expect(versionInsertCalls[0]).toMatchObject({
+        generation_mode: "premium_plan_pipeline",
+        ai_provider: "openai",
+      });
+      expect(versionInsertCalls[1]).not.toHaveProperty("generation_mode");
+      expect(versionInsertCalls[1]).toMatchObject({
+        ai_provider: "openai",
       });
     });
   });

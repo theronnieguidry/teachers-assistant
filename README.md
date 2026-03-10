@@ -4,7 +4,7 @@ AI-powered teaching materials generator for K-3 educators. Create worksheets, le
 
 ## Features
 
-- **AI-Powered Generation**: Premium cloud generation plus free local generation
+- **AI-Powered Generation**: Uses OpenAI for premium results and Ollama for a free local option
 - **Multiple Output Formats**: Worksheets, lesson plans, and answer keys
 - **Print-Ready**: PDF export with professional formatting
 - **Inspiration Support**: Upload PDFs, images, or URLs to guide content generation
@@ -18,7 +18,7 @@ AI-powered teaching materials generator for K-3 educators. Create worksheets, le
 - **State**: Zustand
 - **Backend**: Supabase (Auth, Database, Storage)
 - **Generation API**: Node.js + Express
-- **AI**: OpenAI API / Ollama (local, backend-managed)
+- **AI**: OpenAI API + Ollama
 
 ## Getting Started
 
@@ -45,35 +45,11 @@ npm run dev
 npm run tauri dev
 ```
 
-### Local AI (Free) Policy
+### Model Defaults
 
-Local generation is now backend-managed:
-
-- The backend enforces the local Ollama model policy and ignores client `aiModel` overrides for local requests.
-- Default local model is `llama3.1:8b` with fallback chain: `qwen2.5:7b`, `gemma3:4b`, `llama3.2`.
-- Startup warmup checks Ollama reachability and pulls the selected model automatically when configured.
-- User-facing Ollama setup and model picker controls are removed from the app UI.
-
-Health endpoint (`generation-api`) includes local readiness fields:
-
-- `ollamaReachable`
-- `localModelReady`
-- `activeLocalModel`
-- `warmingUp`
-
-### Premium Safety Policy
-
-- Teacher-facing desktop builds must not contain provider or billing secrets.
-- Premium mode is only enabled when the app targets a hosted HTTPS Generation API endpoint.
-- Local/unhosted endpoints keep Premium disabled by default.
-- A local dev override exists in runtime settings for development only and should remain disabled for teacher distributions.
-- CI and release workflows run `npm run scan:artifact-secrets` against built artifacts to catch leaked key patterns before shipping.
-- Detailed policy/runbook: `docs/security/no-keys-on-teacher-machines.md`.
-- Cloud Run deploy runbook: `docs/ops/cloud-run-deploy.md`.
-- Stripe staging/live setup runbook: `docs/ops/stripe-environments.md`.
-- Release preflight checklist: `docs/ops/release-checklist.md`.
-- Clean-machine QA checklist: `docs/qa/clean-machine.md`.
-- Inspiration/design-pack storage ADR: `docs/architecture/adr-0001-local-first-inspiration.md`.
+- **Premium AI**: `gpt-4.1` for text and vision, plus GPT Image for generated worksheet visuals
+- **Local AI**: `phi4-mini` is the recommended Ollama model for mainstream 8-16GB family PCs
+- **Fallback local models**: `llama3.2` for maximum compatibility, `mistral` if you want a heavier local model
 
 ### Testing
 

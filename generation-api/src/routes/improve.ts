@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { authMiddleware, type AuthenticatedRequest } from "../middleware/auth.js";
 import { improvementService } from "../services/premium/index.js";
+import { getDefaultOpenAIModel } from "../services/ai-provider.js";
 import {
   reserveCredits,
   refundCredits,
@@ -181,7 +182,7 @@ router.post("/", authMiddleware, async (req: Request, res: Response) => {
         lesson_plan_html: targetDocument === "lesson_plan" ? result.improvedHtml : version.lesson_plan_html,
         answer_key_html: targetDocument === "answer_key" ? result.improvedHtml : version.answer_key_html,
         ai_provider: "openai",
-        ai_model: "gpt-4o",
+        ai_model: getDefaultOpenAIModel(),
         generation_mode: "improvement",
       };
 

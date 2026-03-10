@@ -9,6 +9,7 @@ import {
   generateContent,
   calculateCredits,
   requiresCredits,
+  resolveModel,
   type AIProviderConfig,
 } from "./ai-provider.js";
 import {
@@ -56,6 +57,7 @@ import {
 import {
   assembleLessonPlanHTML,
 } from "./premium/lesson-plan-assembler.js";
+import { insertProjectVersionWithFallback } from "./project-version-store.js";
 import type {
   LessonPlanStructure,
   StudentProfileFlag,
@@ -205,6 +207,7 @@ export async function generateTeacherPack(
     model: config.model,
     maxTokens: 8192,
   };
+  const resolvedModel = resolveModel(aiConfig);
 
   // Local AI (Ollama) is free - skip credit reservation
   const needsCredits = requiresCredits(config.aiProvider);
@@ -394,25 +397,27 @@ export async function generateTeacherPack(
       : 1;
     console.log(`[generator] Creating version ${nextVersionNumber}...`);
 
-    const { data: version, error: versionError } = await supabase
-      .from("project_versions")
-      .insert({
+    const { data: version, error: versionError, droppedColumns } =
+      await insertProjectVersionWithFallback<{ id: string }>(supabase, {
         project_id: request.projectId,
         version_number: nextVersionNumber,
         worksheet_html: worksheetHtml,
         lesson_plan_html: lessonPlanHtml || null,
         answer_key_html: answerKeyHtml || null,
         ai_provider: config.aiProvider,
-        ai_model: config.model || null,
+        ai_model: resolvedModel,
         input_tokens: totalInputTokens,
         output_tokens: totalOutputTokens,
-      })
-      .select("id")
-      .single();
+      });
 
     if (versionError) {
       console.error("[generator] Failed to save version:", versionError);
       throw new Error(`Failed to save version: ${versionError.message}`);
+    }
+    if (droppedColumns.length > 0) {
+      console.warn(
+        `[generator] Saved project version without unsupported metadata columns: ${droppedColumns.join(", ")}`
+      );
     }
     console.log(`[generator] Version saved with ID: ${version.id}`);
 
@@ -534,6 +539,7 @@ async function generatePremiumTeacherPack(
     model: config.model,
     maxTokens: 8192,
   };
+  const resolvedModel = resolveModel(aiConfig);
 
   // Local AI (Ollama) is free - skip credit reservation
   const needsCredits = requiresCredits(config.aiProvider);
@@ -832,16 +838,15 @@ async function generatePremiumTeacherPack(
         ? existingVersions[0].version_number + 1
         : 1;
 
-    const { data: version, error: versionError } = await supabase
-      .from("project_versions")
-      .insert({
+    const { data: version, error: versionError, droppedColumns } =
+      await insertProjectVersionWithFallback<{ id: string }>(supabase, {
         project_id: request.projectId,
         version_number: nextVersionNumber,
         worksheet_html: assembled.worksheetHtml,
         lesson_plan_html: assembled.lessonPlanHtml || null,
         answer_key_html: assembled.answerKeyHtml || null,
         ai_provider: config.aiProvider,
-        ai_model: config.model || null,
+        ai_model: resolvedModel,
         input_tokens: totalInputTokens,
         output_tokens: totalOutputTokens,
         generation_mode: "premium_plan_pipeline",
@@ -849,13 +854,16 @@ async function generatePremiumTeacherPack(
         image_count: generatedImages.length,
         image_stats: { ...imageStats, relevance: relevanceStats },
         quality_score: qualityResult.score,
-      })
-      .select("id")
-      .single();
+      });
 
     if (versionError) {
       console.error("[generator:premium] Failed to save version:", versionError);
       throw new Error(`Failed to save version: ${versionError.message}`);
+    }
+    if (droppedColumns.length > 0) {
+      console.warn(
+        `[generator:premium] Saved project version without unsupported metadata columns: ${droppedColumns.join(", ")}`
+      );
     }
 
     console.log(`[generator:premium] Version saved with ID: ${version.id}`);
@@ -952,6 +960,7 @@ async function generatePremiumLessonPlan(
     model: config.model,
     maxTokens: 8192,
   };
+  const resolvedModel = resolveModel(aiConfig);
 
   // Local AI (Ollama) is free - skip credit reservation
   const needsCredits = requiresCredits(config.aiProvider);
@@ -1196,9 +1205,8 @@ async function generatePremiumLessonPlan(
       sectionsGenerated: validatedPlan.sections.map(s => s.type),
     };
 
-    const { data: version, error: versionError } = await supabase
-      .from("project_versions")
-      .insert({
+    const { data: version, error: versionError, droppedColumns } =
+      await insertProjectVersionWithFallback<{ id: string }>(supabase, {
         project_id: request.projectId,
         version_number: nextVersionNumber,
         worksheet_html: worksheetHtml || null,
@@ -1209,18 +1217,21 @@ async function generatePremiumLessonPlan(
         materials_list_html: assembled.materialsListHtml || null,
         lesson_metadata: lessonMetadata,
         ai_provider: config.aiProvider,
-        ai_model: config.model || null,
+        ai_model: resolvedModel,
         input_tokens: totalInputTokens,
         output_tokens: totalOutputTokens,
         generation_mode: "premium_lesson_plan_pipeline",
         quality_score: qualityScore,
-      })
-      .select("id")
-      .single();
+      });
 
     if (versionError) {
       console.error("[generator:lesson-plan] Failed to save version:", versionError);
       throw new Error(`Failed to save version: ${versionError.message}`);
+    }
+    if (droppedColumns.length > 0) {
+      console.warn(
+        `[generator:lesson-plan] Saved project version without unsupported metadata columns: ${droppedColumns.join(", ")}`
+      );
     }
 
     console.log(`[generator:lesson-plan] Version saved with ID: ${version.id}`);

@@ -218,21 +218,19 @@ async function setupPremiumMocks(page: Page, options: PremiumMockOptions = {}) {
   await page.route("**/rest/v1/project_versions**", async (route) => {
     await route.fulfill({
       status: 200,
-      contentType: "application/json",
-      body: JSON.stringify([
-        {
-          id: "v-premium-1",
-          project_id: "test-premium-project",
-          worksheet_html: MOCK_WORKSHEET_HTML,
-          lesson_plan_html: MOCK_LESSON_PLAN_HTML,
-          answer_key_html: MOCK_ANSWER_KEY_HTML,
-          ai_provider: "openai",
-          ai_model: "gpt-4o",
-          input_tokens: 1000,
-          output_tokens: 2000,
-          created_at: new Date().toISOString(),
-        },
-      ]),
+      contentType: "application/vnd.pgrst.object+json",
+      body: JSON.stringify({
+        id: "v-premium-1",
+        project_id: "test-premium-project",
+        worksheet_html: MOCK_WORKSHEET_HTML,
+        lesson_plan_html: MOCK_LESSON_PLAN_HTML,
+        answer_key_html: MOCK_ANSWER_KEY_HTML,
+        ai_provider: "premium",
+        ai_model: "gpt-4.1",
+        input_tokens: 1000,
+        output_tokens: 2000,
+        created_at: new Date().toISOString(),
+      }),
     });
   });
 
@@ -300,6 +298,7 @@ async function navigateToPremiumStep3(page: Page) {
   const createButton = page.getByRole("button", { name: /create/i });
 
   await promptArea.fill("Create a math worksheet about addition");
+  await expect(createButton).toBeEnabled();
   await createButton.click();
 
   // Wait for dialog
@@ -625,7 +624,11 @@ test.describe("Premium Generation", () => {
 
   test.describe("Insufficient credits", () => {
     test.use({
-      fixtureOptions: { withLearnerProfile: true, creditBalance: 2 },
+      fixtureOptions: {
+        withLearnerProfile: true,
+        creditBalance: 2,
+        suppressOllamaSetup: true,
+      },
     });
 
     test("PREM-005: Insufficient credits blocks premium generation", async ({

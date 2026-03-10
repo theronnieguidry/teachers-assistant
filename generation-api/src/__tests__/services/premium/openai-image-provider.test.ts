@@ -1,7 +1,7 @@
 /**
  * Tests for OpenAIImageProvider
  *
- * Verifies the OpenAI DALL-E image provider implementation of the
+ * Verifies the OpenAI GPT Image provider implementation of the
  * ImageProvider interface: size mapping, image generation, availability,
  * content policy error detection, and client lifecycle.
  */
@@ -68,22 +68,22 @@ describe("OpenAIImageProvider", () => {
   });
 
   describe("constructor", () => {
-    it("should default to dall-e-3 model", async () => {
+    it("should default to gpt-image-1.5 model", async () => {
       mockSuccessfulGeneration();
       await provider.generateImage("test prompt", "medium", "friendly_cartoon");
 
       expect(mockImagesGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: "dall-e-3" })
+        expect.objectContaining({ model: "gpt-image-1.5" })
       );
     });
 
     it("should accept a custom model parameter", async () => {
-      const customProvider = new OpenAIImageProvider("dall-e-2");
+      const customProvider = new OpenAIImageProvider("gpt-image-1");
       mockSuccessfulGeneration();
       await customProvider.generateImage("test prompt", "medium", "friendly_cartoon");
 
       expect(mockImagesGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: "dall-e-2" })
+        expect.objectContaining({ model: "gpt-image-1" })
       );
     });
   });
@@ -114,7 +114,7 @@ describe("OpenAIImageProvider", () => {
     it("should return correct mapping for 'wide'", () => {
       const mapping = provider.getSizeMapping("wide");
       expect(mapping).toEqual({
-        nativeSize: "1792x1024",
+        nativeSize: "1536x1024",
         target: { width: 600, height: 300 },
       });
     });
@@ -143,13 +143,12 @@ describe("OpenAIImageProvider", () => {
       await provider.generateImage("test prompt", "medium", "friendly_cartoon");
 
       expect(mockImagesGenerate).toHaveBeenCalledWith({
-        model: "dall-e-3",
+        model: "gpt-image-1.5",
         prompt: "test prompt",
         n: 1,
         size: "1024x1024",
-        response_format: "b64_json",
-        quality: "standard",
-        style: "vivid",
+        output_format: "png",
+        quality: "medium",
       });
     });
 
@@ -159,37 +158,17 @@ describe("OpenAIImageProvider", () => {
       await provider.generateImage("test prompt", "wide", "simple_icons");
 
       expect(mockImagesGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({ size: "1792x1024" })
+        expect.objectContaining({ size: "1536x1024" })
       );
     });
 
-    it("should use 'vivid' style for friendly_cartoon", async () => {
+    it("should not send DALL-E-only style parameter", async () => {
       mockSuccessfulGeneration();
 
       await provider.generateImage("test prompt", "medium", "friendly_cartoon");
 
       expect(mockImagesGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({ style: "vivid" })
-      );
-    });
-
-    it("should use 'natural' style for simple_icons", async () => {
-      mockSuccessfulGeneration();
-
-      await provider.generateImage("test prompt", "medium", "simple_icons");
-
-      expect(mockImagesGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({ style: "natural" })
-      );
-    });
-
-    it("should use 'natural' style for black_white", async () => {
-      mockSuccessfulGeneration();
-
-      await provider.generateImage("test prompt", "medium", "black_white");
-
-      expect(mockImagesGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({ style: "natural" })
+        expect.not.objectContaining({ style: expect.anything() })
       );
     });
 
@@ -211,8 +190,27 @@ describe("OpenAIImageProvider", () => {
 
       const result = await provider.generateImage("test prompt", "wide", "friendly_cartoon");
 
-      expect(result.width).toBe(1792);
+      expect(result.width).toBe(1536);
       expect(result.height).toBe(1024);
+    });
+
+    it("should fall back to gpt-image-1 when gpt-image-1.5 is rejected", async () => {
+      const OpenAI = (await import("openai")).default as any;
+      mockImagesGenerate
+        .mockRejectedValueOnce(
+          new OpenAI.APIError(400, { code: "model_not_found" }, "Unknown model", {})
+        )
+        .mockResolvedValueOnce({
+          data: [{ b64_json: "fallbackImage" }],
+        });
+
+      const result = await provider.generateImage("test prompt", "medium", "friendly_cartoon");
+
+      expect(result.base64Data).toBe("fallbackImage");
+      expect(mockImagesGenerate).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ model: "gpt-image-1" })
+      );
     });
 
     it("should throw when no image data in response", async () => {

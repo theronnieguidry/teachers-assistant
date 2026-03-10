@@ -15,12 +15,13 @@ vi.mock("../../middleware/auth.js", () => ({
 const mockSingleResult = vi.fn();
 const mockInsertResult = vi.fn();
 const mockUpdateResult = vi.fn();
+const mockInsert = vi.fn();
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
     from: vi.fn((table: string) => ({
       select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnValue({
+      insert: mockInsert.mockReturnValue({
         select: vi.fn().mockReturnValue({
           single: mockInsertResult,
         }),
@@ -86,6 +87,7 @@ describe("Improve Route", () => {
     });
 
     mockUpdateResult.mockReturnValue({ error: null });
+    delete process.env.OPENAI_MODEL;
   });
 
   describe("POST /improve", () => {
@@ -129,6 +131,9 @@ describe("Improve Route", () => {
       expect(response.body).toHaveProperty("newVersionId");
       expect(response.body).toHaveProperty("creditsUsed");
       expect(response.body).toHaveProperty("changes");
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({ ai_model: "gpt-4.1" })
+      );
     });
 
     it("should return 400 for invalid improvement type", async () => {

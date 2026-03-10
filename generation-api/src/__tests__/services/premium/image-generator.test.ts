@@ -112,8 +112,8 @@ describe("Image Generator Service", () => {
       expect(SIZE_MAP.medium.target).toEqual({ width: 400, height: 300 });
     });
 
-    it("should define wide as 1792x1024 OpenAI with 600x300 target", () => {
-      expect(SIZE_MAP.wide.openai).toBe("1792x1024");
+    it("should define wide as 1536x1024 OpenAI with 600x300 target", () => {
+      expect(SIZE_MAP.wide.openai).toBe("1536x1024");
       expect(SIZE_MAP.wide.target).toEqual({ width: 600, height: 300 });
     });
 
@@ -168,7 +168,7 @@ describe("Image Generator Service", () => {
 
       expect(mockImagesGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
-          size: "1792x1024",
+          size: "1536x1024",
         })
       );
     });
@@ -193,8 +193,8 @@ describe("Image Generator Service", () => {
 
       const result = await generateImage(request, undefined, { maxRetries: 0 });
 
-      // wide uses 1792x1024, so dimensions should be parsed from that
-      expect(result.width).toBe(1792);
+      // wide uses 1536x1024, so dimensions should be parsed from that
+      expect(result.width).toBe(1536);
       expect(result.height).toBe(1024);
     });
 
@@ -207,7 +207,7 @@ describe("Image Generator Service", () => {
       expect(result.placementId).toBe("q3");
     });
 
-    it("should call OpenAI with dall-e-3 model", async () => {
+    it("should call OpenAI with GPT Image defaults", async () => {
       mockSuccessfulGeneration();
       const request = createMockRequest();
 
@@ -215,14 +215,14 @@ describe("Image Generator Service", () => {
 
       expect(mockImagesGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: "dall-e-3",
-          response_format: "b64_json",
-          quality: "standard",
+          model: "gpt-image-1.5",
+          output_format: "png",
+          quality: "medium",
         })
       );
     });
 
-    it("should use vivid style for friendly_cartoon", async () => {
+    it("should encode cartoon style guidance in the prompt", async () => {
       mockSuccessfulGeneration();
       const request = createMockRequest({ style: "friendly_cartoon" });
 
@@ -230,12 +230,12 @@ describe("Image Generator Service", () => {
 
       expect(mockImagesGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
-          style: "vivid",
+          prompt: expect.stringContaining("friendly cartoon style"),
         })
       );
     });
 
-    it("should use natural style for non-cartoon styles", async () => {
+    it("should encode black and white style guidance in the prompt", async () => {
       mockSuccessfulGeneration();
       const request = createMockRequest({ style: "black_white" });
 
@@ -243,7 +243,7 @@ describe("Image Generator Service", () => {
 
       expect(mockImagesGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
-          style: "natural",
+          prompt: expect.stringContaining("black and white line art"),
         })
       );
     });
@@ -423,7 +423,7 @@ describe("Image Generator Service", () => {
       );
       expect(mockImagesGenerate).toHaveBeenNthCalledWith(
         2,
-        expect.objectContaining({ size: "1792x1024" })
+        expect.objectContaining({ size: "1536x1024" })
       );
     });
 

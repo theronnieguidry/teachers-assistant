@@ -1,10 +1,5 @@
 import OpenAI from "openai";
 import type { AIProvider, InternalAIProvider } from "../types.js";
-import {
-  getOllamaWarmupState,
-  getResolvedLocalModel,
-  warmupLocalModel,
-} from "./ollama-model-manager.js";
 
 export interface AIResponse {
   content: string;
@@ -24,15 +19,32 @@ export interface VisionImage {
   base64Data: string;
 }
 
-// Default cloud provider for "premium" (OpenAI is now the only premium option)
-const DEFAULT_PREMIUM_PROVIDER: InternalAIProvider =
-  (process.env.PREMIUM_AI_PROVIDER as InternalAIProvider) || "openai";
+export function getDefaultPremiumProvider(): InternalAIProvider {
+  return (process.env.PREMIUM_AI_PROVIDER as InternalAIProvider) || "openai";
+}
+
+export function getDefaultOpenAIModel(): string {
+  return process.env.OPENAI_MODEL || "gpt-4.1";
+}
+
+export function getDefaultOllamaModel(): string {
+  return process.env.OLLAMA_MODEL || "phi4-mini";
+}
+
+export function resolveModel(config: Pick<AIProviderConfig, "provider" | "model">): string {
+  const resolved = resolveProvider(config.provider);
+  if (resolved === "openai") {
+    return config.model || getDefaultOpenAIModel();
+  }
+
+  return config.model || getDefaultOllamaModel();
+}
 
 // Map user-facing provider to internal provider
 export function resolveProvider(provider: AIProvider): InternalAIProvider {
   switch (provider) {
     case "premium":
-      return DEFAULT_PREMIUM_PROVIDER;
+      return getDefaultPremiumProvider();
     case "local":
       return "ollama";
     // Legacy: remap "claude" to "openai" for backward compatibility (BR-3)
@@ -58,12 +70,6 @@ export function requiresCredits(provider: AIProvider): boolean {
   const resolved = resolveProvider(provider);
   return resolved === "openai";
 }
-
-// Default models
-const DEFAULT_MODELS: Record<InternalAIProvider, string> = {
-  openai: "gpt-4o",
-  ollama: "llama3.1:8b",
-};
 
 // Ollama configuration
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
@@ -124,7 +130,7 @@ async function generateWithOpenAI(
   config: AIProviderConfig
 ): Promise<AIResponse> {
   const client = getOpenAIClient();
-  const model = config.model || DEFAULT_MODELS.openai;
+  const model = resolveModel(config);
   const maxTokens = config.maxTokens || 8192;
 
   const response = await client.chat.completions.create({
@@ -149,22 +155,16 @@ async function generateWithOllama(
   prompt: string,
   config: AIProviderConfig
 ): Promise<AIResponse> {
-  let warmupState = getOllamaWarmupState();
-  if (!warmupState.localModelReady) {
-    warmupState = await warmupLocalModel();
-  }
-
   // Check if Ollama is available first
   const available = await isOllamaAvailable();
-  if (!available || !warmupState.reachable) {
+  if (!available) {
     throw new Error(
-      "Local AI is unavailable right now. The backend is still warming up or cannot reach Ollama."
+      "Ollama is not running. Please start Ollama with 'ollama serve' and ensure you have a model pulled (e.g., 'ollama pull phi4-mini')"
     );
   }
 
   const client = getOllamaClient();
-  // Local model is backend-managed. Ignore user-provided model overrides.
-  const model = getResolvedLocalModel() || DEFAULT_MODELS.ollama;
+  const model = resolveModel(config);
   const maxTokens = config.maxTokens || 8192; // Match OpenAI token limit
 
   try {
@@ -202,7 +202,7 @@ async function analyzeWithOpenAIVision(
   config: AIProviderConfig
 ): Promise<AIResponse> {
   const client = getOpenAIClient();
-  const model = config.model || DEFAULT_MODELS.openai;
+  const model = resolveModel(config);
   const maxTokens = config.maxTokens || 1000;
 
   // Build content array with text prompt and images

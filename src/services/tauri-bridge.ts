@@ -9,6 +9,29 @@ export function isTauriContext(): boolean {
   return typeof window !== "undefined" && "__TAURI__" in window;
 }
 
+// Ollama types
+export interface OllamaStatus {
+  installed: boolean;
+  running: boolean;
+  version: string | null;
+  models: string[];
+}
+
+export interface OllamaModel {
+  name: string;
+  size: string | null;
+  modified_at: string | null;
+}
+
+export type RecommendedModel = [string, string, string]; // [name, size, description]
+export const DEFAULT_RECOMMENDED_OLLAMA_MODEL = "phi4-mini";
+
+export const RECOMMENDED_OLLAMA_MODELS: RecommendedModel[] = [
+  ["phi4-mini", "3.8B", "Best overall for worksheets and lesson plans on 8-16GB PCs"],
+  ["llama3.2", "3B", "Most compatible fallback for smaller family PCs"],
+  ["mistral", "7B", "Heavier model with stronger writing quality if you have extra RAM"],
+];
+
 export interface SaveFileOptions {
   filename: string;
   content: string;
@@ -158,6 +181,154 @@ function wrapHtmlForPrint(content: string, title: string): string {
 ${content}
 </body>
 </html>`;
+}
+
+// Ollama functions
+
+const OLLAMA_API_URL = "http://localhost:11434";
+
+/**
+ * Check if Ollama is installed and running
+ * Works in both Tauri and browser contexts
+ */
+export async function checkOllamaStatus(): Promise<OllamaStatus> {
+  if (isTauriContext()) {
+    return invoke("check_ollama_status");
+  }
+
+  // Browser fallback: check via HTTP
+  try {
+    const response = await fetch(`${OLLAMA_API_URL}/api/tags`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const models = data.models?.map((m: { name: string }) => m.name) || [];
+      return {
+        installed: true,
+        running: true,
+        version: null,
+        models,
+      };
+    }
+    return { installed: true, running: false, version: null, models: [] };
+  } catch {
+    return { installed: false, running: false, version: null, models: [] };
+  }
+}
+
+/**
+ * Install Ollama on the system
+ * Only works in Tauri context
+ */
+export async function installOllama(): Promise<string> {
+  if (!isTauriContext()) {
+    throw new Error("Ollama installation requires the desktop app. Please download Ollama from https://ollama.com/download");
+  }
+  return invoke("install_ollama");
+}
+
+/**
+ * Start the Ollama server
+ * Only works in Tauri context
+ */
+export async function startOllama(): Promise<string> {
+  if (!isTauriContext()) {
+    throw new Error("Starting Ollama requires the desktop app. Please run 'ollama serve' in your terminal.");
+  }
+  return invoke("start_ollama");
+}
+
+/**
+ * Stop the Ollama server
+ * Only works in Tauri context
+ */
+export async function stopOllama(): Promise<string> {
+  if (!isTauriContext()) {
+    throw new Error("Stopping Ollama requires the desktop app. Please stop it manually.");
+  }
+  return invoke("stop_ollama");
+}
+
+/**
+ * Pull (download) an Ollama model
+ * Only works in Tauri context
+ */
+export async function pullOllamaModel(modelName: string): Promise<string> {
+  if (!isTauriContext()) {
+    throw new Error(`Model download requires the desktop app. Please run 'ollama pull ${modelName}' in your terminal.`);
+  }
+  return invoke("pull_ollama_model", { modelName });
+}
+
+/**
+ * List installed Ollama models
+ * Works in both Tauri and browser contexts
+ */
+export async function listOllamaModels(): Promise<OllamaModel[]> {
+  if (isTauriContext()) {
+    return invoke("list_ollama_models");
+  }
+
+  // Browser fallback: get via HTTP
+  try {
+    const response = await fetch(`${OLLAMA_API_URL}/api/tags`);
+    if (response.ok) {
+      const data = await response.json();
+      return data.models?.map((m: { name: string; size?: number }) => ({
+        name: m.name,
+        size: m.size ? formatBytes(m.size) : null,
+        modified_at: null,
+      })) || [];
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+export function getPreferredOllamaModel(models: string[]): string | null {
+  const preferredModels = [
+    DEFAULT_RECOMMENDED_OLLAMA_MODEL,
+    "llama3.2",
+    "mistral",
+  ];
+
+  for (const preferred of preferredModels) {
+    const exactMatch = models.find(
+      (model) => model === preferred || model === `${preferred}:latest`
+    );
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    const taggedVariant = models.find((model) => model.startsWith(`${preferred}:`));
+    if (taggedVariant) {
+      return taggedVariant;
+    }
+  }
+
+  return models[0] || null;
+}
+
+/**
+ * Get recommended models for educational content
+ * Returns array of [name, size, description] tuples
+ */
+export async function getRecommendedModels(): Promise<RecommendedModel[]> {
+  if (isTauriContext()) {
+    return invoke("get_recommended_models");
+  }
+
+  return RECOMMENDED_OLLAMA_MODELS;
+}
+
+function formatBytes(bytes: number): string {
+  const gb = 1024 * 1024 * 1024;
+  const mb = 1024 * 1024;
+  if (bytes >= gb) return `${(bytes / gb).toFixed(1)} GB`;
+  if (bytes >= mb) return `${(bytes / mb).toFixed(1)} MB`;
+  return `${bytes} bytes`;
 }
 
 // Update functions

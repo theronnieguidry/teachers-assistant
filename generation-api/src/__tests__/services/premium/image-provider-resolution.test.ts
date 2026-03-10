@@ -92,7 +92,7 @@ describe("Image provider resolution", () => {
   });
 
   it("should pass IMAGE_MODEL to the provider", async () => {
-    process.env.IMAGE_MODEL = "dall-e-2";
+    process.env.IMAGE_MODEL = "gpt-image-1";
     mockImagesGenerate.mockResolvedValue({
       data: [{ b64_json: "base64data" }],
     });
@@ -103,7 +103,7 @@ describe("Image provider resolution", () => {
     );
 
     expect(mockImagesGenerate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "dall-e-2" })
+      expect.objectContaining({ model: "gpt-image-1" })
     );
   });
 
@@ -118,7 +118,7 @@ describe("Image provider resolution", () => {
     );
 
     expect(mockImagesGenerate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "dall-e-3" })
+      expect.objectContaining({ model: "gpt-image-1.5" })
     );
   });
 

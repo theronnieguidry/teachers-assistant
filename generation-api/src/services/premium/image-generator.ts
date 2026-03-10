@@ -85,17 +85,17 @@ const GRADE_SAFETY: Record<string, string> = {
   "6": "appropriate for 11-12 year olds, educational focus",
 };
 
-// Map size to OpenAI dimensions and target output dimensions
+// Map size to GPT Image dimensions and target output dimensions
 export const SIZE_MAP: Record<
   string,
   {
-    openai: "1024x1024" | "1792x1024" | "1024x1792";
+    openai: "1024x1024" | "1536x1024" | "1024x1536";
     target: { width: number; height: number };
   }
 > = {
   small: { openai: "1024x1024", target: { width: 256, height: 256 } },
   medium: { openai: "1024x1024", target: { width: 400, height: 300 } },
-  wide: { openai: "1792x1024", target: { width: 600, height: 300 } },
+  wide: { openai: "1536x1024", target: { width: 600, height: 300 } },
   large: { openai: "1024x1024", target: { width: 400, height: 300 } }, // Legacy alias
 };
 

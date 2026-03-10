@@ -4,18 +4,30 @@ import userEvent from "@testing-library/user-event";
 import { LibraryView } from "@/components/library/LibraryView";
 import type { ArtifactType, Grade } from "@/types";
 
-const mockGetObjectiveById = vi.fn();
-
-vi.mock("@/lib/curriculum", () => ({
-  getObjectiveById: (...args: unknown[]) => mockGetObjectiveById(...args),
-}));
-
 // Default store state
 const defaultArtifactState = {
+  artifacts: [] as Array<{
+    artifactId: string;
+    projectId: string;
+    jobId: string;
+    type: ArtifactType;
+    title: string;
+    grade: Grade;
+    subject: string;
+    objectiveTags: string[];
+    createdAt: string;
+  }>,
   isLoading: false,
   error: null as string | null,
   viewMode: "grid" as const,
   sortBy: "date_desc" as const,
+  filters: {
+    projects: [],
+    grades: [],
+    subjects: [],
+    types: [],
+    objectiveTags: [],
+  },
   searchQuery: "",
   currentArtifact: null,
   loadArtifacts: vi.fn(),
@@ -28,24 +40,24 @@ const defaultArtifactState = {
 };
 
 let artifactStoreState = { ...defaultArtifactState };
-let filteredArtifacts: Array<{
-  artifactId: string;
-  projectId: string;
-  jobId: string;
-  type: ArtifactType;
-  title: string;
-  grade: Grade;
-  subject: string;
-  objectiveTags: string[];
-  createdAt: string;
-}> = [];
 
 vi.mock("@/stores/artifactStore", () => ({
   useArtifactStore: vi.fn((selector?: (state: unknown) => unknown) => {
     if (typeof selector === "function") return selector(artifactStoreState);
     return artifactStoreState;
   }),
-  useFilteredArtifacts: vi.fn(() => filteredArtifacts),
+  filterArtifacts: vi.fn(
+    ({
+      artifacts,
+      searchQuery,
+    }: {
+      artifacts: typeof defaultArtifactState.artifacts;
+      searchQuery: string;
+    }) =>
+      artifacts.filter((artifact) =>
+        artifact.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+  ),
 }));
 
 vi.mock("@/stores/unifiedProjectStore", () => ({
@@ -72,11 +84,9 @@ const mockArtifact = {
   jobId: "job-1",
   type: "student_page" as ArtifactType,
   title: "Math Worksheet",
-  htmlContent: "<p>Worksheet</p>",
   grade: "2" as Grade,
   subject: "Math",
   objectiveTags: [],
-  objectiveId: undefined,
   createdAt: "2026-01-15T10:00:00Z",
 };
 
@@ -92,8 +102,6 @@ describe("LibraryView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     artifactStoreState = { ...defaultArtifactState };
-    filteredArtifacts = [];
-    mockGetObjectiveById.mockReturnValue(null);
   });
 
   it("should render the Library heading", () => {
@@ -128,14 +136,12 @@ describe("LibraryView", () => {
   });
 
   it("should show empty state when no artifacts and not loading", () => {
-    filteredArtifacts = [];
     render(<LibraryView />);
     expect(screen.getByText("No materials found")).toBeInTheDocument();
   });
 
   it("should show search hint in empty state when search is active", () => {
     artifactStoreState = { ...defaultArtifactState, searchQuery: "test" };
-    filteredArtifacts = [];
     render(<LibraryView />);
     expect(
       screen.getByText("Try adjusting your search or filters")
@@ -143,7 +149,6 @@ describe("LibraryView", () => {
   });
 
   it("should show generate hint in empty state when no search", () => {
-    filteredArtifacts = [];
     render(<LibraryView />);
     expect(
       screen.getByText("Generate some teaching materials to see them here")
@@ -151,21 +156,41 @@ describe("LibraryView", () => {
   });
 
   it("should render artifact count when artifacts exist", () => {
-    filteredArtifacts = [mockArtifact, mockArtifact2];
+    artifactStoreState = {
+      ...defaultArtifactState,
+      artifacts: [mockArtifact, mockArtifact2],
+    };
     render(<LibraryView />);
     expect(screen.getByText("2 items")).toBeInTheDocument();
   });
 
   it("should render singular item count", () => {
-    filteredArtifacts = [mockArtifact];
+    artifactStoreState = {
+      ...defaultArtifactState,
+      artifacts: [mockArtifact],
+    };
     render(<LibraryView />);
     expect(screen.getByText("1 item")).toBeInTheDocument();
   });
 
   it("should render artifacts in grid mode by default", () => {
-    filteredArtifacts = [mockArtifact];
+    artifactStoreState = {
+      ...defaultArtifactState,
+      artifacts: [mockArtifact],
+    };
     render(<LibraryView />);
     expect(screen.getByText("Math Worksheet")).toBeInTheDocument();
+  });
+
+  it("should derive filtered artifacts from raw store state", () => {
+    artifactStoreState = {
+      ...defaultArtifactState,
+      artifacts: [mockArtifact, mockArtifact2],
+      searchQuery: "science",
+    };
+    render(<LibraryView />);
+    expect(screen.getByText("Science Worksheet")).toBeInTheDocument();
+    expect(screen.queryByText("Math Worksheet")).not.toBeInTheDocument();
   });
 
   it("should show error state with retry button", () => {
@@ -200,48 +225,5 @@ describe("LibraryView", () => {
   it("should render active filter chips", () => {
     render(<LibraryView />);
     expect(screen.getByTestId("active-filter-chips")).toBeInTheDocument();
-  });
-
-  it("shows linked objective action in preview when objectiveId exists", async () => {
-    const user = userEvent.setup();
-    const onNavigateToObjective = vi.fn();
-    const artifactWithObjective = {
-      ...mockArtifact,
-      jobId: "",
-      objectiveId: "obj-1",
-      objectiveTags: ["obj-1"],
-    };
-
-    filteredArtifacts = [artifactWithObjective];
-    artifactStoreState.loadArtifact = vi.fn(async () => {
-      artifactStoreState.currentArtifact = artifactWithObjective;
-      return artifactWithObjective;
-    });
-    mockGetObjectiveById.mockReturnValue({
-      subject: "Math",
-      unit: { title: "Numbers and Place Value" },
-      objective: { text: "Understand place value" },
-    });
-
-    render(<LibraryView onNavigateToObjective={onNavigateToObjective} />);
-    await user.click(screen.getByRole("button", { name: /view/i }));
-    await user.click(await screen.findByRole("button", { name: /understand place value/i }));
-
-    expect(onNavigateToObjective).toHaveBeenCalledWith("obj-1", "Math");
-  });
-
-  it("does not show linked objective action when artifact has no objectiveId", async () => {
-    const user = userEvent.setup();
-    const artifactWithoutObjective = { ...mockArtifact, jobId: "" };
-    filteredArtifacts = [artifactWithoutObjective];
-    artifactStoreState.loadArtifact = vi.fn(async () => {
-      artifactStoreState.currentArtifact = artifactWithoutObjective;
-      return artifactWithoutObjective;
-    });
-
-    render(<LibraryView />);
-    await user.click(screen.getByRole("button", { name: /view/i }));
-
-    expect(screen.queryByText(/linked objective/i)).not.toBeInTheDocument();
   });
 });

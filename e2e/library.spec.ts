@@ -1,4 +1,15 @@
 import { test, expect } from "./fixtures";
+import type { Page } from "@playwright/test";
+
+async function openLibraryFilters(page: Page) {
+  const filterButton = page
+    .locator("main button")
+    .filter({ has: page.locator("svg.lucide-sliders-horizontal") });
+  await filterButton.click();
+  await expect(page.getByRole("heading", { name: "Filters" })).toBeVisible({
+    timeout: 5000,
+  });
+}
 
 test.describe("Library Tab", () => {
   test("LIB-001: should display Library tab in navigation", async ({ authenticatedPage: page }) => {
@@ -47,12 +58,13 @@ test.describe("Library Tab", () => {
 
   test("LIB-008: should show filter panel with Grade section", async ({ authenticatedPage: page }) => {
     await page.getByRole("tab", { name: /library/i }).click();
-    // The filter panel should have a Grade section
+    await openLibraryFilters(page);
     await expect(page.getByText("Grade", { exact: true })).toBeVisible({ timeout: 5000 });
   });
 
   test("LIB-009: should show filter panel with Type section", async ({ authenticatedPage: page }) => {
     await page.getByRole("tab", { name: /library/i }).click();
+    await openLibraryFilters(page);
     await expect(page.getByText("Type", { exact: true })).toBeVisible({ timeout: 5000 });
   });
 
