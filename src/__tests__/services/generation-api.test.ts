@@ -524,7 +524,7 @@ describe("Generation API Service", () => {
   describe("streaming timeout constants", () => {
     it("should have reasonable timeout values", () => {
       // Verify timeout constants are reasonable
-      expect(TIMEOUTS.STREAMING_IDLE).toBe(180000); // 3 minutes
+      expect(TIMEOUTS.STREAMING_IDLE).toBe(360000); // 6 minutes
       expect(TIMEOUTS.STREAMING_TOTAL).toBe(600000); // 10 minutes
       expect(TIMEOUTS.FETCH_DEFAULT).toBe(30000); // 30 seconds
     });

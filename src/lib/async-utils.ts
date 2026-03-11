@@ -84,8 +84,8 @@ export const TIMEOUTS = {
   /** Default timeout for Supabase inserts (10 seconds) */
   SUPABASE_INSERT: 10000,
 
-  /** Idle timeout for streaming - time without receiving data (3 minutes) */
-  STREAMING_IDLE: 180000,
+  /** Idle timeout for streaming - time without receiving data (6 minutes) */
+  STREAMING_IDLE: 360000,
 
   /** Total timeout for streaming operations (10 minutes) */
   STREAMING_TOTAL: 600000,

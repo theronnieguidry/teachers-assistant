@@ -85,6 +85,17 @@ interface CreditPack {
   stripePriceId: string;
 }
 
+function isCreditPacksTableMissingError(error: { code?: string; message?: string }) {
+  if (error.code === "42P01") {
+    return true;
+  }
+
+  return (
+    typeof error.message === "string" &&
+    error.message.includes("Could not find the table 'public.credit_packs' in the schema cache")
+  );
+}
+
 // GET /checkout/packs - List available credit packs
 router.get("/packs", async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -101,7 +112,7 @@ router.get("/packs", async (req: AuthenticatedRequest, res: Response) => {
       .order("sort_order", { ascending: true });
 
     if (error) {
-      if ((error as { code?: string }).code === "42P01") {
+      if (isCreditPacksTableMissingError(error)) {
         res.status(503).json({
           error: "Credit packs unavailable",
           message:

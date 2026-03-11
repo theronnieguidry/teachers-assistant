@@ -19,8 +19,10 @@ import type { AiProvider } from "@/stores/settingsStore";
 interface ProviderSelectorProps {
   value: AiProvider;
   onChange: (provider: AiProvider) => void;
-  ollamaModel: string | null;
-  onOllamaModelChange: (model: string | null) => void;
+  ollamaModel?: string | null;
+  onOllamaModelChange?: (model: string | null) => void;
+  premiumDisabled?: boolean;
+  premiumDisabledReason?: string;
 }
 
 interface ProviderOption {
@@ -53,9 +55,24 @@ export function ProviderSelector({
   onChange,
   ollamaModel,
   onOllamaModelChange,
+  premiumDisabled = false,
 }: ProviderSelectorProps) {
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const [checkingOllama, setCheckingOllama] = useState(false);
+  const [internalOllamaModel, setInternalOllamaModel] = useState<string | null>(
+    ollamaModel ?? null
+  );
+
+  const resolvedOllamaModel = ollamaModel ?? internalOllamaModel;
+
+  const handleOllamaModelChange = (model: string | null) => {
+    setInternalOllamaModel(model);
+    onOllamaModelChange?.(model);
+  };
+
+  useEffect(() => {
+    setInternalOllamaModel(ollamaModel ?? null);
+  }, [ollamaModel]);
 
   useEffect(() => {
     const checkOllama = async () => {
@@ -63,8 +80,8 @@ export function ProviderSelector({
       try {
         const status = await checkOllamaStatus();
         setOllamaStatus(status);
-        if (value === "local" && !ollamaModel && status.models.length > 0) {
-          onOllamaModelChange(getPreferredOllamaModel(status.models));
+        if (value === "local" && !resolvedOllamaModel && status.models.length > 0) {
+          handleOllamaModelChange(getPreferredOllamaModel(status.models));
         }
       } catch {
         setOllamaStatus({
@@ -79,19 +96,23 @@ export function ProviderSelector({
     };
 
     checkOllama();
-  }, [value, ollamaModel, onOllamaModelChange]);
+  }, [resolvedOllamaModel, value]);
 
   const isLocalAiAvailable = ollamaStatus?.running && ollamaStatus.models.length > 0;
 
   const handleProviderSelect = (providerId: AiProvider) => {
+    if (providerId === "premium" && premiumDisabled) {
+      return;
+    }
+
     // Allow selecting Local AI even if not available (user might want to set it up)
     onChange(providerId);
 
     // Clear model if switching away from Local AI
     if (providerId !== "local") {
-      onOllamaModelChange(null);
+      handleOllamaModelChange(null);
     } else if (ollamaStatus?.models.length) {
-      onOllamaModelChange(getPreferredOllamaModel(ollamaStatus.models));
+      handleOllamaModelChange(getPreferredOllamaModel(ollamaStatus.models));
     }
   };
 
@@ -101,6 +122,7 @@ export function ProviderSelector({
         {providers.map((provider) => {
           const isSelected = value === provider.id;
           const isLocalUnavailable = provider.id === "local" && !isLocalAiAvailable;
+          const isPremiumUnavailable = provider.id === "premium" && premiumDisabled;
 
           return (
             <Card
@@ -108,7 +130,8 @@ export function ProviderSelector({
               className={cn(
                 "cursor-pointer transition-all hover:border-primary/50",
                 isSelected && "border-primary ring-2 ring-primary/20",
-                isLocalUnavailable && "opacity-60"
+                (isLocalUnavailable || isPremiumUnavailable) && "opacity-60",
+                isPremiumUnavailable && "cursor-not-allowed hover:border-border"
               )}
               onClick={() => handleProviderSelect(provider.id)}
               role="button"
@@ -170,8 +193,8 @@ export function ProviderSelector({
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Local AI Model</label>
           <Select
-            value={ollamaModel || ""}
-            onValueChange={(val) => onOllamaModelChange(val || null)}
+            value={resolvedOllamaModel || ""}
+            onValueChange={(val) => handleOllamaModelChange(val || null)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select a model" />

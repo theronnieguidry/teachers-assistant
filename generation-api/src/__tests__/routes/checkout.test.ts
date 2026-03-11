@@ -167,6 +167,28 @@ describe("Checkout Routes", () => {
       expect(response.body.code).toBe("credit_packs_table_missing");
     });
 
+    it("should return 503 when credit packs are missing from the schema cache", async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "user-123", email: "test@example.com" } },
+        error: null,
+      });
+
+      mockOrder.mockResolvedValue({
+        data: null,
+        error: {
+          message:
+            "Could not find the table 'public.credit_packs' in the schema cache",
+        },
+      });
+
+      const response = await request(app)
+        .get("/checkout/packs")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(503);
+      expect(response.body.code).toBe("credit_packs_table_missing");
+    });
+
     it("should return 503 when all pack prices are placeholders", async () => {
       mockGetUser.mockResolvedValue({
         data: { user: { id: "user-123", email: "test@example.com" } },

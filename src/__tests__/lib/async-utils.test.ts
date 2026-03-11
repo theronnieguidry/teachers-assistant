@@ -166,7 +166,7 @@ describe("async-utils", () => {
     it("should have expected timeout values", () => {
       expect(TIMEOUTS.SUPABASE_QUERY).toBe(15000);
       expect(TIMEOUTS.SUPABASE_INSERT).toBe(10000);
-      expect(TIMEOUTS.STREAMING_IDLE).toBe(180000);
+      expect(TIMEOUTS.STREAMING_IDLE).toBe(360000);
       expect(TIMEOUTS.STREAMING_TOTAL).toBe(600000);
       expect(TIMEOUTS.INSPIRATION_PERSIST).toBe(5000);
       expect(TIMEOUTS.FETCH_DEFAULT).toBe(30000);

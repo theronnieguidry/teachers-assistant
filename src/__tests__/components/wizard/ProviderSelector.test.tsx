@@ -141,6 +141,14 @@ describe("ProviderSelector", () => {
   });
 
   describe("Local AI model selection", () => {
+    it("does not throw when model props are omitted", async () => {
+      render(<ProviderSelector value="local" onChange={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Local AI Model")).toBeInTheDocument();
+      });
+    });
+
     it("shows model dropdown when Local AI is selected and running", async () => {
       render(<ProviderSelector {...defaultProps} value="local" />);
 
