@@ -14,7 +14,8 @@ import {
   getObjectiveById,
   searchObjectives,
   getUnitsForGrade,
-} from "../services/premium/curriculum-pack";
+} from "../services/premium/curriculum-pack.js";
+import type { CurriculumUnit } from "../types/premium.js";
 
 const router = Router();
 
@@ -136,6 +137,12 @@ router.get("/objectives/:id", (req: Request, res: Response) => {
   const { id } = req.params;
   const { subject } = req.query;
 
+  if (!id || typeof id !== "string") {
+    return res.status(400).json({
+      error: "objective id is required",
+    });
+  }
+
   if (!subject || typeof subject !== "string") {
     return res.status(400).json({
       error: "subject query parameter is required",
@@ -183,7 +190,7 @@ router.get("/units", (req: Request, res: Response) => {
   const units = getUnitsForGrade(subject, grade);
 
   res.json({
-    units: units.map((unit) => ({
+    units: units.map((unit: CurriculumUnit) => ({
       unitId: unit.unitId,
       title: unit.title,
       grade: unit.grade,

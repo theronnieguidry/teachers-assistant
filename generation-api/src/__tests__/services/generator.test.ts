@@ -87,6 +87,9 @@ import {
   createImageRequestsFromPlacements,
   isImageGenerationAvailable,
 } from "../../services/premium/image-generator.js";
+import { createLessonPlan } from "../../services/premium/lesson-plan-planner.js";
+import { validateAndRepairLessonPlan } from "../../services/premium/lesson-plan-validator.js";
+import { assembleLessonPlanHTML } from "../../services/premium/lesson-plan-assembler.js";
 import {
   filterAndCapPlacements,
   getFilterSummary,
@@ -664,6 +667,224 @@ describe("Generator Service", () => {
       expect(versionInsertCalls[1]).toMatchObject({
         ai_provider: "openai",
       });
+    });
+  });
+
+  describe("generateTeacherPack - premium lesson plan pipeline", () => {
+    const lessonPlanRequest = {
+      ...baseRequest,
+      options: {
+        ...baseRequest.options,
+        format: "both" as const,
+        lessonLength: 30 as const,
+        teachingConfidence: "novice" as const,
+        studentProfile: ["needs_movement"] as const,
+      },
+    };
+
+    const lessonPlanConfig = {
+      aiProvider: "openai" as const,
+      generationMode: "premium_lesson_plan_pipeline" as const,
+      visualSettings: {
+        includeVisuals: true,
+        richness: "minimal" as const,
+        style: "friendly_cartoon" as const,
+      },
+    };
+
+    const mockLessonPlan = {
+      version: "1.0" as const,
+      metadata: {
+        objective: "Add within 20",
+        grade: "2" as const,
+        subject: "Math",
+        durationMinutes: 30 as const,
+        priorKnowledge: ["Count within 20"],
+        successCriteria: "Students solve addition problems correctly",
+      },
+      sections: [
+        {
+          type: "warmup" as const,
+          title: "Warm Up",
+          durationMinutes: 5,
+          description: "Review",
+          teacherScript: [{ action: "say" as const, text: "Let us warm up." }],
+          activities: ["Count together"],
+        },
+        {
+          type: "instruction" as const,
+          title: "Teach",
+          durationMinutes: 10,
+          description: "Model addition",
+          teacherScript: [{ action: "say" as const, text: "Watch me add." }],
+          activities: ["Model examples"],
+        },
+        {
+          type: "guided_practice" as const,
+          title: "Practice Together",
+          durationMinutes: 5,
+          description: "Guided work",
+          teacherScript: [{ action: "say" as const, text: "Try one with me." }],
+          activities: ["Solve together"],
+        },
+        {
+          type: "independent_practice" as const,
+          title: "Independent Work",
+          durationMinutes: 7,
+          description: "Students practice",
+          teacherScript: [{ action: "say" as const, text: "Try these on your own." }],
+          activities: ["Solve worksheet"],
+        },
+        {
+          type: "closure" as const,
+          title: "Close",
+          durationMinutes: 3,
+          description: "Wrap up",
+          teacherScript: [{ action: "say" as const, text: "What did we learn?" }],
+          activities: ["Reflect"],
+        },
+      ],
+      materials: [{ name: "Pencil", optional: false }],
+      differentiation: {
+        forStruggling: ["Use counters"],
+        forAdvanced: ["Challenge problem"],
+        forELL: ["Use visuals"],
+      },
+      accommodations: [],
+    };
+
+    beforeEach(() => {
+      vi.mocked(createLessonPlan).mockResolvedValue({
+        plan: mockLessonPlan,
+        inputTokens: 220,
+        outputTokens: 380,
+      });
+      vi.mocked(validateAndRepairLessonPlan).mockResolvedValue({
+        plan: mockLessonPlan,
+        validationResult: {
+          valid: true,
+          issues: [],
+          autoRepairable: false,
+        },
+        wasRepaired: false,
+      });
+      vi.mocked(assembleLessonPlanHTML).mockReturnValue({
+        lessonPlanHtml: "<html><body>Lesson plan</body></html>",
+        teacherScriptHtml: "<html><body>Teacher script</body></html>",
+        studentActivityHtml: null,
+        materialsListHtml: "<html><body>Materials</body></html>",
+        lessonMetadata: {
+          objective: "Add within 20",
+          lessonLength: 30,
+          teachingConfidence: "novice",
+          studentProfile: ["needs_movement"],
+          sectionsGenerated: ["warmup", "instruction"],
+        },
+      });
+      vi.mocked(createWorksheetPlan).mockResolvedValue({
+        plan: {
+          version: "1.0" as const,
+          metadata: {
+            title: "Aligned Worksheet",
+            grade: "2" as const,
+            subject: "Math",
+            topic: "Addition",
+            learningObjectives: ["Add within 20"],
+            estimatedTime: "15 minutes",
+          },
+          structure: {
+            header: {
+              title: "Aligned Worksheet",
+              hasNameLine: true,
+              hasDateLine: true,
+              instructions: "Solve the problems.",
+            },
+            sections: [],
+          },
+          style: {
+            difficulty: "medium" as const,
+            visualStyle: "minimal" as const,
+          },
+        },
+        inputTokens: 120,
+        outputTokens: 180,
+      });
+      vi.mocked(validateAndRepair).mockResolvedValue({
+        plan: {
+          version: "1.0" as const,
+          metadata: {
+            title: "Aligned Worksheet",
+            grade: "2" as const,
+            subject: "Math",
+            topic: "Addition",
+            learningObjectives: ["Add within 20"],
+            estimatedTime: "15 minutes",
+          },
+          structure: {
+            header: {
+              title: "Aligned Worksheet",
+              hasNameLine: true,
+              hasDateLine: true,
+              instructions: "Solve the problems.",
+            },
+            sections: [],
+          },
+          style: {
+            difficulty: "medium" as const,
+            visualStyle: "minimal" as const,
+          },
+        },
+        wasRepaired: false,
+      });
+      vi.mocked(assembleAll).mockReturnValue({
+        worksheetHtml: "<html><body>Worksheet</body></html>",
+        lessonPlanHtml: "",
+        answerKeyHtml: "<html><body>Answer key</body></html>",
+      });
+    });
+
+    it("should pass the full lesson-plan context and token accounting through the premium lesson plan pipeline", async () => {
+      const result = await generateTeacherPack(
+        lessonPlanRequest,
+        "user-123",
+        lessonPlanConfig
+      );
+
+      expect(createLessonPlan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: "project-123",
+          options: lessonPlanRequest.options,
+          visualSettings: lessonPlanConfig.visualSettings,
+          lessonLength: 30,
+          teachingConfidence: "novice",
+          studentProfile: ["needs_movement"],
+        }),
+        expect.any(Object)
+      );
+      expect(validateAndRepairLessonPlan).toHaveBeenCalledWith(
+        mockLessonPlan,
+        expect.objectContaining({
+          lessonLength: 30,
+          grade: "2",
+          subject: "Math",
+          teachingConfidence: "novice",
+          studentProfile: ["needs_movement"],
+          includeTeacherScript: true,
+        }),
+        expect.any(Object)
+      );
+      expect(mockSupabase.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          teacher_script_html: "<html><body>Teacher script</body></html>",
+          materials_list_html: "<html><body>Materials</body></html>",
+          ai_model: "gpt-4.1",
+          input_tokens: 340,
+          output_tokens: 560,
+        })
+      );
+      expect(result.teacherScriptHtml).toBe("<html><body>Teacher script</body></html>");
+      expect(result.studentActivityHtml).toBeUndefined();
+      expect(result.materialsListHtml).toBe("<html><body>Materials</body></html>");
     });
   });
 });

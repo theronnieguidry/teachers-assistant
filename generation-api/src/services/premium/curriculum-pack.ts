@@ -6,22 +6,25 @@
  */
 
 import { readFileSync } from "fs";
-import { join } from "path";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import type {
   CurriculumPack,
   CurriculumUnit,
   CurriculumObjective,
   ObjectiveRecommendation,
-} from "../../types/premium";
+} from "../../types/premium.js";
 
 // Cache loaded curriculum packs
 const packCache: Map<string, CurriculumPack> = new Map();
+
+const CURRENT_DIR = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Get the path to curriculum pack files
  */
 function getCurriculumPackPath(filename: string): string {
-  return join(__dirname, "../../curriculum-packs", filename);
+  return join(CURRENT_DIR, "../../curriculum-packs", filename);
 }
 
 /**
@@ -143,8 +146,8 @@ export function getUnitsForGrade(
 
   const normalizedGrade = normalizeGrade(grade);
   return pack.units
-    .filter((unit) => unit.grade === normalizedGrade)
-    .sort((a, b) => a.sequence - b.sequence);
+    .filter((unit: CurriculumUnit) => unit.grade === normalizedGrade)
+    .sort((a: CurriculumUnit, b: CurriculumUnit) => a.sequence - b.sequence);
 }
 
 /**
@@ -178,8 +181,8 @@ function getRecommendationReason(
   }
 
   // Check if prereqs are met (simplified - assumes all prior objectives completed)
-  const prereqTexts = objective.prereqs.map((prereqId) => {
-    const prereq = allObjectives.find((o) => o.id === prereqId);
+  const prereqTexts = objective.prereqs.map((prereqId: string) => {
+    const prereq = allObjectives.find((o: CurriculumObjective) => o.id === prereqId);
     return prereq?.text?.split(" ").slice(0, 3).join(" ") || prereqId;
   });
 
@@ -219,8 +222,8 @@ export function getRecommendedObjectives(
 
   // Get all units for this grade
   const gradeUnits = pack.units
-    .filter((unit) => unit.grade === normalizedGrade)
-    .sort((a, b) => a.sequence - b.sequence);
+    .filter((unit: CurriculumUnit) => unit.grade === normalizedGrade)
+    .sort((a: CurriculumUnit, b: CurriculumUnit) => a.sequence - b.sequence);
 
   if (gradeUnits.length === 0) {
     return [];
@@ -239,7 +242,7 @@ export function getRecommendedObjectives(
   }
 
   // Flatten objectives for prereq lookup
-  const flatObjectives = allObjectives.map((o) => o.objective);
+  const flatObjectives = allObjectives.map((o: { objective: CurriculumObjective }) => o.objective);
 
   // Filter by difficulty if specified
   let filtered = allObjectives;
@@ -350,7 +353,7 @@ export function searchObjectives(
         .toLowerCase();
 
       if (searchText.includes(normalizedKeyword)) {
-        const flatObjectives = pack.units.flatMap((u) => u.objectives);
+        const flatObjectives = pack.units.flatMap((u: CurriculumUnit) => u.objectives);
         results.push({
           id: objective.id,
           text: objective.text,

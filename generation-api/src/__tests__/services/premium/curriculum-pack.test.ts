@@ -161,6 +161,14 @@ describe("Curriculum Pack Service", () => {
   });
 
   describe("getRecommendedObjectives", () => {
+    it("should return real grade 2 math objectives under the ESM loader", () => {
+      const objectives = getRecommendedObjectives("2", "Math");
+
+      expect(objectives.length).toBeGreaterThan(0);
+      expect(objectives[0]?.id).toBeTruthy();
+      expect(objectives[0]?.unitTitle).toBeTruthy();
+    });
+
     it("should return recommended objectives for grade and subject", () => {
       const objectives = getRecommendedObjectives("1", "Math");
 

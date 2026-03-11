@@ -62,6 +62,11 @@ declare module "@shared/types" {
     createdAt?: Date;
   }
 
+  export interface DesignPackContext {
+    packId: string;
+    items: InspirationItem[];
+  }
+
   export interface ImageStats {
     total: number;
     generated: number;
@@ -77,7 +82,7 @@ declare module "@shared/types" {
   }
 
   export interface GenerationProgress {
-    step: "worksheet" | "lesson_plan" | "answer_key" | "complete";
+    step: "worksheet" | "lesson_plan" | "answer_key" | "images" | "complete";
     progress: number;
     message: string;
   }

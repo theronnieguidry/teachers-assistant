@@ -26,7 +26,7 @@ export async function insertProjectVersionWithFallback<T>(
     from: (table: string) => {
       insert: (payload: Record<string, unknown>) => {
         select: (columns: string) => {
-          single: () => Promise<{ data: T | null; error: ProjectVersionInsertError | null }>;
+          single: () => PromiseLike<{ data: T | null; error: ProjectVersionInsertError | null }>;
         };
       };
     };

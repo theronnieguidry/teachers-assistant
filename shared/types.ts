@@ -119,7 +119,7 @@ export interface ImageStats {
 // ============================================
 
 export interface GenerationProgress {
-  step: "worksheet" | "lesson_plan" | "answer_key" | "complete";
+  step: "worksheet" | "lesson_plan" | "answer_key" | "images" | "complete";
   progress: number;
   message: string;
 }

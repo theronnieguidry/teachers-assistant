@@ -28,6 +28,7 @@ import type {
   QualityRequirements,
   ValidationRequirements,
   ImageStats,
+  LessonPlanRequirements,
 } from "../types/premium.js";
 import { DEFAULT_VISUAL_SETTINGS } from "../types/premium.js";
 import {
@@ -52,7 +53,6 @@ import {
 } from "./premium/lesson-plan-planner.js";
 import {
   validateAndRepairLessonPlan,
-  type LessonPlanRequirements,
 } from "./premium/lesson-plan-validator.js";
 import {
   assembleLessonPlanHTML,
@@ -184,10 +184,11 @@ export async function generateTeacherPack(
 ): Promise<GenerationResult> {
   const startTime = Date.now();
   const generationMode = config.generationMode || "standard";
+  const inspirationItems = request.inspiration ?? [];
 
   console.log(`[generator] Starting generation for project ${request.projectId}`);
   console.log(`[generator] User: ${userId}, Provider: ${config.aiProvider}, Model: ${config.model || "default"}`);
-  console.log(`[generator] Mode: ${generationMode}, Inspiration items: ${request.inspiration?.length || 0}, Pre-polished: ${request.prePolished}`);
+  console.log(`[generator] Mode: ${generationMode}, Inspiration items: ${inspirationItems.length}, Pre-polished: ${request.prePolished}`);
 
   // Route to premium pipeline if requested
   if (generationMode === "premium_plan_pipeline") {
@@ -239,7 +240,7 @@ export async function generateTeacherPack(
     console.log("[generator] Project status updated");
 
     // Parse inspiration materials
-    console.log(`[generator] Processing ${request.inspiration.length} inspiration materials...`);
+    console.log(`[generator] Processing ${inspirationItems.length} inspiration materials...`);
     onProgress?.({
       step: "worksheet",
       progress: 5,
@@ -247,8 +248,8 @@ export async function generateTeacherPack(
     });
 
     let parsedInspiration: ParsedInspiration[] = [];
-    if (request.inspiration.length > 0) {
-      parsedInspiration = await parseAllInspiration(request.inspiration, aiConfig);
+    if (inspirationItems.length > 0) {
+      parsedInspiration = await parseAllInspiration(inspirationItems, aiConfig);
       console.log(`[generator] Parsed ${parsedInspiration.length} inspiration items`);
     }
 
@@ -418,6 +419,9 @@ export async function generateTeacherPack(
       console.warn(
         `[generator] Saved project version without unsupported metadata columns: ${droppedColumns.join(", ")}`
       );
+    }
+    if (!version) {
+      throw new Error("Failed to save version: no version returned");
     }
     console.log(`[generator] Version saved with ID: ${version.id}`);
 
@@ -865,6 +869,9 @@ async function generatePremiumTeacherPack(
         `[generator:premium] Saved project version without unsupported metadata columns: ${droppedColumns.join(", ")}`
       );
     }
+    if (!version) {
+      throw new Error("Failed to save version: no version returned");
+    }
 
     console.log(`[generator:premium] Version saved with ID: ${version.id}`);
 
@@ -1013,6 +1020,8 @@ async function generatePremiumLessonPlan(
         prompt: request.prompt,
         grade: request.grade,
         subject: request.subject,
+        options: request.options,
+        visualSettings,
         lessonLength,
         studentProfile,
         teachingConfidence,
@@ -1020,7 +1029,8 @@ async function generatePremiumLessonPlan(
       aiConfig
     );
 
-    totalInputTokens += lessonPlanResult.tokensUsed;
+    totalInputTokens += lessonPlanResult.inputTokens;
+    totalOutputTokens += lessonPlanResult.outputTokens;
     console.log(`[generator:lesson-plan] Lesson plan created with ${lessonPlanResult.plan.sections.length} sections`);
 
     // Phase 2: Validate and Repair
@@ -1033,10 +1043,11 @@ async function generatePremiumLessonPlan(
 
     const requirements: LessonPlanRequirements = {
       lessonLength,
+      grade: request.grade,
+      subject: request.subject,
       teachingConfidence,
-      requireTeacherScript: includeTeacherScript,
-      requireMaterials: true,
-      requireDifferentiation: studentProfile.length > 0,
+      studentProfile,
+      includeTeacherScript,
     };
 
     const { plan: validatedPlan, validationResult, wasRepaired } = await validateAndRepairLessonPlan(
@@ -1233,6 +1244,9 @@ async function generatePremiumLessonPlan(
         `[generator:lesson-plan] Saved project version without unsupported metadata columns: ${droppedColumns.join(", ")}`
       );
     }
+    if (!version) {
+      throw new Error("Failed to save version: no version returned");
+    }
 
     console.log(`[generator:lesson-plan] Version saved with ID: ${version.id}`);
 
@@ -1274,9 +1288,9 @@ async function generatePremiumLessonPlan(
       worksheetHtml,
       lessonPlanHtml: assembled.lessonPlanHtml,
       answerKeyHtml,
-      teacherScriptHtml: assembled.teacherScriptHtml,
-      studentActivityHtml: assembled.studentActivityHtml,
-      materialsListHtml: assembled.materialsListHtml,
+      teacherScriptHtml: assembled.teacherScriptHtml ?? undefined,
+      studentActivityHtml: assembled.studentActivityHtml ?? undefined,
+      materialsListHtml: assembled.materialsListHtml ?? undefined,
       lessonMetadata,
       creditsUsed,
     };
