@@ -52,7 +52,7 @@ vi.mock("../../services/premium/improvement-service.js", () => ({
 
 // Mock credits service
 vi.mock("../../services/credits.js", () => ({
-  reserveCredits: vi.fn().mockResolvedValue("reservation-123"),
+  reserveCredits: vi.fn().mockResolvedValue(true),
   deductCredits: vi.fn().mockResolvedValue(undefined),
   refundCredits: vi.fn().mockResolvedValue(undefined),
 }));
@@ -87,6 +87,8 @@ describe("Improve Route", () => {
     });
 
     mockUpdateResult.mockReturnValue({ error: null });
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     delete process.env.OPENAI_MODEL;
   });
 
@@ -131,8 +133,21 @@ describe("Improve Route", () => {
       expect(response.body).toHaveProperty("newVersionId");
       expect(response.body).toHaveProperty("creditsUsed");
       expect(response.body).toHaveProperty("changes");
+      const credits = await import("../../services/credits.js");
+
+      expect(credits.reserveCredits).toHaveBeenCalledOnce();
+      expect(credits.reserveCredits).toHaveBeenCalledWith(
+        "test-user-123",
+        2,
+        "550e8400-e29b-41d4-a716-446655440000"
+      );
+      expect(credits.deductCredits).not.toHaveBeenCalled();
+      expect(credits.refundCredits).not.toHaveBeenCalled();
       expect(mockInsert).toHaveBeenCalledWith(
-        expect.objectContaining({ ai_model: "gpt-4.1" })
+        expect.objectContaining({
+          ai_provider: "premium",
+          ai_model: "gpt-4.1",
+        })
       );
     });
 
@@ -192,6 +207,56 @@ describe("Improve Route", () => {
         });
 
       expect(response.status).toBe(404);
+    });
+
+    it("refunds reserved credits when improvement fails after reservation", async () => {
+      mockSingleResult
+        .mockResolvedValueOnce({
+          data: {
+            id: "project-123",
+            user_id: "test-user-123",
+            grade: "2",
+            subject: "Math",
+            options: {},
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: "version-123",
+            worksheet_html: "<html>Original</html>",
+            lesson_plan_html: null,
+            answer_key_html: null,
+          },
+          error: null,
+        });
+
+      const { improvementService } = await import("../../services/premium/improvement-service.js");
+      const credits = await import("../../services/credits.js");
+
+      (improvementService.applyImprovement as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error("Improvement failed")
+      );
+
+      const response = await request(app)
+        .post("/improve")
+        .send({
+          projectId: "550e8400-e29b-41d4-a716-446655440000",
+          versionId: "550e8400-e29b-41d4-a716-446655440001",
+          improvementType: "simplify",
+          targetDocument: "worksheet",
+        });
+
+      expect(response.status).toBe(500);
+      expect(credits.reserveCredits).toHaveBeenCalledOnce();
+      expect(credits.refundCredits).toHaveBeenCalledOnce();
+      expect(credits.refundCredits).toHaveBeenCalledWith(
+        "test-user-123",
+        2,
+        "550e8400-e29b-41d4-a716-446655440000",
+        "Improvement failed: simplify"
+      );
+      expect(credits.deductCredits).not.toHaveBeenCalled();
     });
 
     it("should accept additional instructions", async () => {

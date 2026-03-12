@@ -218,10 +218,12 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Premium AI (OpenAI - requires API key)
 OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4.1
+IMAGE_MODEL=gpt-image-1.5
 
 # Local AI (Ollama - free, no API key needed)
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2
+OLLAMA_MODEL=phi4-mini
 ```
 
 ## AI Providers
@@ -240,7 +242,7 @@ The application supports two AI provider modes:
 Ollama runs AI models locally on your machine - completely free with no API costs.
 
 **Auto-Install (Recommended):**
-When you install TA Teachers Assistant, Ollama is automatically installed as part of the setup process. On first launch, if no models are available, the app will prompt you to download the recommended `llama3.2` model.
+When you install TA Teachers Assistant, Ollama is automatically installed as part of the setup process. On first launch, if no models are available, the app will prompt you to download the recommended `phi4-mini` model.
 
 The Settings (gear icon) in the header opens the Local AI Setup dialog where you can:
 - Install/manage Ollama
@@ -252,23 +254,21 @@ The Settings (gear icon) in the header opens the Local AI Setup dialog where you
 # 1. Download and install from https://ollama.com/download
 
 # 2. Pull a model (choose based on your RAM)
-ollama pull llama3.2      # 2GB, good for 8GB RAM
-ollama pull llama3.1:8b   # 4.7GB, better quality
-ollama pull mistral       # 4GB, fast and capable
+ollama pull phi4-mini     # Recommended for most 8-16GB family PCs
+ollama pull llama3.2      # Most compatible fallback
+ollama pull mistral       # Heavier local option with stronger writing quality
 
 # 3. Start the server
 ollama serve
 
 # 4. Set in generation-api/.env
-AI_PROVIDER=ollama
-OLLAMA_MODEL=llama3.2
+OLLAMA_MODEL=phi4-mini
 ```
 
 **Recommended Models for K-6 Content:**
-- `llama3.2` - Good balance of speed and quality (default)
-- `llama3.2:1b` - Fastest, smallest footprint
-- `mistral` - Fast, good for worksheets
-- `gemma2:2b` - Google's efficient model
+- `phi4-mini` - Best overall local default for worksheets and lesson plans on 8-16GB PCs
+- `llama3.2` - Most compatible fallback for smaller family PCs
+- `mistral` - Heavier local option if you have extra RAM and want stronger writing quality
 
 ## Local Development & Testing
 
@@ -276,7 +276,7 @@ OLLAMA_MODEL=llama3.2
 
 **IMPORTANT**: When running local tests or development that would normally call AI APIs (Anthropic/OpenAI), do NOT use production API credits. Instead:
 
-1. **Use Ollama**: Set `AI_PROVIDER=ollama` for free local generation
+1. **Use Local AI**: Select Local AI in the app and set `OLLAMA_MODEL=phi4-mini` in `generation-api/.env` if you need a local default
 2. **Unit Tests**: All AI service calls should be mocked (see `src/__tests__/mocks/`)
 3. **E2E Tests**: Do not test actual generation flow - mock API responses
 4. **Integration Testing**: When testing the generation API locally, prefer:

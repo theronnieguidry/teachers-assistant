@@ -2,7 +2,7 @@
  * Image Generator Service
  *
  * Generates educational images via a pluggable ImageProvider abstraction.
- * Default provider: OpenAI DALL-E 3 (configurable via IMAGE_PROVIDER env var).
+ * Default provider: OpenAI GPT Image (configurable via IMAGE_PROVIDER env var).
  *
  * Features:
  * - Provider abstraction: swap image backends without changing callers
@@ -399,7 +399,7 @@ export function createImageRequestsFromPlacements(
  * Estimate credits for image generation
  */
 export function estimateImageCredits(imageCount: number): number {
-  // DALL-E 3 costs approximately 0.04-0.08 per image
+  // GPT Image costs approximately 0.04-0.08 per image depending on size/quality
   // We'll charge 0.5 credits per image for simplicity
   return Math.ceil(imageCount * 0.5);
 }

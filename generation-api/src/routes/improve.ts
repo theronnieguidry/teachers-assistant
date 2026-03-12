@@ -6,7 +6,6 @@ import { getDefaultOpenAIModel } from "../services/ai-provider.js";
 import {
   reserveCredits,
   refundCredits,
-  deductCredits,
 } from "../services/credits.js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { ImprovementType, TargetDocument } from "../types/premium.js";
@@ -181,7 +180,7 @@ router.post("/", authMiddleware, async (req: Request, res: Response) => {
         worksheet_html: targetDocument === "worksheet" ? result.improvedHtml : version.worksheet_html,
         lesson_plan_html: targetDocument === "lesson_plan" ? result.improvedHtml : version.lesson_plan_html,
         answer_key_html: targetDocument === "answer_key" ? result.improvedHtml : version.answer_key_html,
-        ai_provider: "openai",
+        ai_provider: "premium",
         ai_model: getDefaultOpenAIModel(),
         generation_mode: "improvement",
       };
@@ -195,9 +194,6 @@ router.post("/", authMiddleware, async (req: Request, res: Response) => {
       if (insertError || !newVersion) {
         throw new Error(`Failed to create new version: ${insertError?.message}`);
       }
-
-      // Deduct the credits (already reserved via reserveCredits, just update project)
-      await deductCredits(userId, result.creditsUsed, projectId);
 
       // Update project's updated_at timestamp
       await supabase

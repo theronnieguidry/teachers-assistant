@@ -89,6 +89,18 @@ interface ProjectInspirationJoin {
   inspiration_items: DbInspirationItem;
 }
 
+function normalizeLegacyAiProvider(aiProvider: string | null): string | null {
+  switch (aiProvider) {
+    case "claude":
+    case "openai":
+      return "premium";
+    case "ollama":
+      return "local";
+    default:
+      return aiProvider;
+  }
+}
+
 function mapDbInspirationToItem(item: DbInspirationItem): InspirationItem {
   return {
     id: item.id,
@@ -115,7 +127,7 @@ function mapDbVersionToVersion(v: DbProjectVersion): ProjectVersion {
     studentActivityHtml: v.student_activity_html,
     materialsListHtml: v.materials_list_html,
     lessonMetadata: v.lesson_metadata,
-    aiProvider: v.ai_provider,
+    aiProvider: normalizeLegacyAiProvider(v.ai_provider),
     aiModel: v.ai_model,
     createdAt: new Date(v.created_at),
   };

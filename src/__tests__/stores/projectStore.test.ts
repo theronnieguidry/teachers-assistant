@@ -489,7 +489,7 @@ describe("projectStore", () => {
       expect(result).not.toBeNull();
       expect(result?.id).toBe("version-123");
       expect(result?.worksheetHtml).toBe("<html>Worksheet</html>");
-      expect(result?.aiProvider).toBe("ollama");
+      expect(result?.aiProvider).toBe("local");
     });
 
     it("should update currentProject with latestVersion", async () => {
@@ -575,6 +575,33 @@ describe("projectStore", () => {
       // Current project should not be updated
       expect(useProjectStore.getState().currentProject?.latestVersion).toBeUndefined();
     });
+
+    it.each([
+      { dbProvider: "openai", expectedProvider: "premium" },
+      { dbProvider: "claude", expectedProvider: "premium" },
+      { dbProvider: "ollama", expectedProvider: "local" },
+    ])(
+      "normalizes legacy ai_provider '$dbProvider' to '$expectedProvider'",
+      async ({ dbProvider, expectedProvider }) => {
+        const mockQueryBuilder = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: { ...mockDbVersion, ai_provider: dbProvider },
+            error: null,
+          }),
+        };
+        vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder as never);
+
+        const result = await useProjectStore
+          .getState()
+          .fetchProjectVersion("project-123");
+
+        expect(result?.aiProvider).toBe(expectedProvider);
+      }
+    );
   });
 
   describe("updateProjectWithVersion", () => {
@@ -664,6 +691,7 @@ describe("projectStore", () => {
       expect(state.projects[0].status).toBe("completed");
       expect(state.currentProject?.status).toBe("completed");
       expect(state.currentProject?.latestVersion).toBeDefined();
+      expect(state.currentProject?.latestVersion?.aiProvider).toBe("local");
     });
 
     it("should increment version number when versions exist", async () => {
