@@ -89,7 +89,7 @@ generation-api/
 │   │   ├── pdf.ts             # POST /pdf - HTML to PDF conversion
 │   │   └── health.ts          # GET /health - health check
 │   ├── services/
-│   │   ├── ai-provider.ts     # Codex/OpenAI abstraction
+│   │   ├── ai-provider.ts     # Premium/OpenAI + Local/Ollama abstraction
 │   │   ├── credits.ts         # Credit management (reserve/deduct/refund)
 │   │   ├── generator.ts       # Main generation orchestration
 │   │   └── inspiration-parser.ts  # URL/PDF content extraction
@@ -105,7 +105,7 @@ generation-api/
 1. Client sends JWT + generation request
 2. Auth middleware verifies JWT with Supabase
 3. Credits service reserves credits atomically
-4. Generator calls AI provider (Codex or OpenAI)
+4. Generator calls the configured runtime provider (Premium/OpenAI or Local/Ollama)
 5. Results stored in project_versions table
 6. Credits deducted, HTML returned to client
 
@@ -192,7 +192,7 @@ e2e/
 | `src/components/preview/PreviewTabs.tsx` | Tabbed preview with print/PDF |
 | `src/components/settings/OllamaSetup.tsx` | Local AI setup wizard |
 | `src/components/settings/UpdateDialog.tsx` | Update notification dialog |
-| `generation-api/src/services/ai-provider.ts` | Codex/OpenAI/Ollama abstraction |
+| `generation-api/src/services/ai-provider.ts` | Premium/OpenAI + Local/Ollama abstraction (with legacy provider remaps) |
 | `generation-api/src/prompts/templates.ts` | AI prompt templates |
 | `src-tauri/src/commands/ollama.rs` | Tauri commands for Ollama management |
 | `src-tauri/nsis/installer-hooks.nsh` | NSIS hooks for Ollama auto-install |
@@ -274,7 +274,7 @@ OLLAMA_MODEL=phi4-mini
 
 ### API Cost Avoidance
 
-**IMPORTANT**: When running local tests or development that would normally call AI APIs (Anthropic/OpenAI), do NOT use production API credits. Instead:
+**IMPORTANT**: When running local tests or development that would normally call paid AI APIs (Premium/OpenAI), do NOT use production API credits. Instead:
 
 1. **Use Local AI**: Select Local AI in the app and set `OLLAMA_MODEL=phi4-mini` in `generation-api/.env` if you need a local default
 2. **Unit Tests**: All AI service calls should be mocked (see `src/__tests__/mocks/`)
@@ -369,7 +369,7 @@ Generates a comprehensive, evidence-based project state document for external AI
 12. Output artifact contract (folder structure, naming rules)
 13. Testing inventory + last verified run metadata
 14. Privacy + "Never Store" rules
-15. Legacy compatibility (Codex → OpenAI remap)
+15. Legacy compatibility (historical provider remaps into premium/local)
 16. Open questions
 
 **Usage**: Type `/project-snapshot` to generate a new snapshot.

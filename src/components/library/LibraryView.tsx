@@ -20,15 +20,17 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { filterArtifacts, useArtifactStore } from "@/stores/artifactStore";
-import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
+import { useProjectStore } from "@/stores/projectStore";
 import { ArtifactCard, ArtifactListItem } from "./ArtifactCard";
 import { LibraryFilters, ActiveFilterChips } from "./LibraryFilters";
 import { StandardizedPreviewTabs } from "@/components/preview/PreviewTabs";
-import type { LibrarySortBy, LibraryViewMode, LocalArtifact } from "@/types";
+import { getObjectiveById } from "@/lib/curriculum";
+import type { LibrarySortBy, LocalArtifact } from "@/types";
 
 const SORT_OPTIONS: { value: LibrarySortBy; label: string }[] = [
   { value: "date_desc", label: "Newest First" },
@@ -38,7 +40,11 @@ const SORT_OPTIONS: { value: LibrarySortBy; label: string }[] = [
   { value: "grade", label: "By Grade" },
 ];
 
-export function LibraryView() {
+interface LibraryViewProps {
+  onNavigateToObjective?: (objectiveId: string, subject?: string) => void;
+}
+
+export function LibraryView({ onNavigateToObjective }: LibraryViewProps) {
   const {
     artifacts,
     isLoading,
@@ -57,7 +63,7 @@ export function LibraryView() {
     setCurrentArtifact,
   } = useArtifactStore();
 
-  const { loadProjects } = useUnifiedProjectStore();
+  const fetchProjects = useProjectStore((state) => state.fetchProjects);
   const filteredArtifacts = useMemo(
     () =>
       filterArtifacts({
@@ -76,8 +82,13 @@ export function LibraryView() {
   // Load artifacts and projects on mount
   useEffect(() => {
     loadArtifacts();
-    loadProjects();
-  }, [loadArtifacts, loadProjects]);
+    fetchProjects();
+  }, [loadArtifacts, fetchProjects]);
+
+  const linkedObjective = useMemo(() => {
+    if (!currentArtifact?.objectiveId) return null;
+    return getObjectiveById(currentArtifact.objectiveId);
+  }, [currentArtifact?.objectiveId]);
 
   const handleView = async (artifactId: string) => {
     const artifact = await loadArtifact(artifactId);
@@ -146,6 +157,15 @@ export function LibraryView() {
     setIsPreviewOpen(false);
     setCurrentArtifact(null);
     setSiblingArtifacts([]);
+  };
+
+  const handleNavigateBackToObjective = () => {
+    if (!currentArtifact?.objectiveId || !onNavigateToObjective) return;
+    handleClosePreview();
+    onNavigateToObjective(
+      currentArtifact.objectiveId,
+      linkedObjective?.subject || currentArtifact.subject
+    );
   };
 
   if (error) {
@@ -299,7 +319,27 @@ export function LibraryView() {
         <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{currentArtifact?.title || "Preview"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Preview generated teaching materials saved in your library.
+            </DialogDescription>
           </DialogHeader>
+          {currentArtifact?.objectiveId && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Linked objective
+                </p>
+                <p className="text-sm font-medium truncate">
+                  {linkedObjective?.objective.text || currentArtifact.objectiveId}
+                </p>
+              </div>
+              {onNavigateToObjective && (
+                <Button variant="outline" size="sm" onClick={handleNavigateBackToObjective}>
+                  Back to Objective
+                </Button>
+              )}
+            </div>
+          )}
           <div className="flex-1 overflow-hidden">
             <StandardizedPreviewTabs
               studentPageHtml={siblingArtifacts.find((a) => a.type === "student_page")?.htmlContent}

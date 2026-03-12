@@ -3,10 +3,10 @@ import { Loader2, CheckCircle2, XCircle, Sparkles, CreditCard } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useProjectStore } from "@/stores/projectStore";
+import { useProjectContextStore } from "@/stores/projectContextStore";
 import { useInspirationStore } from "@/stores/inspirationStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useArtifactStore } from "@/stores/artifactStore";
-import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
 import { useDesignPackStore } from "@/stores/designPackStore";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/stores/toastStore";
@@ -17,6 +17,7 @@ import { mapDesignPackItemsToInspiration, mergeInspirationItems } from "@/lib/in
 import { PurchaseDialog } from "@/components/purchase";
 import { CreditEstimate } from "./CreditEstimate";
 import type { GenerationProgress, EstimateResponse } from "@/types";
+import { getPreferredProjectType } from "@/lib/project-context";
 
 interface QualityReportIssue {
   category: string;
@@ -75,6 +76,7 @@ export function GenerationStep() {
     usePolishedPrompt,
     title,
     objectiveId,
+    learnerId,
     classDetails,
     selectedInspiration,
     outputPath,
@@ -88,7 +90,8 @@ export function GenerationStep() {
 
   // Use the polished prompt if available and user chose to use it
   const finalPrompt = usePolishedPrompt && polishedPrompt ? polishedPrompt : prompt;
-  const { createProject, updateProject } = useProjectStore();
+  const { createProject, syncProjectDefinition, updateProject, setCurrentProject } =
+    useProjectStore();
   const { persistLocalItems } = useInspirationStore();
   const { session } = useAuthStore();
   const { credits } = useAuth();
@@ -205,69 +208,95 @@ export function GenerationStep() {
     let projectId: string | null = null;
 
     try {
-      // Check if we're regenerating an existing project
-      if (regeneratingProjectId) {
-        // Regenerating - use existing project
-        console.log(`[GenerationStep] Regenerating existing project: ${regeneratingProjectId}`);
-        projectId = regeneratingProjectId;
-        setGenerationState({ progress: 5, message: "Preparing regeneration..." });
+      const localItemCount = selectedInspiration.filter((i) => i.id.startsWith("local_")).length;
+      console.log(
+        `[GenerationStep] Preparing canonical project flow with ${localItemCount} local inspiration items`
+      );
+      setGenerationState({ progress: 3, message: "Saving inspiration items..." });
 
-        // Update project status to generating
-        await updateProject(projectId, { status: "generating" });
-        console.log("[GenerationStep] Project status updated to 'generating'");
+      console.log("[GenerationStep] Persisting local inspiration items...");
+      const idMapping = await persistLocalItems();
+      console.log(`[GenerationStep] Persisted ${idMapping.size} items`);
+
+      const persistedInspiration = selectedInspiration.map((item) => ({
+        ...item,
+        id: item.id.startsWith("local_") ? idMapping.get(item.id) || item.id : item.id,
+      }));
+
+      const inspirationIds = persistedInspiration
+        .map((item) => item.id)
+        .filter((id) => !id.startsWith("local_"));
+
+      const projectDefinition = {
+        title,
+        prompt,
+        grade: classDetails.grade,
+        subject: classDetails.subject,
+        options: {
+          questionCount: classDetails.questionCount,
+          includeVisuals: classDetails.includeVisuals,
+          difficulty: classDetails.difficulty,
+          format: classDetails.format,
+          includeAnswerKey: classDetails.includeAnswerKey,
+          lessonLength: classDetails.lessonLength,
+          studentProfile: classDetails.studentProfile,
+          teachingConfidence: classDetails.teachingConfidence,
+          objectiveId: objectiveId || undefined,
+        },
+        inspiration: persistedInspiration,
+        inspirationIds,
+        outputPath: outputPath || undefined,
+      };
+
+      const isRegeneration = Boolean(regeneratingProjectId);
+      const isAttachingToExistingProject = !isRegeneration && Boolean(targetProjectId);
+      projectId = regeneratingProjectId || targetProjectId || null;
+
+      if (projectId && isRegeneration) {
+        console.log(`[GenerationStep] Reusing canonical project ${projectId} for regeneration`);
+        setGenerationState({ progress: 5, message: "Updating project..." });
+        await syncProjectDefinition(projectId, projectDefinition);
+      } else if (projectId && isAttachingToExistingProject) {
+        console.log(
+          `[GenerationStep] Attaching generation to existing canonical project ${projectId}`
+        );
+        setGenerationState({ progress: 5, message: "Preparing project..." });
       } else {
-        // Create new project in database
-        const localItemCount = selectedInspiration.filter((i) => i.id.startsWith("local_")).length;
-        console.log(`[GenerationStep] Creating new project with ${localItemCount} local inspiration items`);
-        setGenerationState({ progress: 3, message: "Saving inspiration items..." });
-
-        // Persist any local inspiration items to database
-        console.log("[GenerationStep] Persisting local inspiration items...");
-        const idMapping = await persistLocalItems();
-        console.log(`[GenerationStep] Persisted ${idMapping.size} items`);
-
-        // Map selected items to their persisted IDs
-        const persistedInspiration = selectedInspiration.map((item) => ({
-          ...item,
-          id: item.id.startsWith("local_")
-            ? idMapping.get(item.id) || item.id
-            : item.id,
-        }));
-
-        // Extract IDs for junction table linking (filter out any that failed to persist)
-        const inspirationIds = persistedInspiration
-          .map((item) => item.id)
-          .filter((id) => !id.startsWith("local_"));
-        console.log(`[GenerationStep] Linking ${inspirationIds.length} inspiration items to project`);
-
+        console.log("[GenerationStep] Creating canonical project in database...");
         setGenerationState({ progress: 5, message: "Saving project..." });
-
-        console.log("[GenerationStep] Creating project in database...");
-        const project = await createProject({
-          title,
-          prompt,
-          grade: classDetails.grade,
-          subject: classDetails.subject,
-          options: {
-            questionCount: classDetails.questionCount,
-            includeVisuals: classDetails.includeVisuals,
-            difficulty: classDetails.difficulty,
-            format: classDetails.format,
-            includeAnswerKey: classDetails.includeAnswerKey,
-            objectiveId: objectiveId || undefined,
-          },
-          inspiration: persistedInspiration,
-          inspirationIds,
-          outputPath: outputPath || undefined,
-        });
-
+        const project = await createProject(projectDefinition);
         projectId = project.id;
         console.log(`[GenerationStep] Project created with ID: ${projectId}`);
-
-        // Update project status to generating
-        await updateProject(projectId, { status: "generating" });
-        console.log("[GenerationStep] Project status updated to 'generating'");
       }
+
+      const contextStore = useProjectContextStore.getState();
+      const existingContext = contextStore.getContext(projectId);
+      if (existingContext) {
+        contextStore.markProjectUsed(projectId);
+      } else {
+        const contextSeed: {
+          type?: ReturnType<typeof getPreferredProjectType>;
+          learnerId?: string;
+        } = {};
+
+        if (learnerId) {
+          contextSeed.learnerId = learnerId;
+          contextSeed.type = getPreferredProjectType(true);
+        } else if (!isAttachingToExistingProject) {
+          contextSeed.type = getPreferredProjectType(false);
+        }
+
+        contextStore.markProjectUsed(projectId, contextSeed);
+      }
+      if (objectiveId) {
+        contextStore.linkObjective(projectId, objectiveId);
+      }
+
+      await updateProject(projectId, {
+        status: "generating",
+        errorMessage: null,
+      });
+      console.log("[GenerationStep] Project status updated to 'generating'");
 
       console.log("[GenerationStep] Starting AI generation via API...");
       console.log(`[GenerationStep] Generation mode: ${generationMode}`);
@@ -313,16 +342,22 @@ export function GenerationStep() {
         status: "completed",
         completedAt: new Date(),
         creditsUsed: result.creditsUsed,
+        errorMessage: null,
       });
 
       // Fetch the saved version to update currentProject.latestVersion
       await useProjectStore.getState().fetchProjectVersion(projectId);
+      const refreshedProject =
+        useProjectStore.getState().projects.find((project) => project.id === projectId) || null;
+      if (refreshedProject) {
+        setCurrentProject(refreshedProject);
+      }
       console.log("[GenerationStep] Project store synchronized");
 
-      // Save artifacts to local Library and sync to UnifiedProject (Issue #20 integration)
+      // Save artifacts to local Library against the canonical project
       try {
         console.log("[GenerationStep] Saving artifacts to Library...");
-        const savedArtifacts = await useArtifactStore.getState().saveFromGeneration({
+        await useArtifactStore.getState().saveFromGeneration({
           projectId,
           jobId: result.versionId || projectId,
           grade: classDetails.grade,
@@ -343,46 +378,6 @@ export function GenerationStep() {
           },
         });
         console.log("[GenerationStep] Artifacts saved to Library");
-
-        // Bridge: Link artifacts to an existing or new UnifiedProject
-        try {
-          console.log("[GenerationStep] Syncing to unified project store...");
-          const unifiedStore = useUnifiedProjectStore.getState();
-          let unifiedProjectId: string;
-
-          if (targetProjectId) {
-            // Use the user-selected existing project
-            unifiedProjectId = targetProjectId;
-            console.log(`[GenerationStep] Using existing unified project: ${targetProjectId}`);
-            if (selectedPackId) {
-              await unifiedStore.setDesignPack(targetProjectId, selectedPackId);
-            }
-            if (objectiveId) {
-              await unifiedStore.linkObjective(targetProjectId, objectiveId);
-            }
-          } else {
-            // Create a new Quick Create project
-            const unifiedProject = await unifiedStore.createQuickProject(
-              title,
-              classDetails.grade,
-              [classDetails.subject],
-              selectedPackId || undefined
-            );
-            unifiedProjectId = unifiedProject.projectId;
-            if (objectiveId) {
-              await unifiedStore.linkObjective(unifiedProjectId, objectiveId);
-            }
-          }
-
-          // Link saved artifacts to the unified project
-          for (const artifact of savedArtifacts) {
-            await unifiedStore.addArtifact(unifiedProjectId, artifact.artifactId);
-          }
-          unifiedStore.setCurrentProject(unifiedProjectId);
-          console.log("[GenerationStep] Unified project synced with artifacts");
-        } catch (syncError) {
-          console.error("[GenerationStep] Failed to sync unified project:", syncError);
-        }
       } catch (libraryError) {
         // Don't fail generation if Library save fails - it's a secondary storage
         console.error("[GenerationStep] Failed to save to Library:", libraryError);
@@ -429,8 +424,7 @@ export function GenerationStep() {
         try {
           await updateProject(projectId, {
             status: "failed",
-            errorMessage:
-              error instanceof Error ? error.message : "Generation failed",
+            errorMessage: error instanceof Error ? error.message : "Generation failed",
           });
         } catch {
           // Ignore update errors

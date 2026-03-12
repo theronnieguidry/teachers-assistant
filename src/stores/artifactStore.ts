@@ -71,6 +71,13 @@ export function filterArtifacts({
       )
     );
   }
+  if (filters.designPackId) {
+    filtered.splice(
+      0,
+      filtered.length,
+      ...filtered.filter((a) => a.designPackId === filters.designPackId)
+    );
+  }
   if (filters.dateRange) {
     const fromDate = new Date(filters.dateRange.from);
     const toDate = new Date(filters.dateRange.to);
@@ -172,6 +179,7 @@ interface ArtifactState {
     subject: string;
     title: string;
     objectiveTags: string[];
+    objectiveId?: string;
     designPackId?: string;
     contents: {
       studentPage?: string;
@@ -350,6 +358,7 @@ export const useArtifactStore = create<ArtifactState>()((set, get) => ({
         params.subject,
         params.title,
         params.objectiveTags,
+        params.objectiveId,
         params.designPackId,
         params.contents
       );

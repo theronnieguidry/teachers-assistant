@@ -5,7 +5,6 @@ import type {
   ProjectType,
   CreateUnifiedProjectData,
   ProjectSummary,
-  gradeToGradeBand,
 } from "@/types";
 
 // ============================================

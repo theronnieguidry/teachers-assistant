@@ -17,7 +17,6 @@ import {
   linkObjectiveToProject,
   unlinkObjectiveFromProject,
   getProjectSummaries,
-  getMostRecentProject,
   setProjectDesignPack,
 } from "@/services/local-project-storage";
 

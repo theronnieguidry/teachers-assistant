@@ -28,17 +28,13 @@ vi.mock("@/stores/artifactStore", () => ({
   }),
 }));
 
-vi.mock("@/stores/unifiedProjectStore", () => ({
-  useUnifiedProjectStore: vi.fn((selector?: (state: unknown) => unknown) => {
-    const state = {
-      projects: [
-        { projectId: "proj-1", name: "Math Project" },
-        { projectId: "proj-2", name: "Science Project" },
-      ],
-    };
-    if (typeof selector === "function") return selector(state);
-    return state;
-  }),
+vi.mock("@/hooks/useProjectCatalog", () => ({
+  useProjectCatalog: vi.fn(() => ({
+    projects: [
+      { id: "proj-1", title: "Math Project", type: "quick_create" },
+      { id: "proj-2", title: "Science Project", type: "learning_path" },
+    ],
+  })),
 }));
 
 vi.mock("@/stores/designPackStore", () => ({

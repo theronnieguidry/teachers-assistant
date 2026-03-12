@@ -39,10 +39,15 @@ import type {
   VisualSettings,
 } from "@shared/types";
 import type { Grade, ProjectStatus } from "./database";
+import type { ProjectContext } from "./artifacts";
 
 // ============================================
 // Project Types (frontend-specific)
 // ============================================
+
+export interface StoredProjectOptions extends ProjectOptions {
+  objectiveId?: string | null;
+}
 
 export interface Project {
   id: string;
@@ -52,7 +57,7 @@ export interface Project {
   prompt: string;
   grade: Grade;
   subject: string;
-  options: ProjectOptions;
+  options: StoredProjectOptions;
   inspiration: InspirationItem[];
   outputPath: string | null;
   status: ProjectStatus;
@@ -79,6 +84,8 @@ export interface ProjectVersion {
   aiModel: string | null;
   createdAt: Date;
 }
+
+export interface ProjectWithContext extends Project, ProjectContext {}
 
 // ============================================
 // Generation Request (frontend-specific)

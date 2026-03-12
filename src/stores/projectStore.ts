@@ -1,7 +1,16 @@
 import { create } from "zustand";
 import { supabase } from "@/services/supabase";
 import { toast } from "@/stores/toastStore";
-import type { Project, ProjectStatus, Grade, InspirationItem, ProjectVersion, LessonMetadata } from "@/types";
+import { useProjectContextStore } from "@/stores/projectContextStore";
+import type {
+  Project,
+  ProjectStatus,
+  Grade,
+  InspirationItem,
+  ProjectVersion,
+  LessonMetadata,
+  StoredProjectOptions,
+} from "@/types";
 
 interface ProjectState {
   projects: Project[];
@@ -16,6 +25,7 @@ interface ProjectState {
   fetchSpecificVersion: (projectId: string, versionId: string) => Promise<ProjectVersion | null>;
   fetchProjectInspiration: (projectId: string) => Promise<InspirationItem[]>;
   createProject: (data: CreateProjectData) => Promise<Project>;
+  syncProjectDefinition: (id: string, data: CreateProjectData) => Promise<void>;
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
   updateProjectWithVersion: (
     projectId: string,
@@ -31,7 +41,7 @@ interface CreateProjectData {
   prompt: string;
   grade: Grade;
   subject: string;
-  options?: Record<string, unknown>;
+  options?: StoredProjectOptions;
   inspiration?: InspirationItem[];
   inspirationIds?: string[]; // New: IDs of inspiration items to link
   outputPath?: string;
@@ -142,7 +152,7 @@ function mapDbProjectToProject(p: DbProject): Project {
     prompt: p.prompt,
     grade: p.grade as Grade,
     subject: p.subject,
-    options: p.options as Record<string, unknown>,
+    options: p.options as StoredProjectOptions,
     inspiration: (p.inspiration || []) as InspirationItem[],
     outputPath: p.output_path,
     status: p.status as ProjectStatus,
@@ -183,6 +193,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
   },
 
   setCurrentProject: (project) => {
+    if (project) {
+      useProjectContextStore.getState().markProjectUsed(project.id);
+    }
     set({ currentProject: project });
   },
 
@@ -422,6 +435,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
       const project = mapDbProjectToProject(newProject as DbProject);
 
+      useProjectContextStore.getState().markProjectUsed(project.id);
+
       set((state) => ({
         projects: [project, ...state.projects],
         currentProject: project,
@@ -431,6 +446,93 @@ export const useProjectStore = create<ProjectState>((set) => ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to create project";
+      set({ error: message });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  syncProjectDefinition: async (id, data) => {
+    try {
+      set({ isLoading: true, error: null });
+
+      const updateData = {
+        title: data.title,
+        prompt: data.prompt,
+        grade: data.grade,
+        subject: data.subject,
+        options: data.options || {},
+        inspiration: data.inspiration || [],
+        output_path: data.outputPath || null,
+      };
+
+      const { error } = await supabase
+        .from("projects")
+        .update(updateData as never)
+        .eq("id", id);
+
+      if (error) throw error;
+
+      const { error: deleteInspirationError } = await supabase
+        .from("project_inspiration")
+        .delete()
+        .eq("project_id", id);
+
+      if (deleteInspirationError) {
+        console.error("Failed to clear project inspiration links:", deleteInspirationError);
+      }
+
+      if (data.inspirationIds && data.inspirationIds.length > 0) {
+        const junctionRecords = data.inspirationIds.map((inspirationId, index) => ({
+          project_id: id,
+          inspiration_id: inspirationId,
+          position: index,
+        }));
+
+        const { error: junctionError } = await supabase
+          .from("project_inspiration")
+          .insert(junctionRecords as never);
+
+        if (junctionError) {
+          console.error("Failed to link inspiration items:", junctionError);
+        }
+      }
+
+      set((state) => ({
+        projects: state.projects.map((project) =>
+          project.id === id
+            ? {
+                ...project,
+                title: data.title,
+                prompt: data.prompt,
+                grade: data.grade,
+                subject: data.subject,
+                options: data.options || {},
+                inspiration: data.inspiration || [],
+                outputPath: data.outputPath || null,
+                updatedAt: new Date(),
+              }
+            : project
+        ),
+        currentProject:
+          state.currentProject?.id === id
+            ? {
+                ...state.currentProject,
+                title: data.title,
+                prompt: data.prompt,
+                grade: data.grade,
+                subject: data.subject,
+                options: data.options || {},
+                inspiration: data.inspiration || [],
+                outputPath: data.outputPath || null,
+                updatedAt: new Date(),
+              }
+            : state.currentProject,
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to sync project definition";
       set({ error: message });
       throw error;
     } finally {
@@ -491,6 +593,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
         currentProject:
           state.currentProject?.id === id ? null : state.currentProject,
       }));
+
+      useProjectContextStore.getState().removeContext(id);
 
       toast.success("Project deleted", "The project has been removed.");
     } catch (error) {

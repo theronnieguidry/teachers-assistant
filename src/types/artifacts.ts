@@ -242,6 +242,29 @@ export interface ProjectSummary {
 }
 
 // ============================================
+// Canonical Project Context Types
+// ============================================
+
+/**
+ * Local sidecar metadata keyed by canonical Supabase project ID.
+ * Keeps project-level UX context without introducing a second project identity.
+ */
+export interface ProjectContext {
+  projectId: string;
+  type: ProjectType;
+  learnerId?: string;
+  linkedObjectiveIds: string[];
+  defaultDesignPackId?: string;
+  lastUsedAt: string;
+}
+
+export interface ProjectContextMigrationState {
+  version: number;
+  migratedAt?: string;
+  unmappedLegacyProjectIds: string[];
+}
+
+// ============================================
 // Mastery Integration Types
 // ============================================
 

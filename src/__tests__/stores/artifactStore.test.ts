@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useArtifactStore } from "@/stores/artifactStore";
 import type { LocalArtifact } from "@/types";
+import { saveArtifactsFromGeneration } from "@/services/library-storage";
 
 // Mock the library-storage service
 vi.mock("@/services/library-storage", () => ({
@@ -10,6 +11,8 @@ vi.mock("@/services/library-storage", () => ({
   deleteArtifact: vi.fn().mockResolvedValue(undefined),
   searchArtifacts: vi.fn().mockResolvedValue([]),
   saveArtifactsFromGeneration: vi.fn().mockResolvedValue([]),
+  getArtifactsByJob: vi.fn().mockResolvedValue([]),
+  updateArtifactTags: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockArtifact: Omit<LocalArtifact, "htmlContent"> = {
@@ -368,6 +371,38 @@ describe("artifactStore", () => {
       useArtifactStore.getState().clearError();
 
       expect(useArtifactStore.getState().error).toBeNull();
+    });
+  });
+
+  describe("generation persistence", () => {
+    it("forwards objective and design-pack metadata when saving generated artifacts", async () => {
+      await useArtifactStore.getState().saveFromGeneration({
+        projectId: "project-1",
+        jobId: "job-1",
+        grade: "2",
+        subject: "Math",
+        title: "Math Worksheet",
+        objectiveTags: ["math_2_01"],
+        objectiveId: "math_2_01",
+        designPackId: "pack-1",
+        contents: {
+          studentPage: "<p>Worksheet</p>",
+        },
+      });
+
+      expect(saveArtifactsFromGeneration).toHaveBeenCalledWith(
+        "project-1",
+        "job-1",
+        "2",
+        "Math",
+        "Math Worksheet",
+        ["math_2_01"],
+        "math_2_01",
+        "pack-1",
+        {
+          studentPage: "<p>Worksheet</p>",
+        }
+      );
     });
   });
 

@@ -4,6 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { LibraryView } from "@/components/library/LibraryView";
 import type { ArtifactType, Grade } from "@/types";
 
+const { mockUseArtifactStore, mockFetchProjects } = vi.hoisted(() => {
+  const mockedStore = vi.fn();
+  (mockedStore as typeof mockedStore & { getState: () => unknown }).getState = () => ({});
+  return {
+    mockUseArtifactStore: mockedStore,
+    mockFetchProjects: vi.fn(),
+  };
+});
+
 // Default store state
 const defaultArtifactState = {
   artifacts: [] as Array<{
@@ -32,20 +41,27 @@ const defaultArtifactState = {
   currentArtifact: null,
   loadArtifacts: vi.fn(),
   loadArtifact: vi.fn(),
+  loadArtifactsByJob: vi.fn().mockResolvedValue([]),
   deleteArtifact: vi.fn(),
+  updateTags: vi.fn(),
   setViewMode: vi.fn(),
   setSortBy: vi.fn(),
   setSearchQuery: vi.fn(),
   setCurrentArtifact: vi.fn(),
 };
 
-let artifactStoreState = { ...defaultArtifactState };
+let artifactStoreState: any = { ...defaultArtifactState };
+mockUseArtifactStore.mockImplementation((selector?: (state: unknown) => unknown) => {
+  if (typeof selector === "function") return selector(artifactStoreState);
+  return artifactStoreState;
+});
+const mockUseArtifactStoreWithState = mockUseArtifactStore as typeof mockUseArtifactStore & {
+  getState: () => unknown;
+};
+mockUseArtifactStoreWithState.getState = () => artifactStoreState;
 
 vi.mock("@/stores/artifactStore", () => ({
-  useArtifactStore: vi.fn((selector?: (state: unknown) => unknown) => {
-    if (typeof selector === "function") return selector(artifactStoreState);
-    return artifactStoreState;
-  }),
+  useArtifactStore: mockUseArtifactStore,
   filterArtifacts: vi.fn(
     ({
       artifacts,
@@ -60,12 +76,20 @@ vi.mock("@/stores/artifactStore", () => ({
   ),
 }));
 
-vi.mock("@/stores/unifiedProjectStore", () => ({
-  useUnifiedProjectStore: vi.fn((selector?: (state: unknown) => unknown) => {
-    const state = { projects: [], loadProjects: vi.fn() };
+vi.mock("@/stores/projectStore", () => ({
+  useProjectStore: vi.fn((selector?: (state: unknown) => unknown) => {
+    const state = { fetchProjects: mockFetchProjects };
     if (typeof selector === "function") return selector(state);
     return state;
   }),
+}));
+
+vi.mock("@/lib/curriculum", () => ({
+  getObjectiveById: vi.fn((objectiveId: string) => ({
+    subject: "Math",
+    unit: { id: "unit-1", title: "Addition Basics", grade: "2", sequence: 1, objectives: [] },
+    objective: { id: objectiveId, text: "Solve addition problems within 20" },
+  })),
 }));
 
 // Mock child components to avoid deep rendering
@@ -102,6 +126,11 @@ describe("LibraryView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     artifactStoreState = { ...defaultArtifactState };
+    mockUseArtifactStore.mockImplementation((selector?: (state: unknown) => unknown) => {
+      if (typeof selector === "function") return selector(artifactStoreState);
+      return artifactStoreState;
+    });
+    mockUseArtifactStoreWithState.getState = () => artifactStoreState;
   });
 
   it("should render the Library heading", () => {
@@ -225,5 +254,43 @@ describe("LibraryView", () => {
   it("should render active filter chips", () => {
     render(<LibraryView />);
     expect(screen.getByTestId("active-filter-chips")).toBeInTheDocument();
+  });
+
+  it("shows objective backlink in preview and routes back to learning path", async () => {
+    const user = userEvent.setup();
+    const handleNavigateToObjective = vi.fn();
+    const artifactWithObjective = {
+      ...mockArtifact,
+      objectiveId: "math_2_01",
+    };
+
+    artifactStoreState = {
+      ...defaultArtifactState,
+      artifacts: [artifactWithObjective],
+      loadArtifact: vi.fn(async () => {
+        const fullArtifact = {
+          ...artifactWithObjective,
+          htmlContent: "<p>Worksheet</p>",
+        };
+        artifactStoreState.currentArtifact = fullArtifact;
+        return fullArtifact;
+      }),
+      loadArtifactsByJob: vi.fn().mockResolvedValue([
+        {
+          ...artifactWithObjective,
+          htmlContent: "<p>Worksheet</p>",
+        },
+      ]),
+    };
+    mockUseArtifactStoreWithState.getState = () => artifactStoreState;
+
+    render(<LibraryView onNavigateToObjective={handleNavigateToObjective} />);
+
+    await user.click(screen.getByRole("button", { name: /view/i }));
+
+    expect(await screen.findByText("Linked objective")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /back to objective/i }));
+
+    expect(handleNavigateToObjective).toHaveBeenCalledWith("math_2_01", "Math");
   });
 });

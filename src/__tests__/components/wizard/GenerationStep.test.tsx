@@ -4,8 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { GenerationStep } from "@/components/wizard/GenerationStep";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useProjectStore } from "@/stores/projectStore";
+import { useProjectContextStore } from "@/stores/projectContextStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useDesignPackStore } from "@/stores/designPackStore";
+import type { Project } from "@/types";
 
 // Mock external services
 vi.mock("@/services/generation-api", () => ({
@@ -23,6 +25,7 @@ vi.mock("@/services/generation-api", () => ({
 
 vi.mock("@/services/tauri-bridge", () => ({
   saveTeacherPack: vi.fn(),
+  isTauriContext: vi.fn(() => false),
 }));
 
 // Mock checkout-api (used by PurchaseDialog)
@@ -49,7 +52,14 @@ vi.mock("@/stores/toastStore", () => {
     toasts: [],
     removeToast: vi.fn(),
     clearToasts: vi.fn(),
-  }));
+  })) as ReturnType<typeof vi.fn> & {
+    getState: () => {
+      addToast: typeof mockAddToast;
+      toasts: never[];
+      removeToast: ReturnType<typeof vi.fn>;
+      clearToasts: ReturnType<typeof vi.fn>;
+    };
+  };
   useToastStore.getState = () => ({
     addToast: mockAddToast,
     toasts: [],
@@ -75,18 +85,47 @@ vi.mock("@/stores/inspirationStore", () => ({
 
 import { generateTeacherPack, GenerationApiError } from "@/services/generation-api";
 import { saveTeacherPack } from "@/services/tauri-bridge";
-import { toast } from "@/stores/toastStore";
 
 describe("GenerationStep", () => {
   const mockCloseWizard = vi.fn();
   const mockReset = vi.fn();
   const mockSetGenerationState = vi.fn();
   const mockCreateProject = vi.fn();
+  const mockSyncProjectDefinition = vi.fn();
   const mockUpdateProject = vi.fn();
   const mockUpdateProjectWithVersion = vi.fn();
+  const mockFetchProjectVersion = vi.fn();
+  const mockSetCurrentProject = vi.fn();
+
+  const createExistingProject = (overrides: Partial<Project> = {}): Project => ({
+    id: "existing-project-1",
+    userId: "user-1",
+    title: "Existing Learning Project",
+    description: null,
+    prompt: "Original saved prompt",
+    grade: "3",
+    subject: "Reading",
+    options: {
+      questionCount: 12,
+      includeVisuals: false,
+      difficulty: "easy",
+      format: "worksheet",
+      includeAnswerKey: true,
+    },
+    inspiration: [],
+    outputPath: "C:\\Existing",
+    status: "completed",
+    errorMessage: null,
+    creditsUsed: 2,
+    createdAt: new Date("2026-02-01T00:00:00Z"),
+    updatedAt: new Date("2026-02-02T00:00:00Z"),
+    completedAt: new Date("2026-02-03T00:00:00Z"),
+    ...overrides,
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
 
     useWizardStore.setState({
       isGenerating: false,
@@ -115,9 +154,22 @@ describe("GenerationStep", () => {
     });
 
     useProjectStore.setState({
+      projects: [],
+      currentProject: null,
       createProject: mockCreateProject,
+      syncProjectDefinition: mockSyncProjectDefinition,
       updateProject: mockUpdateProject,
       updateProjectWithVersion: mockUpdateProjectWithVersion,
+      fetchProjectVersion: mockFetchProjectVersion,
+      setCurrentProject: mockSetCurrentProject,
+    });
+
+    useProjectContextStore.setState({
+      contexts: {},
+      migration: {
+        version: 0,
+        unmappedLegacyProjectIds: [],
+      },
     });
 
     useAuthStore.setState({
@@ -130,8 +182,11 @@ describe("GenerationStep", () => {
     });
 
     mockCreateProject.mockResolvedValue({ id: "project-123" });
+    mockSyncProjectDefinition.mockResolvedValue(undefined);
     mockUpdateProject.mockResolvedValue({});
     mockUpdateProjectWithVersion.mockResolvedValue({});
+    mockFetchProjectVersion.mockResolvedValue(null);
+    mockSetCurrentProject.mockImplementation(() => {});
     vi.mocked(generateTeacherPack).mockResolvedValue({
       projectId: "project-123",
       versionId: "version-123",
@@ -345,7 +400,10 @@ describe("GenerationStep", () => {
       expect(generateTeacherPack).toHaveBeenCalled();
     }, { timeout: 5000 });
 
-    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as Record<string, unknown>;
+    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as unknown as Record<
+      string,
+      unknown
+    >;
     expect(request.aiProvider).toBe("local");
     expect(Object.prototype.hasOwnProperty.call(request, "aiModel")).toBe(false);
   });
@@ -361,7 +419,10 @@ describe("GenerationStep", () => {
       expect(generateTeacherPack).toHaveBeenCalled();
     }, { timeout: 5000 });
 
-    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as Record<string, unknown>;
+    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as unknown as Record<
+      string,
+      unknown
+    >;
     expect(request.objectiveId).toBe("math_2_01");
   });
 
@@ -403,7 +464,10 @@ describe("GenerationStep", () => {
       expect(generateTeacherPack).toHaveBeenCalled();
     }, { timeout: 5000 });
 
-    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as Record<string, unknown>;
+    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as unknown as Record<
+      string,
+      unknown
+    >;
     const inspiration = request.inspiration as Array<{ id: string }>;
     expect(inspiration).toHaveLength(2);
     expect(inspiration.map((item) => item.id)).toEqual(
@@ -425,8 +489,6 @@ describe("GenerationStep", () => {
   });
 
   describe("store synchronization after generation", () => {
-    const mockFetchProjectVersion = vi.fn();
-
     beforeEach(() => {
       vi.clearAllMocks();
 
@@ -452,10 +514,14 @@ describe("GenerationStep", () => {
 
       // Re-setup with fetchProjectVersion mock
       useProjectStore.setState({
+        projects: [],
+        currentProject: null,
         createProject: mockCreateProject,
+        syncProjectDefinition: mockSyncProjectDefinition,
         updateProject: mockUpdateProject,
         updateProjectWithVersion: mockUpdateProjectWithVersion,
         fetchProjectVersion: mockFetchProjectVersion,
+        setCurrentProject: mockSetCurrentProject,
       });
     });
 
@@ -485,7 +551,7 @@ describe("GenerationStep", () => {
     it("should call fetchProjectVersion after updateProject", async () => {
       // Track call order
       const callOrder: string[] = [];
-      mockUpdateProject.mockImplementation(async (id, data) => {
+      mockUpdateProject.mockImplementation(async (_id, data) => {
         if (data.status === "completed") {
           callOrder.push("updateProject-completed");
         }
@@ -541,6 +607,216 @@ describe("GenerationStep", () => {
       }, { timeout: 5000 });
 
       expect(mockFetchProjectVersion).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("existing project reuse", () => {
+    it("does not sync the stored definition when attaching to an existing project", async () => {
+      const existingProject = createExistingProject();
+      const originalSnapshot = {
+        title: existingProject.title,
+        prompt: existingProject.prompt,
+        grade: existingProject.grade,
+        subject: existingProject.subject,
+        options: existingProject.options,
+        inspiration: existingProject.inspiration,
+        outputPath: existingProject.outputPath,
+      };
+
+      mockSyncProjectDefinition.mockImplementation(async (projectId, data) => {
+        useProjectStore.setState((state) => ({
+          projects: state.projects.map((project) =>
+            project.id === projectId ? { ...project, ...data } : project
+          ),
+        }));
+      });
+
+      useProjectStore.setState({
+        projects: [existingProject],
+        currentProject: existingProject,
+      });
+
+      useWizardStore.setState({
+        aiProvider: "local",
+        targetProjectId: existingProject.id,
+        regeneratingProjectId: null,
+        title: "New Math Materials",
+        prompt: "A completely different prompt",
+      });
+
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(generateTeacherPack).toHaveBeenCalledWith(
+          expect.objectContaining({
+            projectId: existingProject.id,
+          }),
+          expect.any(String),
+          expect.any(Function)
+        );
+      });
+
+      expect(mockSyncProjectDefinition).not.toHaveBeenCalled();
+      const persistedProject = useProjectStore.getState().projects[0];
+      expect({
+        title: persistedProject.title,
+        prompt: persistedProject.prompt,
+        grade: persistedProject.grade,
+        subject: persistedProject.subject,
+        options: persistedProject.options,
+        inspiration: persistedProject.inspiration,
+        outputPath: persistedProject.outputPath,
+      }).toEqual(originalSnapshot);
+    });
+
+    it("preserves existing project metadata when an attached generation fails", async () => {
+      const existingProject = createExistingProject();
+      const originalSnapshot = {
+        title: existingProject.title,
+        prompt: existingProject.prompt,
+        grade: existingProject.grade,
+        subject: existingProject.subject,
+        options: existingProject.options,
+        inspiration: existingProject.inspiration,
+        outputPath: existingProject.outputPath,
+      };
+
+      vi.mocked(generateTeacherPack).mockRejectedValueOnce(new Error("AI error"));
+
+      mockSyncProjectDefinition.mockImplementation(async (projectId, data) => {
+        useProjectStore.setState((state) => ({
+          projects: state.projects.map((project) =>
+            project.id === projectId ? { ...project, ...data } : project
+          ),
+        }));
+      });
+
+      useProjectStore.setState({
+        projects: [existingProject],
+        currentProject: existingProject,
+      });
+
+      useWizardStore.setState({
+        aiProvider: "local",
+        targetProjectId: existingProject.id,
+        regeneratingProjectId: null,
+        title: "Temporary Wizard Title",
+        prompt: "Temporary attach prompt",
+      });
+
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(mockSetGenerationState).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: "AI error",
+          })
+        );
+      });
+
+      expect(mockSyncProjectDefinition).not.toHaveBeenCalled();
+      const persistedProject = useProjectStore.getState().projects[0];
+      expect({
+        title: persistedProject.title,
+        prompt: persistedProject.prompt,
+        grade: persistedProject.grade,
+        subject: persistedProject.subject,
+        options: persistedProject.options,
+        inspiration: persistedProject.inspiration,
+        outputPath: persistedProject.outputPath,
+      }).toEqual(originalSnapshot);
+    });
+
+    it("preserves an existing learning-path context during generic reuse", async () => {
+      const existingProject = createExistingProject();
+      useProjectStore.setState({
+        projects: [existingProject],
+        currentProject: existingProject,
+      });
+      useProjectContextStore.getState().upsertContext(existingProject.id, {
+        type: "learning_path",
+        learnerId: "learner-42",
+        linkedObjectiveIds: ["math_2_01"],
+        defaultDesignPackId: "pack-1",
+        lastUsedAt: "2026-02-04T00:00:00Z",
+      });
+
+      useWizardStore.setState({
+        aiProvider: "local",
+        targetProjectId: existingProject.id,
+        regeneratingProjectId: null,
+        learnerId: null,
+        objectiveId: null,
+      });
+
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(generateTeacherPack).toHaveBeenCalled();
+      });
+
+      expect(useProjectContextStore.getState().getContext(existingProject.id)).toMatchObject({
+        type: "learning_path",
+        learnerId: "learner-42",
+        linkedObjectiveIds: ["math_2_01"],
+        defaultDesignPackId: "pack-1",
+      });
+    });
+
+    it("seeds missing context on existing project reuse when learner context is known", async () => {
+      const existingProject = createExistingProject();
+      useProjectStore.setState({
+        projects: [existingProject],
+        currentProject: existingProject,
+      });
+
+      useWizardStore.setState({
+        aiProvider: "local",
+        targetProjectId: existingProject.id,
+        regeneratingProjectId: null,
+        learnerId: "learner-99",
+        objectiveId: "math_3_02",
+      });
+
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(generateTeacherPack).toHaveBeenCalled();
+      });
+
+      expect(useProjectContextStore.getState().getContext(existingProject.id)).toMatchObject({
+        type: "learning_path",
+        learnerId: "learner-99",
+        linkedObjectiveIds: ["math_3_02"],
+      });
+    });
+
+    it("still syncs the stored project definition during regeneration", async () => {
+      const existingProject = createExistingProject();
+      useProjectStore.setState({
+        projects: [existingProject],
+        currentProject: existingProject,
+      });
+
+      useWizardStore.setState({
+        aiProvider: "local",
+        targetProjectId: existingProject.id,
+        regeneratingProjectId: existingProject.id,
+        title: "Updated Regenerated Title",
+        prompt: "Updated regeneration prompt",
+      });
+
+      render(<GenerationStep />);
+
+      await waitFor(() => {
+        expect(mockSyncProjectDefinition).toHaveBeenCalledWith(
+          existingProject.id,
+          expect.objectContaining({
+            title: "Updated Regenerated Title",
+            prompt: "Updated regeneration prompt",
+          })
+        );
+      });
     });
   });
 });

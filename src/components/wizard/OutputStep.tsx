@@ -11,8 +11,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useWizardStore } from "@/stores/wizardStore";
-import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
+import { useProjectStore } from "@/stores/projectStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
+import { useProjectCatalog } from "@/hooks/useProjectCatalog";
 import { selectFolder, isTauriContext } from "@/services/tauri-bridge";
+import { getProjectTypeLabel } from "@/types";
 
 export function OutputStep() {
   const {
@@ -24,13 +27,29 @@ export function OutputStep() {
     targetProjectId,
     setTargetProjectId,
   } = useWizardStore();
-  const { projects, loadProjects } = useUnifiedProjectStore();
+  const { projects } = useProjectCatalog();
+  const fetchProjects = useProjectStore((state) => state.fetchProjects);
+  const selectPack = useDesignPackStore((state) => state.selectPack);
+  const selectedPackOrigin = useDesignPackStore((state) => state.selectedPackOrigin);
   const [customPath, setCustomPath] = useState(outputPath || "");
 
-  // Load unified projects for the selector
+  // Load canonical projects for the selector
   useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
+    fetchProjects();
+  }, [fetchProjects]);
+
+  const selectedProject =
+    projects.find((project) => project.id === targetProjectId) || null;
+
+  useEffect(() => {
+    if (selectedPackOrigin === "manual") return;
+    selectPack(selectedProject?.defaultDesignPackId || null, "project_default");
+  }, [
+    selectedProject?.defaultDesignPackId,
+    selectedProject?.id,
+    selectedPackOrigin,
+    selectPack,
+  ]);
 
   const handleSelectFolder = async () => {
     try {
@@ -83,8 +102,8 @@ export function OutputStep() {
           <SelectContent>
             <SelectItem value="new">New Quick Create Project</SelectItem>
             {projects.map((project) => (
-              <SelectItem key={project.projectId} value={project.projectId}>
-                {project.name}
+              <SelectItem key={project.id} value={project.id}>
+                {project.title} ({getProjectTypeLabel(project.type)})
               </SelectItem>
             ))}
           </SelectContent>

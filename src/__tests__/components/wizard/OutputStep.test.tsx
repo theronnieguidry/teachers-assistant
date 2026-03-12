@@ -4,11 +4,37 @@ import userEvent from "@testing-library/user-event";
 import { OutputStep } from "@/components/wizard/OutputStep";
 import { useWizardStore } from "@/stores/wizardStore";
 
-vi.mock("@/stores/unifiedProjectStore", () => ({
-  useUnifiedProjectStore: vi.fn((selector?: (state: unknown) => unknown) => {
+const mockFetchProjects = vi.fn();
+const mockSelectPack = vi.fn();
+let mockProjects: Array<{
+  id: string;
+  title: string;
+  type: "quick_create" | "learning_path";
+  defaultDesignPackId?: string;
+}> = [];
+let mockSelectedPackOrigin: "manual" | "project_default" | null = null;
+
+vi.mock("@/hooks/useProjectCatalog", () => ({
+  useProjectCatalog: vi.fn(() => ({
+    projects: mockProjects,
+  })),
+}));
+
+vi.mock("@/stores/projectStore", () => ({
+  useProjectStore: vi.fn((selector?: (state: unknown) => unknown) => {
     const state = {
-      projects: [],
-      loadProjects: vi.fn(),
+      fetchProjects: mockFetchProjects,
+    };
+    if (typeof selector === "function") return selector(state);
+    return state;
+  }),
+}));
+
+vi.mock("@/stores/designPackStore", () => ({
+  useDesignPackStore: vi.fn((selector?: (state: unknown) => unknown) => {
+    const state = {
+      selectPack: mockSelectPack,
+      selectedPackOrigin: mockSelectedPackOrigin,
     };
     if (typeof selector === "function") return selector(state);
     return state;
@@ -19,9 +45,12 @@ describe("OutputStep", () => {
   const mockNextStep = vi.fn();
   const mockPrevStep = vi.fn();
   const mockSetOutputPath = vi.fn();
+  const mockSetTargetProjectId = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockProjects = [];
+    mockSelectedPackOrigin = null;
     useWizardStore.setState({
       outputPath: null,
       title: "Test Project",
@@ -29,7 +58,7 @@ describe("OutputStep", () => {
       nextStep: mockNextStep,
       prevStep: mockPrevStep,
       setOutputPath: mockSetOutputPath,
-      setTargetProjectId: vi.fn(),
+      setTargetProjectId: mockSetTargetProjectId,
     });
   });
 
@@ -175,6 +204,43 @@ describe("OutputStep", () => {
 
       expect(mockPrompt).toHaveBeenCalled();
       expect(mockSetOutputPath).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("project selection", () => {
+    it("loads canonical projects on mount", () => {
+      render(<OutputStep />);
+      expect(mockFetchProjects).toHaveBeenCalled();
+    });
+
+    it("shows the canonical selected project label in the selector", () => {
+      mockProjects = [
+        { id: "project-1", title: "Math Project", type: "quick_create" },
+        { id: "project-2", title: "Reading Path", type: "learning_path" },
+      ];
+      useWizardStore.setState({ targetProjectId: "project-1" });
+
+      render(<OutputStep />);
+
+      expect(screen.getByRole("combobox")).toHaveTextContent(
+        "Math Project (Quick Create)"
+      );
+    });
+
+    it("applies the selected project's default design pack when selection is not manual", () => {
+      mockProjects = [
+        {
+          id: "project-1",
+          title: "Math Project",
+          type: "quick_create",
+          defaultDesignPackId: "pack-1",
+        },
+      ];
+      useWizardStore.setState({ targetProjectId: "project-1" });
+
+      render(<OutputStep />);
+
+      expect(mockSelectPack).toHaveBeenCalledWith("pack-1", "project_default");
     });
   });
 });

@@ -11,8 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useArtifactStore } from "@/stores/artifactStore";
-import { useUnifiedProjectStore } from "@/stores/unifiedProjectStore";
 import { useDesignPackStore } from "@/stores/designPackStore";
+import { useProjectCatalog } from "@/hooks/useProjectCatalog";
 import type { Grade, ArtifactType } from "@/types";
 import { getArtifactTypeLabel } from "@/types";
 import { SUBJECTS } from "@/types/learner";
@@ -33,7 +33,7 @@ interface LibraryFiltersProps {
 
 export function LibraryFilters({ onFilterChange }: LibraryFiltersProps) {
   const { filters, setFilters, clearFilters } = useArtifactStore();
-  const { projects } = useUnifiedProjectStore();
+  const { projects } = useProjectCatalog();
   const { packs } = useDesignPackStore();
   const [tagInput, setTagInput] = useState("");
 
@@ -99,8 +99,8 @@ export function LibraryFilters({ onFilterChange }: LibraryFiltersProps) {
           <SelectContent>
             <SelectItem value="all">All Projects</SelectItem>
             {projects.map((project) => (
-              <SelectItem key={project.projectId} value={project.projectId}>
-                {project.name}
+              <SelectItem key={project.id} value={project.id}>
+                {project.title}
               </SelectItem>
             ))}
           </SelectContent>
@@ -294,7 +294,7 @@ export function LibraryFilters({ onFilterChange }: LibraryFiltersProps) {
 // Compact inline filter chips for display above results
 export function ActiveFilterChips() {
   const { filters, setFilters } = useArtifactStore();
-  const { projects } = useUnifiedProjectStore();
+  const { projects } = useProjectCatalog();
   const { packs } = useDesignPackStore();
 
   const removeGrade = (grade: Grade) => {
@@ -339,10 +339,10 @@ export function ActiveFilterChips() {
   return (
     <div className="flex flex-wrap gap-2 mb-4">
       {filters.projects.map((projectId) => {
-        const project = projects.find((p) => p.projectId === projectId);
+        const project = projects.find((p) => p.id === projectId);
         return (
           <Badge key={projectId} variant="secondary" className="gap-1">
-            {project?.name || "Unknown Project"}
+            {project?.title || "Unknown Project"}
             <X
               className="h-3 w-3 cursor-pointer"
               onClick={() => removeProject(projectId)}

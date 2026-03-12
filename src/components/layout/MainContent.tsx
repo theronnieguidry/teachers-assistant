@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useProjectStore } from "@/stores/projectStore";
-import { ProjectPreview } from "@/components/preview/ProjectPreview";
+import { useProjectCatalog } from "@/hooks/useProjectCatalog";
+import { ProjectHomeView } from "@/components/projects/ProjectHomeView";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { TodayView, LearningPathView } from "@/components/learning-path";
 import { LibraryView } from "@/components/library";
@@ -14,7 +14,7 @@ export function MainContent() {
   const [selectedSubject, setSelectedSubject] = useState<string | undefined>();
   const [highlightObjectiveId, setHighlightObjectiveId] = useState<string | null>(null);
 
-  const currentProject = useProjectStore((state) => state.currentProject);
+  const { currentProject } = useProjectCatalog();
 
   const handleNavigateToLearningPath = (subject?: string) => {
     setSelectedSubject(subject);
@@ -93,7 +93,7 @@ export function MainContent() {
         )}
         {activeTab === "projects" && (
           currentProject ? (
-            <ProjectPreview project={currentProject} />
+            <ProjectHomeView project={currentProject} />
           ) : (
             <WelcomeScreen />
           )

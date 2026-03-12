@@ -28,6 +28,7 @@ interface DesignPackState {
 
   // Selected pack for generation (wizard)
   selectedPackId: string | null;
+  selectedPackOrigin: "manual" | "project_default" | null;
 
   // Computed helpers
   getPackById: (packId: string) => DesignPack | null;
@@ -63,7 +64,10 @@ interface DesignPackState {
 
   // Selection actions
   setCurrentPack: (packId: string | null) => void;
-  selectPack: (packId: string | null) => void;
+  selectPack: (
+    packId: string | null,
+    origin?: "manual" | "project_default"
+  ) => void;
 
   // Utility actions
   clearError: () => void;
@@ -78,6 +82,7 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
   currentPackId: null,
   currentPack: null,
   selectedPackId: null,
+  selectedPackOrigin: null,
 
   // ============================================
   // Computed Helpers
@@ -169,6 +174,8 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
         currentPackId: state.currentPackId === packId ? null : state.currentPackId,
         currentPack: state.currentPackId === packId ? null : state.currentPack,
         selectedPackId: state.selectedPackId === packId ? null : state.selectedPackId,
+        selectedPackOrigin:
+          state.selectedPackId === packId ? null : state.selectedPackOrigin,
         isLoading: false,
       }));
     } catch (error) {
@@ -275,8 +282,11 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
     }
   },
 
-  selectPack: (packId: string | null) => {
-    set({ selectedPackId: packId });
+  selectPack: (packId: string | null, origin = "manual") => {
+    set({
+      selectedPackId: packId,
+      selectedPackOrigin: packId ? origin : null,
+    });
   },
 
   // ============================================
@@ -293,6 +303,7 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
       currentPackId: null,
       currentPack: null,
       selectedPackId: null,
+      selectedPackOrigin: null,
     }),
 }));
 

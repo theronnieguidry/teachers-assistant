@@ -11,13 +11,13 @@ import type {
   Project,
   ProjectVersion,
   InspirationItem,
-  UnifiedProject,
   DesignPack,
   LocalArtifact,
   ArtifactType,
   MigrationStatus,
+  ProjectContext,
 } from "@/types";
-import { gradeToGradeBand } from "@/types";
+import { getStoredObjectiveId } from "@/lib/project-context";
 
 const MIGRATION_KEY = "ta-migration-status";
 const CURRENT_MIGRATION_VERSION = 1;
@@ -75,24 +75,19 @@ export function mapLegacyArtifactType(legacyType: string): ArtifactType {
 }
 
 /**
- * Convert a legacy Project to UnifiedProject
+ * Convert a legacy Project to canonical project context
  */
-export function migrateProject(project: Project): UnifiedProject {
-  const now = new Date().toISOString();
-
+export function migrateProject(project: Project): ProjectContext {
+  const storedObjectiveId = getStoredObjectiveId(project.options);
   return {
     projectId: project.id,
     type: "quick_create", // Legacy projects are quick create
-    name: project.title,
-    description: project.description || undefined,
-    grade: project.grade,
-    gradeBand: gradeToGradeBand(project.grade),
-    subjectFocus: [project.subject],
-    artifactIds: [], // Will be populated during artifact migration
-    status: project.status,
-    lastActivityDate: project.updatedAt?.toISOString() || now,
-    createdAt: project.createdAt?.toISOString() || now,
-    updatedAt: project.updatedAt?.toISOString() || now,
+    linkedObjectiveIds: storedObjectiveId ? [storedObjectiveId] : [],
+    lastUsedAt:
+      project.completedAt?.toISOString() ||
+      project.updatedAt?.toISOString() ||
+      project.createdAt?.toISOString() ||
+      new Date().toISOString(),
   };
 }
 
@@ -220,9 +215,12 @@ export function migrateInspirationItems(
  */
 export async function runMigration(
   legacyProjects: Project[],
-  saveProject: (project: UnifiedProject) => Promise<void>,
   saveArtifact: (artifact: LocalArtifact) => Promise<void>,
-  saveDesignPack: (pack: DesignPack) => Promise<void>
+  saveDesignPack: (pack: DesignPack) => Promise<void>,
+  saveProjectContext: (
+    projectId: string,
+    updates: Partial<Omit<ProjectContext, "projectId">>
+  ) => void
 ): Promise<MigrationStatus> {
   const status: MigrationStatus = {
     version: CURRENT_MIGRATION_VERSION,
@@ -237,8 +235,8 @@ export async function runMigration(
   // Migrate each project
   for (const project of legacyProjects) {
     try {
-      // Convert project
-      const unifiedProject = migrateProject(project);
+      // Convert project context
+      const projectContext = migrateProject(project);
 
       // Convert inspiration items to design pack if any
       if (project.inspiration && project.inspiration.length > 0) {
@@ -247,7 +245,7 @@ export async function runMigration(
           `${project.title} Inspiration`
         );
         await saveDesignPack(pack);
-        unifiedProject.defaultDesignPackId = pack.packId;
+        projectContext.defaultDesignPackId = pack.packId;
         status.migratedEntities.inspiration += project.inspiration.length;
       }
 
@@ -256,13 +254,12 @@ export async function runMigration(
         const artifacts = migrateProjectVersion(project.latestVersion, project);
         for (const artifact of artifacts) {
           await saveArtifact(artifact);
-          unifiedProject.artifactIds.push(artifact.artifactId);
           status.migratedEntities.artifacts++;
         }
       }
 
-      // Save the unified project
-      await saveProject(unifiedProject);
+      // Save canonical project context sidecar metadata
+      saveProjectContext(project.id, projectContext);
       status.migratedEntities.projects++;
     } catch (error) {
       console.error(`Failed to migrate project ${project.id}:`, error);

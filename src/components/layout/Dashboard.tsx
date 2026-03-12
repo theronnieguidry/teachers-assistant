@@ -3,9 +3,9 @@ import { AppLayout } from "./AppLayout";
 import { MainContent } from "./MainContent";
 import { WizardDialog } from "@/components/wizard/WizardDialog";
 import { useProjectStore } from "@/stores/projectStore";
+import { useProjectContextStore } from "@/stores/projectContextStore";
 import { isMigrationNeeded, runMigration } from "@/lib/migration";
 import { saveArtifact } from "@/services/library-storage";
-import { saveLocalProject } from "@/services/local-project-storage";
 import { saveDesignPack } from "@/services/design-pack-storage";
 
 export function Dashboard() {
@@ -27,12 +27,16 @@ export function Dashboard() {
         if (legacyProjects.length === 0) return;
 
         console.log(`[Migration] Migrating ${legacyProjects.length} legacy projects...`);
+        const contextStore = useProjectContextStore.getState();
         const status = await runMigration(
           legacyProjects,
-          saveLocalProject,
           saveArtifact,
-          saveDesignPack
+          saveDesignPack,
+          (projectId, updates) => {
+            contextStore.upsertContext(projectId, updates);
+          }
         );
+        await contextStore.migrateLegacyUnifiedProjects(legacyProjects);
         console.log("[Migration] Complete:", status.migratedEntities);
       } catch (error) {
         console.error("[Migration] Failed:", error);

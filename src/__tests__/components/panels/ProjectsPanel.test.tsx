@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "../../utils";
 import { ProjectsPanel } from "@/components/panels/ProjectsPanel";
+import type { ProjectWithContext } from "@/types";
 
 // Mock data
 const mockProjects = [
@@ -48,19 +49,56 @@ const mockSetCurrentProject = vi.fn();
 const mockDeleteProject = vi.fn();
 const mockOpenFolder = vi.fn();
 const mockIsTauriContext = vi.fn(() => true);
+const mockCreateProject = vi.fn();
 
 let mockStoreState = {
-  projects: [] as typeof mockProjects,
-  currentProject: null as (typeof mockProjects)[0] | null,
   isLoading: false,
   fetchProjects: mockFetchProjects,
   setCurrentProject: mockSetCurrentProject,
   deleteProject: mockDeleteProject,
-  createProject: vi.fn(),
+  createProject: mockCreateProject,
 };
 
 vi.mock("@/stores/projectStore", () => ({
-  useProjectStore: () => mockStoreState,
+  useProjectStore: vi.fn((selector?: (state: unknown) => unknown) => {
+    if (typeof selector === "function") return selector(mockStoreState);
+    return mockStoreState;
+  }),
+}));
+
+let mockCatalogState = {
+  projects: [] as ProjectWithContext[],
+  currentProject: null as ProjectWithContext | null,
+};
+
+function createCatalogProject(
+  project: (typeof mockProjects)[number],
+  type: "quick_create" | "learning_path"
+): ProjectWithContext {
+  return {
+    ...project,
+    grade: project.grade as ProjectWithContext["grade"],
+    status: project.status as ProjectWithContext["status"],
+    projectId: project.id,
+    type,
+    learnerId: undefined,
+    linkedObjectiveIds: [],
+    defaultDesignPackId: undefined,
+    lastUsedAt: new Date().toISOString(),
+  };
+}
+
+vi.mock("@/hooks/useProjectCatalog", () => ({
+  useProjectCatalog: vi.fn(() => mockCatalogState),
+}));
+
+vi.mock("@/stores/projectContextStore", () => ({
+  useProjectContextStore: {
+    getState: () => ({
+      getContext: vi.fn(() => null),
+      upsertContext: vi.fn(),
+    }),
+  },
 }));
 
 vi.mock("@/services/tauri-bridge", () => ({
@@ -81,13 +119,15 @@ describe("ProjectsPanel", () => {
     vi.clearAllMocks();
     vi.stubGlobal("confirm", vi.fn(() => true));
     mockStoreState = {
-      projects: [],
-      currentProject: null,
       isLoading: false,
       fetchProjects: mockFetchProjects,
       setCurrentProject: mockSetCurrentProject,
       deleteProject: mockDeleteProject,
-      createProject: vi.fn(),
+      createProject: mockCreateProject,
+    };
+    mockCatalogState = {
+      projects: [],
+      currentProject: null,
     };
   });
 
@@ -134,7 +174,12 @@ describe("ProjectsPanel", () => {
 
   describe("with projects", () => {
     beforeEach(() => {
-      mockStoreState.projects = mockProjects;
+      mockCatalogState.projects = mockProjects.map((project, index) =>
+        createCatalogProject(
+          project,
+          index === 0 ? "quick_create" : "learning_path"
+        )
+      );
     });
 
     it("should render list of projects", () => {
@@ -142,6 +187,8 @@ describe("ProjectsPanel", () => {
 
       expect(screen.getByText("Math Worksheet")).toBeInTheDocument();
       expect(screen.getByText("Science Quiz")).toBeInTheDocument();
+      expect(screen.getByText("Quick Create")).toBeInTheDocument();
+      expect(screen.getByText("Learning Path")).toBeInTheDocument();
     });
 
     it("should display grade and subject for each project", () => {
@@ -164,11 +211,11 @@ describe("ProjectsPanel", () => {
 
       await user.click(screen.getByText("Math Worksheet"));
 
-      expect(mockSetCurrentProject).toHaveBeenCalledWith(mockProjects[0]);
+      expect(mockSetCurrentProject).toHaveBeenCalledWith(mockCatalogState.projects[0]);
     });
 
     it("should highlight current project", () => {
-      mockStoreState.currentProject = mockProjects[0];
+      mockCatalogState.currentProject = mockCatalogState.projects[0];
 
       render(<ProjectsPanel />);
 
@@ -180,9 +227,9 @@ describe("ProjectsPanel", () => {
 
   describe("date formatting", () => {
     it("should show 'Today' for today's projects", () => {
-      mockStoreState.projects = [
+      mockCatalogState.projects = [
         {
-          ...mockProjects[0],
+          ...createCatalogProject(mockProjects[0], "quick_create"),
           createdAt: new Date(),
         },
       ];
@@ -193,9 +240,9 @@ describe("ProjectsPanel", () => {
     });
 
     it("should show 'Yesterday' for yesterday's projects", () => {
-      mockStoreState.projects = [
+      mockCatalogState.projects = [
         {
-          ...mockProjects[0],
+          ...createCatalogProject(mockProjects[0], "quick_create"),
           createdAt: new Date(Date.now() - 86400000),
         },
       ];
@@ -206,9 +253,9 @@ describe("ProjectsPanel", () => {
     });
 
     it("should show 'X days ago' for recent projects", () => {
-      mockStoreState.projects = [
+      mockCatalogState.projects = [
         {
-          ...mockProjects[0],
+          ...createCatalogProject(mockProjects[0], "quick_create"),
           createdAt: new Date(Date.now() - 3 * 86400000), // 3 days ago
         },
       ];
@@ -221,7 +268,12 @@ describe("ProjectsPanel", () => {
 
   describe("project actions", () => {
     beforeEach(() => {
-      mockStoreState.projects = mockProjects;
+      mockCatalogState.projects = mockProjects.map((project, index) =>
+        createCatalogProject(
+          project,
+          index === 0 ? "quick_create" : "learning_path"
+        )
+      );
     });
 
     it("should show action buttons on hover", () => {
@@ -258,9 +310,9 @@ describe("ProjectsPanel", () => {
     });
 
     it("opens folders for selected projects in batch", async () => {
-      mockStoreState.projects = [
-        { ...mockProjects[0], outputPath: "/tmp/project-1" },
-        { ...mockProjects[1], outputPath: "/tmp/project-2" },
+      mockCatalogState.projects = [
+        { ...mockCatalogState.projects[0], outputPath: "/tmp/project-1" },
+        { ...mockCatalogState.projects[1], outputPath: "/tmp/project-2" },
       ];
 
       const { user } = render(<ProjectsPanel />);

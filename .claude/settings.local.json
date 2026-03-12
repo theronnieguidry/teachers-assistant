@@ -40,7 +40,10 @@
       "Skill(qa)",
       "WebFetch(domain:chatgpt.com)",
       "WebFetch(domain:v2.tauri.app)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Add premium generation pipeline, purchase flow, feedback, and curriculum packs\n\nAdds the full premium content generation system including:\n- Premium services: image generation, quality gates, math validation,\n  worksheet/lesson-plan planners and validators, HTML assembly\n- API routes: checkout, curriculum, estimate, feedback, improve\n- Frontend: purchase dialog, feedback components, improve menu,\n  credit estimate, objective chooser, visual options panel\n- Curriculum packs: K-3 math, reading, science, social studies, writing\n- Database migrations: Stripe purchases, worksheet plans, premium metadata,\n  lesson plan enhancements, image stats\n- Shared types, QA knowledge base, project snapshot skill\n- Comprehensive tests across all new services and components\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue comment:*)"
     ],
     "deny": []
   }

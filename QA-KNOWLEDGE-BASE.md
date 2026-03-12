@@ -67,6 +67,16 @@ This file contains documented answers to QA questions for future reference. The 
 
 *Ideas noted during QA that aren't bugs but could improve the app.*
 
+### Collapsible Lesson Plan Options
+**Description**: The Lesson Plan Options section in wizard Step 1 adds significant content. Consider making it collapsible by default to reduce scrolling.
+**Noted**: 2026-02-05
+**Status**: Related to Issue #48
+
+### Header button accessibility
+**Description**: Header buttons (credits, feedback, sign out) lack aria-labels on some icons. Could improve screen reader experience.
+**Noted**: 2026-02-05
+**Status**: Noted
+
 <!-- Template:
 ### [Idea Title]
 **Description**: [What could be added/improved]
@@ -80,6 +90,7 @@ This file contains documented answers to QA questions for future reference. The 
 
 | Date | Bugs Found | Bugs Fixed | Questions Asked | Notes |
 |------|------------|------------|-----------------|-------|
+| 2026-02-05 | 3 | 0 | 0 | Layout issues in wizard Step 1 (Issue #48, #49), Credit packs 500 error (Issue #50) |
 | 2026-01-26 | 2 | 2 | 0 | Fixed P0 infinite loop in TodayView (Zustand selector issue) and wizard dialog overflow |
 | 2026-01-25 | 1 | 1 | 0 | Full E2E with real auth: All 3 providers generated successfully, credits bug fixed |
 

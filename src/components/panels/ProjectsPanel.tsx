@@ -8,22 +8,25 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useProjectCatalog } from "@/hooks/useProjectCatalog";
 import { useProjectStore } from "@/stores/projectStore";
+import { useProjectContextStore } from "@/stores/projectContextStore";
 import { useWizardStore } from "@/stores/wizardStore";
 import { openFolder, isTauriContext } from "@/services/tauri-bridge";
 import { toast } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
+import { getProjectTypeLabel, type ProjectWithContext } from "@/types";
 
 export function ProjectsPanel() {
   const {
-    projects,
-    currentProject,
     isLoading,
     fetchProjects,
     setCurrentProject,
     deleteProject,
     createProject,
   } = useProjectStore();
+  const { projects, currentProject } = useProjectCatalog();
   const { openWizardForRegeneration } = useWizardStore();
   const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
 
@@ -66,8 +69,9 @@ export function ProjectsPanel() {
     }
   };
 
-  const handleDuplicate = async (project: typeof projects[0]) => {
+  const handleDuplicate = async (project: ProjectWithContext) => {
     try {
+      const sourceContext = useProjectContextStore.getState().getContext(project.id);
       const duplicatedProject = await createProject({
         title: `${project.title} (Copy)`,
         prompt: project.prompt,
@@ -77,6 +81,15 @@ export function ProjectsPanel() {
         inspiration: project.inspiration,
         outputPath: project.outputPath || undefined,
       });
+      if (sourceContext) {
+        useProjectContextStore.getState().upsertContext(duplicatedProject.id, {
+          type: sourceContext.type,
+          learnerId: sourceContext.learnerId,
+          linkedObjectiveIds: [...sourceContext.linkedObjectiveIds],
+          defaultDesignPackId: sourceContext.defaultDesignPackId,
+          lastUsedAt: new Date().toISOString(),
+        });
+      }
       setCurrentProject(duplicatedProject);
       toast.success("Project duplicated", `Created "${duplicatedProject.title}"`);
     } catch (error) {
@@ -275,6 +288,11 @@ export function ProjectsPanel() {
                     <h3 className="text-sm font-medium truncate">
                       {project.title}
                     </h3>
+                    <div className="mt-1">
+                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                        {getProjectTypeLabel(project.type)}
+                      </Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Grade {project.grade} • {project.subject}
                     </p>

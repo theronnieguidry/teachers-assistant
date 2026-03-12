@@ -4,6 +4,7 @@ import type {
   InspirationItem,
   ProjectOptions,
   Project,
+  ProjectWithContext,
   VisualSettings,
   GenerationMode,
   StudentProfileFlag,
@@ -14,7 +15,13 @@ import type {
 } from "@/types";
 import { DEFAULT_VISUAL_SETTINGS } from "@/types";
 import { useProjectStore } from "@/stores/projectStore";
+import { useProjectContextStore } from "@/stores/projectContextStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
 import { useSettingsStore, type AiProvider } from "@/stores/settingsStore";
+import {
+  getPreferredProjectType,
+  getStoredObjectiveId,
+} from "@/lib/project-context";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -71,6 +78,30 @@ function resolveObjectiveQuestionCount(
   return Math.max(5, Math.min(20, computed));
 }
 
+function resolveDefaultTargetProjectId(options?: {
+  learnerId?: string | null;
+  preferredType?: "learning_path" | "quick_create";
+}): string | null {
+  const availableProjects = Array.isArray(useProjectStore.getState().projects)
+    ? useProjectStore.getState().projects
+    : [];
+  const allowedProjectIds = availableProjects.map((project) => project.id);
+  return useProjectContextStore.getState().getLastUsedProjectId({
+    learnerId: options?.learnerId,
+    preferredType: options?.preferredType,
+    allowedProjectIds,
+  });
+}
+
+function applyProjectDefaultDesignPack(projectId: string | null): void {
+  const context = projectId
+    ? useProjectContextStore.getState().getContext(projectId)
+    : null;
+  useDesignPackStore
+    .getState()
+    .selectPack(context?.defaultDesignPackId || null, "project_default");
+}
+
 interface ClassDetails {
   grade: Grade;
   subject: string;
@@ -91,6 +122,7 @@ interface WizardState {
   prompt: string;
   title: string;
   objectiveId: string | null;
+  learnerId: string | null;
   classDetails: ClassDetails | null;
   selectedInspiration: InspirationItem[];
   outputPath: string | null;
@@ -109,7 +141,7 @@ interface WizardState {
   // Regeneration state
   regeneratingProjectId: string | null;
 
-  // Target unified project (Issue #20 — project selection)
+  // Target canonical project (Issue #20 follow-up)
   targetProjectId: string | null;
 
   // Generation state
@@ -121,6 +153,7 @@ interface WizardState {
   // Actions
   openWizard: (prompt: string) => void;
   openWizardForRegeneration: (project: Project) => Promise<void>;
+  openWizardForProject: (project: ProjectWithContext) => void;
   openWizardFromObjective: (
     objective: ObjectiveRecommendation,
     learner: LearnerProfile,
@@ -171,6 +204,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   prompt: "",
   title: "",
   objectiveId: null,
+  learnerId: null,
   classDetails: null,
   selectedInspiration: [],
   outputPath: null,
@@ -193,12 +227,15 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     // Use the user's default AI provider from settings
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
     const defaultMode = resolveGenerationMode(defaultProvider, defaultClassDetails.format);
+    const targetProjectId = resolveDefaultTargetProjectId();
+    applyProjectDefaultDesignPack(targetProjectId);
     set({
       isOpen: true,
       currentStep: 1,
       prompt,
       title,
       objectiveId: null,
+      learnerId: null,
       classDetails: { ...defaultClassDetails },
       selectedInspiration: [],
       outputPath: null,
@@ -208,7 +245,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
-      targetProjectId: null,
+      targetProjectId,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -219,7 +256,9 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   openWizardForRegeneration: async (project) => {
     // Extract options with defaults
     const options = project.options || {};
-    const objectiveId = typeof options.objectiveId === "string" ? options.objectiveId : null;
+    const objectiveId = getStoredObjectiveId(options);
+    const projectContext = useProjectContextStore.getState().getContext(project.id);
+    applyProjectDefaultDesignPack(project.id);
 
     // Try to fetch inspiration from junction table first (proper relational approach)
     let inspiration = await useProjectStore.getState().fetchProjectInspiration(project.id);
@@ -240,6 +279,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       prompt: project.prompt,
       title: project.title,
       objectiveId,
+      learnerId: projectContext?.learnerId || null,
       classDetails: {
         grade: project.grade,
         subject: project.subject,
@@ -261,7 +301,47 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: project.id,
-      targetProjectId: null,
+      targetProjectId: project.id,
+      isGenerating: false,
+      generationProgress: 0,
+      generationMessage: "",
+      generationError: null,
+    });
+  },
+
+  openWizardForProject: (project) => {
+    const defaultProvider = useSettingsStore.getState().defaultAiProvider;
+    const defaultMode = resolveGenerationMode(defaultProvider, "both");
+    applyProjectDefaultDesignPack(project.id);
+
+    set({
+      isOpen: true,
+      currentStep: 1,
+      prompt: `Create new Grade ${project.grade} ${project.subject} materials for this project.`,
+      title: `New ${project.subject} materials`,
+      objectiveId: null,
+      learnerId: project.learnerId || null,
+      classDetails: {
+        grade: project.grade,
+        subject: project.subject,
+        format: "both",
+        questionCount: 10,
+        includeVisuals: true,
+        difficulty: "medium",
+        includeAnswerKey: true,
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
+      },
+      selectedInspiration: [],
+      outputPath: project.outputPath || null,
+      aiProvider: defaultProvider,
+      generationMode: defaultMode,
+      visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
+      polishedPrompt: null,
+      usePolishedPrompt: true,
+      regeneratingProjectId: null,
+      targetProjectId: project.id,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -300,6 +380,11 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     // Use the user's default AI provider from settings
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
     const defaultMode = resolveGenerationMode(defaultProvider, format);
+    const targetProjectId = resolveDefaultTargetProjectId({
+      learnerId: learner.learnerId,
+      preferredType: getPreferredProjectType(true),
+    });
+    applyProjectDefaultDesignPack(targetProjectId);
 
     set({
       isOpen: true,
@@ -307,6 +392,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       prompt,
       title,
       objectiveId: objective.id,
+      learnerId: learner.learnerId,
       classDetails: {
         grade: learner.grade,
         subject: subject,
@@ -327,7 +413,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
-      targetProjectId: null,
+      targetProjectId,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -344,6 +430,11 @@ export const useWizardStore = create<WizardState>((set, get) => ({
 
     const defaultProvider = useSettingsStore.getState().defaultAiProvider;
     const defaultMode = resolveGenerationMode(defaultProvider, "worksheet");
+    const targetProjectId = resolveDefaultTargetProjectId({
+      learnerId: learner.learnerId,
+      preferredType: getPreferredProjectType(true),
+    });
+    applyProjectDefaultDesignPack(targetProjectId);
 
     set({
       isOpen: true,
@@ -351,6 +442,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       prompt,
       title,
       objectiveId: null,
+      learnerId: learner.learnerId,
       classDetails: {
         grade: learner.grade,
         subject: resolvedSubject,
@@ -371,7 +463,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
-      targetProjectId: null,
+      targetProjectId,
       isGenerating: false,
       generationProgress: 0,
       generationMessage: "",
@@ -469,6 +561,7 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       prompt: "",
       title: "",
       objectiveId: null,
+      learnerId: null,
       classDetails: null,
       selectedInspiration: [],
       outputPath: null,
