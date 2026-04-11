@@ -36,15 +36,6 @@ import {
   openFolder,
   saveTeacherPack,
   isTauriContext,
-  checkOllamaStatus,
-  installOllama,
-  startOllama,
-  stopOllama,
-  pullOllamaModel,
-  listOllamaModels,
-  getRecommendedModels,
-  getPreferredOllamaModel,
-  DEFAULT_RECOMMENDED_OLLAMA_MODEL,
   checkForUpdates,
   downloadAndInstallUpdate,
 } from "@/services/tauri-bridge";
@@ -107,7 +98,9 @@ describe("tauri-bridge", () => {
 
       const result = await readFile("C:\\path\\to\\file.txt");
 
-      expect(invoke).toHaveBeenCalledWith("read_file", { path: "C:\\path\\to\\file.txt" });
+      expect(invoke).toHaveBeenCalledWith("read_file", {
+        path: "C:\\path\\to\\file.txt",
+      });
       expect(result).toBe("file contents");
     });
   });
@@ -193,11 +186,7 @@ describe("tauri-bridge", () => {
     };
 
     it("saves all three files when content is provided", async () => {
-      const result = await saveTeacherPack(
-        "C:\\Output",
-        mockContent,
-        "Math Test"
-      );
+      const result = await saveTeacherPack("C:\\Output", mockContent, "Math Test");
 
       expect(invoke).toHaveBeenCalledTimes(3);
       expect(result).toHaveLength(3);
@@ -219,19 +208,28 @@ describe("tauri-bridge", () => {
     it("saves worksheet with correct filename", async () => {
       await saveTeacherPack("C:\\Output", mockContent, "My Project");
 
-      expect(join).toHaveBeenCalledWith("C:\\Output", "My Project - Worksheet.html");
+      expect(join).toHaveBeenCalledWith(
+        "C:\\Output",
+        "My Project - Worksheet.html"
+      );
     });
 
     it("saves lesson plan with correct filename", async () => {
       await saveTeacherPack("C:\\Output", mockContent, "My Project");
 
-      expect(join).toHaveBeenCalledWith("C:\\Output", "My Project - Lesson Plan.html");
+      expect(join).toHaveBeenCalledWith(
+        "C:\\Output",
+        "My Project - Lesson Plan.html"
+      );
     });
 
     it("saves answer key with correct filename", async () => {
       await saveTeacherPack("C:\\Output", mockContent, "My Project");
 
-      expect(join).toHaveBeenCalledWith("C:\\Output", "My Project - Answer Key.html");
+      expect(join).toHaveBeenCalledWith(
+        "C:\\Output",
+        "My Project - Answer Key.html"
+      );
     });
 
     it("skips worksheet when content is empty", async () => {
@@ -267,11 +265,17 @@ describe("tauri-bridge", () => {
     it("wraps non-HTML content in HTML structure", async () => {
       await saveTeacherPack(
         "C:\\Output",
-        { worksheetHtml: "Plain text content", lessonPlanHtml: "", answerKeyHtml: "" },
+        {
+          worksheetHtml: "Plain text content",
+          lessonPlanHtml: "",
+          answerKeyHtml: "",
+        },
         "Test"
       );
 
-      const savedContent = vi.mocked(invoke).mock.calls[0][1] as { content: string };
+      const savedContent = vi.mocked(invoke).mock.calls[0][1] as {
+        content: string;
+      };
       expect(savedContent.content).toContain("<!DOCTYPE html>");
       expect(savedContent.content).toContain("Plain text content");
     });
@@ -284,7 +288,9 @@ describe("tauri-bridge", () => {
         "Test"
       );
 
-      const savedContent = vi.mocked(invoke).mock.calls[0][1] as { content: string };
+      const savedContent = vi.mocked(invoke).mock.calls[0][1] as {
+        content: string;
+      };
       expect(savedContent.content).toBe(htmlContent);
     });
 
@@ -297,7 +303,6 @@ describe("tauri-bridge", () => {
     });
 
     it("returns empty array when not in Tauri context", async () => {
-      // Remove Tauri context
       delete (window as unknown as { __TAURI__?: object }).__TAURI__;
 
       const result = await saveTeacherPack("C:\\Output", mockContent, "Test");
@@ -319,235 +324,17 @@ describe("tauri-bridge", () => {
     });
   });
 
-  describe("checkOllamaStatus", () => {
-    it("invokes Tauri command when in Tauri context", async () => {
-      const mockStatus = {
-        installed: true,
-        running: true,
-        version: "0.1.0",
-        models: ["llama3.2"],
-      };
-      vi.mocked(invoke).mockResolvedValue(mockStatus);
+  describe("Ollama surface hardening", () => {
+    it("does not export user-triggerable Ollama control helpers", async () => {
+      const bridge = await import("@/services/tauri-bridge");
 
-      const result = await checkOllamaStatus();
-
-      expect(invoke).toHaveBeenCalledWith("check_ollama_status");
-      expect(result).toEqual(mockStatus);
-    });
-
-    it("falls back to HTTP check when not in Tauri context", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: [{ name: "llama3.2" }] }),
-      });
-
-      const result = await checkOllamaStatus();
-
-      expect(result.installed).toBe(true);
-      expect(result.running).toBe(true);
-      expect(result.models).toContain("llama3.2");
-    });
-
-    it("returns not running when HTTP check fails with response", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-      });
-
-      const result = await checkOllamaStatus();
-
-      expect(result.installed).toBe(true);
-      expect(result.running).toBe(false);
-    });
-
-    it("returns not installed when HTTP check throws", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      global.fetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
-
-      const result = await checkOllamaStatus();
-
-      expect(result.installed).toBe(false);
-      expect(result.running).toBe(false);
-    });
-  });
-
-  describe("installOllama", () => {
-    it("invokes Tauri command when in Tauri context", async () => {
-      vi.mocked(invoke).mockResolvedValue("Installed successfully");
-
-      const result = await installOllama();
-
-      expect(invoke).toHaveBeenCalledWith("install_ollama");
-      expect(result).toBe("Installed successfully");
-    });
-
-    it("throws error when not in Tauri context", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      await expect(installOllama()).rejects.toThrow(
-        "Ollama installation requires the desktop app"
-      );
-    });
-  });
-
-  describe("startOllama", () => {
-    it("invokes Tauri command when in Tauri context", async () => {
-      vi.mocked(invoke).mockResolvedValue("Started");
-
-      const result = await startOllama();
-
-      expect(invoke).toHaveBeenCalledWith("start_ollama");
-      expect(result).toBe("Started");
-    });
-
-    it("throws error when not in Tauri context", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      await expect(startOllama()).rejects.toThrow(
-        "Starting Ollama requires the desktop app"
-      );
-    });
-  });
-
-  describe("stopOllama", () => {
-    it("invokes Tauri command when in Tauri context", async () => {
-      vi.mocked(invoke).mockResolvedValue("Stopped");
-
-      const result = await stopOllama();
-
-      expect(invoke).toHaveBeenCalledWith("stop_ollama");
-      expect(result).toBe("Stopped");
-    });
-
-    it("throws error when not in Tauri context", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      await expect(stopOllama()).rejects.toThrow(
-        "Stopping Ollama requires the desktop app"
-      );
-    });
-  });
-
-  describe("pullOllamaModel", () => {
-    it("invokes Tauri command with model name", async () => {
-      vi.mocked(invoke).mockResolvedValue("Pulled llama3.2");
-
-      const result = await pullOllamaModel("llama3.2");
-
-      expect(invoke).toHaveBeenCalledWith("pull_ollama_model", { modelName: "llama3.2" });
-      expect(result).toBe("Pulled llama3.2");
-    });
-
-    it("throws error when not in Tauri context", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      await expect(pullOllamaModel("llama3.2")).rejects.toThrow(
-        "Model download requires the desktop app"
-      );
-    });
-  });
-
-  describe("listOllamaModels", () => {
-    it("invokes Tauri command when in Tauri context", async () => {
-      const mockModels = [
-        { name: "llama3.2", size: "2.0 GB", modified_at: "2024-01-01" },
-      ];
-      vi.mocked(invoke).mockResolvedValue(mockModels);
-
-      const result = await listOllamaModels();
-
-      expect(invoke).toHaveBeenCalledWith("list_ollama_models");
-      expect(result).toEqual(mockModels);
-    });
-
-    it("falls back to HTTP when not in Tauri context", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({
-          models: [{ name: "llama3.2", size: 2000000000 }],
-        }),
-      });
-
-      const result = await listOllamaModels();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toBe("llama3.2");
-      expect(result[0].size).toBe("1.9 GB");
-    });
-
-    it("returns empty array when HTTP check fails", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      global.fetch = vi.fn().mockResolvedValue({ ok: false });
-
-      const result = await listOllamaModels();
-
-      expect(result).toEqual([]);
-    });
-
-    it("returns empty array when HTTP throws", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
-
-      const result = await listOllamaModels();
-
-      expect(result).toEqual([]);
-    });
-  });
-
-  describe("getRecommendedModels", () => {
-    it("invokes Tauri command when in Tauri context", async () => {
-      const mockModels = [["phi4-mini", "3.8B", "Best overall"]];
-      vi.mocked(invoke).mockResolvedValue(mockModels);
-
-      const result = await getRecommendedModels();
-
-      expect(invoke).toHaveBeenCalledWith("get_recommended_models");
-      expect(result).toEqual(mockModels);
-    });
-
-    it("returns static list when not in Tauri context", async () => {
-      delete (window as unknown as { __TAURI__?: object }).__TAURI__;
-
-      const result = await getRecommendedModels();
-
-      expect(result).toContainEqual([
-        "phi4-mini",
-        "3.8B",
-        "Best overall for worksheets and lesson plans on 8-16GB PCs",
-      ]);
-      expect(result).toContainEqual([
-        "mistral",
-        "7B",
-        "Heavier model with stronger writing quality if you have extra RAM",
-      ]);
-    });
-  });
-
-  describe("getPreferredOllamaModel", () => {
-    it("prefers phi4-mini when installed", () => {
-      expect(
-        getPreferredOllamaModel(["llama3.2:latest", "phi4-mini:latest", "mistral"])
-      ).toBe("phi4-mini:latest");
-    });
-
-    it("falls back to llama3.2 when phi4-mini is unavailable", () => {
-      expect(getPreferredOllamaModel(["mistral", "llama3.2"])).toBe("llama3.2");
-    });
-
-    it("falls back to the first installed model when none match the curated list", () => {
-      expect(getPreferredOllamaModel(["custom-model", "another-model"])).toBe("custom-model");
-    });
-
-    it("exposes phi4-mini as the default recommended model constant", () => {
-      expect(DEFAULT_RECOMMENDED_OLLAMA_MODEL).toBe("phi4-mini");
+      expect("checkOllamaStatus" in bridge).toBe(false);
+      expect("installOllama" in bridge).toBe(false);
+      expect("startOllama" in bridge).toBe(false);
+      expect("stopOllama" in bridge).toBe(false);
+      expect("pullOllamaModel" in bridge).toBe(false);
+      expect("listOllamaModels" in bridge).toBe(false);
+      expect("getRecommendedModels" in bridge).toBe(false);
     });
   });
 
@@ -628,15 +415,13 @@ describe("tauri-bridge", () => {
     });
 
     it("throws error when no update is cached", async () => {
-      // Reset modules to clear the cached update
       vi.resetModules();
 
-      // Re-import with fresh state
-      const { downloadAndInstallUpdate: freshDownload } = await import("@/services/tauri-bridge");
-
-      await expect(freshDownload()).rejects.toThrow(
-        "No update available"
+      const { downloadAndInstallUpdate: freshDownload } = await import(
+        "@/services/tauri-bridge"
       );
+
+      await expect(freshDownload()).rejects.toThrow("No update available");
     });
 
     it("downloads, installs, and relaunches when update is cached", async () => {
@@ -649,10 +434,7 @@ describe("tauri-bridge", () => {
       vi.mocked(check).mockResolvedValue(mockUpdate);
       vi.mocked(relaunch).mockResolvedValue(undefined);
 
-      // First check for updates to cache the update
       await checkForUpdates();
-
-      // Now download and install
       await downloadAndInstallUpdate();
 
       expect(mockDownloadAndInstall).toHaveBeenCalled();
@@ -660,7 +442,9 @@ describe("tauri-bridge", () => {
     });
 
     it("throws formatted error when download fails", async () => {
-      const mockDownloadAndInstall = vi.fn().mockRejectedValue(new Error("Download failed"));
+      const mockDownloadAndInstall = vi
+        .fn()
+        .mockRejectedValue(new Error("Download failed"));
       const mockUpdate = {
         version: "1.2.0",
         body: "New features",

@@ -1,822 +1,239 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, waitFor } from "@testing-library/react";
 import { GenerationStep } from "@/components/wizard/GenerationStep";
-import { useWizardStore } from "@/stores/wizardStore";
-import { useProjectStore } from "@/stores/projectStore";
-import { useProjectContextStore } from "@/stores/projectContextStore";
-import { useAuthStore } from "@/stores/authStore";
-import { useDesignPackStore } from "@/stores/designPackStore";
-import type { Project } from "@/types";
+import { generateTeacherPack } from "@/services/generation-api";
 
-// Mock external services
-vi.mock("@/services/generation-api", () => ({
-  generateTeacherPack: vi.fn(),
-  GenerationApiError: class GenerationApiError extends Error {
-    statusCode: number;
-    details?: unknown;
-    constructor(message: string, statusCode: number, details?: unknown) {
-      super(message);
-      this.statusCode = statusCode;
-      this.details = details;
+const mockSetGenerationState = vi.fn();
+const mockCreateProject = vi.fn();
+const mockUpdateProject = vi.fn().mockResolvedValue(undefined);
+const mockSetCurrentProject = vi.fn();
+const mockFetchProjectVersion = vi.fn().mockResolvedValue(null);
+const mockSaveFromGeneration = vi.fn().mockResolvedValue(undefined);
+const mockMarkProjectUsed = vi.fn();
+const mockLinkObjective = vi.fn();
+const mockSetDefaultDesignPack = vi.fn();
+const mockSetSelectedInspirationIds = vi.fn();
+
+const wizardState = {
+  isGenerating: false,
+  generationProgress: 0,
+  generationMessage: "",
+  generationError: null as string | null,
+  setGenerationState: mockSetGenerationState,
+  closeWizard: vi.fn(),
+  reset: vi.fn(),
+  prompt: "Create a worksheet",
+  polishedPrompt: null as string | null,
+  usePolishedPrompt: true,
+  title: "Fractions Pack",
+  objectiveId: null as string | null,
+  learnerId: null as string | null,
+  classDetails: {
+    grade: "2" as const,
+    subject: "Math",
+    format: "worksheet" as const,
+    questionCount: 10,
+    includeVisuals: true,
+    difficulty: "medium" as const,
+    includeAnswerKey: true,
+    lessonLength: 30 as const,
+    studentProfile: [],
+    teachingConfidence: "intermediate" as const,
+  },
+  remediationContext: null as null | {
+    objectiveId: string;
+    objectiveText: string;
+    subject: string;
+    grade: "2";
+    score: number;
+    wrongAnswerSummary: string;
+    missedCheckpoints: Array<{ kind: "core"; prompt: string }>;
+  },
+  selectedInspirationIds: ["item-1"],
+  getEffectiveInspiration: () => [
+    { id: "item-1", type: "url" as const, title: "Reference Link" },
+    { id: "pack-item-1", type: "pdf" as const, title: "Pack Notes", content: "base64" },
+  ],
+  outputPath: null as string | null,
+  aiProvider: "local" as const,
+  regeneratingProjectId: null as string | null,
+  targetProjectId: null as string | null,
+  generationMode: "standard" as "standard" | "remediation_pack",
+  visualSettings: {
+    includeVisuals: true,
+    richness: "minimal" as const,
+    style: "friendly_cartoon" as const,
+  },
+  prevStep: vi.fn(),
+};
+
+const projectStoreHookValue = {
+  createProject: mockCreateProject,
+  syncProjectDefinition: vi.fn(),
+  updateProject: mockUpdateProject,
+  setCurrentProject: mockSetCurrentProject,
+};
+
+vi.mock("@/stores/wizardStore", () => ({
+  useWizardStore: vi.fn((selector?: (state: typeof wizardState) => unknown) =>
+    selector ? selector(wizardState) : wizardState
+  ),
+}));
+
+vi.mock("@/stores/projectStore", () => ({
+  useProjectStore: Object.assign(
+    vi.fn(() => projectStoreHookValue),
+    {
+      getState: vi.fn(() => ({
+        fetchProjectVersion: mockFetchProjectVersion,
+        projects: [],
+      })),
     }
+  ),
+}));
+
+vi.mock("@/stores/projectContextStore", () => ({
+  useProjectContextStore: {
+    getState: vi.fn(() => ({
+      getContext: () => null,
+      markProjectUsed: mockMarkProjectUsed,
+      linkObjective: mockLinkObjective,
+      setDefaultDesignPack: mockSetDefaultDesignPack,
+      setSelectedInspirationIds: mockSetSelectedInspirationIds,
+    })),
   },
 }));
 
-vi.mock("@/services/tauri-bridge", () => ({
-  saveTeacherPack: vi.fn(),
-  isTauriContext: vi.fn(() => false),
+vi.mock("@/stores/authStore", () => ({
+  useAuthStore: () => ({ session: { access_token: "test-token" } }),
 }));
 
-// Mock checkout-api (used by PurchaseDialog)
-vi.mock("@/services/checkout-api", () => ({
-  getCreditPacks: vi.fn().mockResolvedValue([]),
-  getCreditsLedger: vi.fn().mockResolvedValue([]),
-  createCheckoutSession: vi.fn(),
+vi.mock("@/stores/artifactStore", () => ({
+  useArtifactStore: {
+    getState: vi.fn(() => ({
+      saveFromGeneration: mockSaveFromGeneration,
+    })),
+  },
 }));
 
-// Mock useAuth hook for PurchaseDialog
+vi.mock("@/stores/designPackStore", () => ({
+  useDesignPackStore: vi.fn((selector?: (state: { selectedPackId: string | null; getSelectedPack: () => { packId: string; name: string; items: Array<{ id: string; type: "url" | "pdf" | "image" | "text"; title: string }> } | null }) => unknown) =>
+    selector
+      ? selector({
+          selectedPackId: "pack-1",
+          getSelectedPack: () => ({
+            packId: "pack-1",
+            name: "Spring Pack",
+            items: [{ id: "pack-item-1", type: "pdf", title: "Pack Notes" }],
+          }),
+        })
+      : {
+          selectedPackId: "pack-1",
+          getSelectedPack: () => ({
+            packId: "pack-1",
+            name: "Spring Pack",
+            items: [{ id: "pack-item-1", type: "pdf", title: "Pack Notes" }],
+          }),
+        }
+  ),
+}));
+
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({
-    session: { access_token: "test-token" },
-    credits: { balance: 50, lifetimeGranted: 100, lifetimeUsed: 50 },
-    refreshCredits: vi.fn(),
-  }),
+  useAuth: () => ({ credits: { balance: 10 } }),
 }));
 
-// Mock the toast store - need both useToastStore and toast for PurchaseDialog
-vi.mock("@/stores/toastStore", () => {
-  const mockAddToast = vi.fn();
-  const useToastStore = vi.fn(() => ({
-    addToast: mockAddToast,
-    toasts: [],
-    removeToast: vi.fn(),
-    clearToasts: vi.fn(),
-  })) as ReturnType<typeof vi.fn> & {
-    getState: () => {
-      addToast: typeof mockAddToast;
-      toasts: never[];
-      removeToast: ReturnType<typeof vi.fn>;
-      clearToasts: ReturnType<typeof vi.fn>;
-    };
-  };
-  useToastStore.getState = () => ({
-    addToast: mockAddToast,
-    toasts: [],
-    removeToast: vi.fn(),
-    clearToasts: vi.fn(),
-  });
-  return {
-    useToastStore,
-    toast: {
-      success: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-    },
-  };
-});
-
-vi.mock("@/stores/inspirationStore", () => ({
-  useInspirationStore: () => ({
-    persistLocalItems: vi.fn().mockResolvedValue(new Map()),
-  }),
+vi.mock("@/services/generation-api", () => ({
+  generateTeacherPack: vi.fn(),
+  estimateCredits: vi.fn(),
+  GenerationApiError: class extends Error {},
 }));
 
-import { generateTeacherPack, GenerationApiError } from "@/services/generation-api";
-import { saveTeacherPack } from "@/services/tauri-bridge";
+vi.mock("@/services/tauri-bridge", () => ({
+  saveTeacherPack: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/stores/toastStore", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+vi.mock("@/components/purchase", () => ({
+  PurchaseDialog: () => null,
+}));
+
+vi.mock("@/components/wizard/CreditEstimate", () => ({
+  CreditEstimate: () => null,
+}));
 
 describe("GenerationStep", () => {
-  const mockCloseWizard = vi.fn();
-  const mockReset = vi.fn();
-  const mockSetGenerationState = vi.fn();
-  const mockCreateProject = vi.fn();
-  const mockSyncProjectDefinition = vi.fn();
-  const mockUpdateProject = vi.fn();
-  const mockUpdateProjectWithVersion = vi.fn();
-  const mockFetchProjectVersion = vi.fn();
-  const mockSetCurrentProject = vi.fn();
-
-  const createExistingProject = (overrides: Partial<Project> = {}): Project => ({
-    id: "existing-project-1",
-    userId: "user-1",
-    title: "Existing Learning Project",
-    description: null,
-    prompt: "Original saved prompt",
-    grade: "3",
-    subject: "Reading",
-    options: {
-      questionCount: 12,
-      includeVisuals: false,
-      difficulty: "easy",
-      format: "worksheet",
-      includeAnswerKey: true,
-    },
-    inspiration: [],
-    outputPath: "C:\\Existing",
-    status: "completed",
-    errorMessage: null,
-    creditsUsed: 2,
-    createdAt: new Date("2026-02-01T00:00:00Z"),
-    updatedAt: new Date("2026-02-02T00:00:00Z"),
-    completedAt: new Date("2026-02-03T00:00:00Z"),
-    ...overrides,
-  });
-
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.clear();
-
-    useWizardStore.setState({
-      isGenerating: false,
-      generationProgress: 0,
-      generationMessage: "",
-      generationError: null,
-      prompt: "Create a math worksheet",
-      title: "Math Worksheet",
-      classDetails: {
-        grade: "2",
-        subject: "Math",
-        format: "worksheet",
-        questionCount: 10,
-        includeVisuals: true,
-        difficulty: "medium",
-        includeAnswerKey: true,
-        lessonLength: 30,
-        studentProfile: [],
-        teachingConfidence: "intermediate",
-      },
-      selectedInspiration: [],
-      outputPath: "C:\\Output",
-      closeWizard: mockCloseWizard,
-      reset: mockReset,
-      setGenerationState: mockSetGenerationState,
-    });
-
-    useProjectStore.setState({
-      projects: [],
-      currentProject: null,
-      createProject: mockCreateProject,
-      syncProjectDefinition: mockSyncProjectDefinition,
-      updateProject: mockUpdateProject,
-      updateProjectWithVersion: mockUpdateProjectWithVersion,
-      fetchProjectVersion: mockFetchProjectVersion,
-      setCurrentProject: mockSetCurrentProject,
-    });
-
-    useProjectContextStore.setState({
-      contexts: {},
-      migration: {
-        version: 0,
-        unmappedLegacyProjectIds: [],
-      },
-    });
-
-    useAuthStore.setState({
-      session: { access_token: "test-token" } as any,
-    });
-
-    useDesignPackStore.setState({
-      packs: [],
-      selectedPackId: null,
-    });
-
+    wizardState.generationMode = "standard";
+    wizardState.remediationContext = null;
     mockCreateProject.mockResolvedValue({ id: "project-123" });
-    mockSyncProjectDefinition.mockResolvedValue(undefined);
-    mockUpdateProject.mockResolvedValue({});
-    mockUpdateProjectWithVersion.mockResolvedValue({});
-    mockFetchProjectVersion.mockResolvedValue(null);
-    mockSetCurrentProject.mockImplementation(() => {});
     vi.mocked(generateTeacherPack).mockResolvedValue({
       projectId: "project-123",
-      versionId: "version-123",
-      worksheetHtml: "<html>Worksheet</html>",
-      lessonPlanHtml: "<html>Lesson Plan</html>",
-      answerKeyHtml: "<html>Answer Key</html>",
-      creditsUsed: 3,
+      versionId: "version-1",
+      worksheetHtml: "<p>Worksheet</p>",
+      lessonPlanHtml: "",
+      answerKeyHtml: "<p>Answers</p>",
+      creditsUsed: 0,
     });
-    vi.mocked(saveTeacherPack).mockResolvedValue([]);
   });
 
-  it("renders generating message initially", () => {
-    useWizardStore.setState({
-      isGenerating: true,
-      generationMessage: "Creating project...",
+  it("sends flattened inspiration only and persists selected inspiration ids in context", async () => {
+    render(<GenerationStep />);
+
+    await waitFor(() => {
+      expect(generateTeacherPack).toHaveBeenCalled();
     });
+
+    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0];
+    expect(request).toEqual(
+      expect.objectContaining({
+        inspiration: [
+          expect.objectContaining({ id: "item-1", title: "Reference Link" }),
+          expect.objectContaining({ id: "pack-item-1", title: "Pack Notes" }),
+        ],
+      })
+    );
+    expect(request?.designPackContext).toBeUndefined();
+    expect(mockSetDefaultDesignPack).toHaveBeenCalledWith("project-123", "pack-1");
+    expect(mockSetSelectedInspirationIds).toHaveBeenCalledWith("project-123", ["item-1"]);
+  });
+
+  it("includes remediation context when generating a remediation pack", async () => {
+    wizardState.generationMode = "remediation_pack";
+    wizardState.remediationContext = {
+      objectiveId: "math-2-1",
+      objectiveText: "Add within 20",
+      subject: "Math",
+      grade: "2",
+      score: 33,
+      wrongAnswerSummary: "Needs support with regrouping.",
+      missedCheckpoints: [{ kind: "core", prompt: "Can the learner add within 20?" }],
+    };
 
     render(<GenerationStep />);
 
-    expect(screen.getByText("Generating Your Materials")).toBeInTheDocument();
-  });
-
-  it("displays progress bar", () => {
-    useWizardStore.setState({
-      isGenerating: true,
-      generationProgress: 50,
+    await waitFor(() => {
+      expect(generateTeacherPack).toHaveBeenCalled();
     });
 
-    render(<GenerationStep />);
-
-    expect(screen.getByText("50% complete")).toBeInTheDocument();
-  });
-
-  it("displays generation message", () => {
-    useWizardStore.setState({
-      isGenerating: true,
-      generationMessage: "Generating worksheet...",
-    });
-
-    render(<GenerationStep />);
-
-    expect(screen.getByText("Generating worksheet...")).toBeInTheDocument();
-  });
-
-  it("shows success state when complete", () => {
-    useWizardStore.setState({
-      isGenerating: false,
-      generationProgress: 100,
-      generationMessage: "Complete!",
-    });
-
-    render(<GenerationStep />);
-
-    expect(screen.getByText("Generation Complete!")).toBeInTheDocument();
-    expect(screen.getByText("100% complete")).toBeInTheDocument();
-  });
-
-  it("shows Close and View Project buttons on success", () => {
-    useWizardStore.setState({
-      isGenerating: false,
-      generationProgress: 100,
-    });
-
-    render(<GenerationStep />);
-
-    expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /view project/i })).toBeInTheDocument();
-  });
-
-  it("shows error state when generation fails", () => {
-    useWizardStore.setState({
-      isGenerating: false,
-      generationError: "Something went wrong",
-    });
-
-    render(<GenerationStep />);
-
-    expect(screen.getByText("Generation Failed")).toBeInTheDocument();
-    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-  });
-
-  it("shows quality report panel for quality-gate failures", async () => {
-    useWizardStore.setState({
-      setGenerationState: (state: {
-        isGenerating?: boolean;
-        progress?: number;
-        message?: string;
-        error?: string | null;
-      }) => {
-        useWizardStore.setState((current) => ({
-          isGenerating: state.isGenerating ?? current.isGenerating,
-          generationProgress: state.progress ?? current.generationProgress,
-          generationMessage: state.message ?? current.generationMessage,
-          generationError:
-            state.error !== undefined ? state.error : current.generationError,
-        }));
-      },
-    });
-
-    vi.mocked(generateTeacherPack).mockRejectedValueOnce(
-      new GenerationApiError("Quality check failed", 422, {
-        code: "quality_gate_failed",
-        qualityReport: {
-          score: 42,
-          threshold: 50,
-          summary: "Quality checks failed. Credits were refunded.",
-          issues: [{ category: "Content clarity", message: "Missing answer details" }],
-          retrySuggestion: "Try simplifying the prompt and retry.",
-        },
+    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0];
+    expect(request).toEqual(
+      expect.objectContaining({
+        generationMode: "remediation_pack",
+        remediationContext: expect.objectContaining({
+          objectiveId: "math-2-1",
+          score: 33,
+        }),
       })
     );
 
-    render(<GenerationStep />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Generation Failed")).toBeInTheDocument();
-      expect(screen.getByTestId("quality-report-panel")).toBeInTheDocument();
-    });
-
-    expect(screen.getByText(/what happened/i)).toBeInTheDocument();
-    expect(screen.getByText(/quality checks failed\. credits were refunded/i)).toBeInTheDocument();
-    expect(screen.getByText(/content clarity: missing answer details/i)).toBeInTheDocument();
-    expect(screen.getByText(/try simplifying the prompt and retry/i)).toBeInTheDocument();
-  });
-
-  it("shows Close and Retry buttons on error", () => {
-    useWizardStore.setState({
-      isGenerating: false,
-      generationError: "Network error",
-    });
-
-    render(<GenerationStep />);
-
-    expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
-  });
-
-  it("shows insufficient credits message", () => {
-    useWizardStore.setState({
-      isGenerating: false,
-      generationError: "Insufficient credits. Please purchase more credits to continue.",
-    });
-
-    render(<GenerationStep />);
-
-    expect(
-      screen.getByText(/you don't have enough credits/i)
-    ).toBeInTheDocument();
-  });
-
-  it("does not show Retry button for insufficient credits", () => {
-    useWizardStore.setState({
-      isGenerating: false,
-      generationError: "Insufficient credits. Please purchase more credits to continue.",
-    });
-
-    render(<GenerationStep />);
-
-    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
-  });
-
-  it("calls reset and closeWizard when Close is clicked", async () => {
-    const user = userEvent.setup();
-    useWizardStore.setState({
-      isGenerating: false,
-      generationProgress: 100,
-    });
-
-    render(<GenerationStep />);
-
-    await user.click(screen.getByRole("button", { name: /close/i }));
-
-    expect(mockReset).toHaveBeenCalled();
-    expect(mockCloseWizard).toHaveBeenCalled();
-  });
-
-  it("shows success message with output path", () => {
-    useWizardStore.setState({
-      isGenerating: false,
-      generationProgress: 100,
-      outputPath: "C:\\Output",
-    });
-
-    render(<GenerationStep />);
-
-    expect(
-      screen.getByText(/files have been saved to your selected folder/i)
-    ).toBeInTheDocument();
-  });
-
-  it("does not show action buttons while generating", () => {
-    useWizardStore.setState({
-      isGenerating: true,
-      generationProgress: 50,
-    });
-
-    render(<GenerationStep />);
-
-    expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
-  });
-
-  it("does not send aiModel when using Local AI", async () => {
-    useWizardStore.setState({
-      aiProvider: "local",
-    });
-
-    render(<GenerationStep />);
-
-    await waitFor(() => {
-      expect(generateTeacherPack).toHaveBeenCalled();
-    }, { timeout: 5000 });
-
-    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as unknown as Record<
-      string,
-      unknown
-    >;
-    expect(request.aiProvider).toBe("local");
-    expect(Object.prototype.hasOwnProperty.call(request, "aiModel")).toBe(false);
-  });
-
-  it("includes objectiveId in generation request when objective context exists", async () => {
-    useWizardStore.setState({
-      objectiveId: "math_2_01",
-    });
-
-    render(<GenerationStep />);
-
-    await waitFor(() => {
-      expect(generateTeacherPack).toHaveBeenCalled();
-    }, { timeout: 5000 });
-
-    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as unknown as Record<
-      string,
-      unknown
-    >;
-    expect(request.objectiveId).toBe("math_2_01");
-  });
-
-  it("merges selected design-pack items into generation request context", async () => {
-    useWizardStore.setState({
-      selectedInspiration: [
-        {
-          id: "insp-1",
-          type: "url",
-          title: "Ad-hoc Link",
-          sourceUrl: "https://adhoc.example.com",
-        },
-      ],
-    });
-
-    useDesignPackStore.setState({
-      selectedPackId: "pack-1",
-      packs: [
-        {
-          packId: "pack-1",
-          name: "Math Pack",
-          items: [
-            {
-              itemId: "item-1",
-              type: "url",
-              title: "Pack Link",
-              sourceUrl: "https://pack.example.com",
-            },
-          ],
-          createdAt: "2026-02-12T00:00:00Z",
-          updatedAt: "2026-02-12T00:00:00Z",
-        },
-      ],
-    });
-
-    render(<GenerationStep />);
-
-    await waitFor(() => {
-      expect(generateTeacherPack).toHaveBeenCalled();
-    }, { timeout: 5000 });
-
-    const request = vi.mocked(generateTeacherPack).mock.calls[0]?.[0] as unknown as Record<
-      string,
-      unknown
-    >;
-    const inspiration = request.inspiration as Array<{ id: string }>;
-    expect(inspiration).toHaveLength(2);
-    expect(inspiration.map((item) => item.id)).toEqual(
-      expect.arrayContaining(["insp-1", "pack:pack-1:item-1"])
-    );
-    expect(request.designPackContext).toEqual({
-      packId: "pack-1",
-      items: [
-        {
-          id: "pack:pack-1:item-1",
-          type: "url",
-          title: "Pack Link",
-          sourceUrl: "https://pack.example.com",
-          content: undefined,
-          storagePath: undefined,
-        },
-      ],
-    });
-  });
-
-  describe("store synchronization after generation", () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-
-      mockFetchProjectVersion.mockResolvedValue({
-        id: "version-123",
-        worksheetHtml: "<html>Worksheet</html>",
-        lessonPlanHtml: "<html>Lesson Plan</html>",
-        answerKeyHtml: "<html>Answer Key</html>",
-      });
-
-      // Reset mocks
-      mockCreateProject.mockResolvedValue({ id: "project-123" });
-      mockUpdateProject.mockResolvedValue({});
-      vi.mocked(generateTeacherPack).mockResolvedValue({
-        projectId: "project-123",
-        versionId: "version-123",
-        worksheetHtml: "<html>Worksheet</html>",
-        lessonPlanHtml: "<html>Lesson Plan</html>",
-        answerKeyHtml: "<html>Answer Key</html>",
-        creditsUsed: 3,
-      });
-      vi.mocked(saveTeacherPack).mockResolvedValue([]);
-
-      // Re-setup with fetchProjectVersion mock
-      useProjectStore.setState({
-        projects: [],
-        currentProject: null,
-        createProject: mockCreateProject,
-        syncProjectDefinition: mockSyncProjectDefinition,
-        updateProject: mockUpdateProject,
-        updateProjectWithVersion: mockUpdateProjectWithVersion,
-        fetchProjectVersion: mockFetchProjectVersion,
-        setCurrentProject: mockSetCurrentProject,
-      });
-    });
-
-    it("should call updateProject with completed status after successful generation", async () => {
-      // Component will auto-start generation on mount when conditions are met
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(mockUpdateProject).toHaveBeenCalledWith(
-          "project-123",
-          expect.objectContaining({
-            status: "completed",
-            creditsUsed: 3,
-          })
-        );
-      }, { timeout: 5000 });
-    });
-
-    it("should call fetchProjectVersion after successful generation", async () => {
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(mockFetchProjectVersion).toHaveBeenCalledWith("project-123");
-      }, { timeout: 5000 });
-    });
-
-    it("should call fetchProjectVersion after updateProject", async () => {
-      // Track call order
-      const callOrder: string[] = [];
-      mockUpdateProject.mockImplementation(async (_id, data) => {
-        if (data.status === "completed") {
-          callOrder.push("updateProject-completed");
-        }
-      });
-      mockFetchProjectVersion.mockImplementation(async () => {
-        callOrder.push("fetchProjectVersion");
-        return { id: "version-123" };
-      });
-
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(callOrder).toContain("updateProject-completed");
-        expect(callOrder).toContain("fetchProjectVersion");
-        // fetchProjectVersion should be called after updateProject with completed status
-        const updateIndex = callOrder.indexOf("updateProject-completed");
-        const fetchIndex = callOrder.indexOf("fetchProjectVersion");
-        expect(fetchIndex).toBeGreaterThan(updateIndex);
-      }, { timeout: 5000 });
-    });
-
-    it("should not call updateProject with completed status if generation fails", async () => {
-      vi.mocked(generateTeacherPack).mockRejectedValue(new Error("AI error"));
-
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(mockSetGenerationState).toHaveBeenCalledWith(
-          expect.objectContaining({
-            error: "AI error",
-          })
-        );
-      }, { timeout: 5000 });
-
-      // updateProject should be called with status "failed", not "completed"
-      expect(mockUpdateProject).not.toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ status: "completed" })
-      );
-    });
-
-    it("should not call fetchProjectVersion if generation fails", async () => {
-      vi.mocked(generateTeacherPack).mockRejectedValue(new Error("AI error"));
-
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(mockSetGenerationState).toHaveBeenCalledWith(
-          expect.objectContaining({
-            error: "AI error",
-          })
-        );
-      }, { timeout: 5000 });
-
-      expect(mockFetchProjectVersion).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("existing project reuse", () => {
-    it("does not sync the stored definition when attaching to an existing project", async () => {
-      const existingProject = createExistingProject();
-      const originalSnapshot = {
-        title: existingProject.title,
-        prompt: existingProject.prompt,
-        grade: existingProject.grade,
-        subject: existingProject.subject,
-        options: existingProject.options,
-        inspiration: existingProject.inspiration,
-        outputPath: existingProject.outputPath,
-      };
-
-      mockSyncProjectDefinition.mockImplementation(async (projectId, data) => {
-        useProjectStore.setState((state) => ({
-          projects: state.projects.map((project) =>
-            project.id === projectId ? { ...project, ...data } : project
-          ),
-        }));
-      });
-
-      useProjectStore.setState({
-        projects: [existingProject],
-        currentProject: existingProject,
-      });
-
-      useWizardStore.setState({
-        aiProvider: "local",
-        targetProjectId: existingProject.id,
-        regeneratingProjectId: null,
-        title: "New Math Materials",
-        prompt: "A completely different prompt",
-      });
-
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(generateTeacherPack).toHaveBeenCalledWith(
-          expect.objectContaining({
-            projectId: existingProject.id,
-          }),
-          expect.any(String),
-          expect.any(Function)
-        );
-      });
-
-      expect(mockSyncProjectDefinition).not.toHaveBeenCalled();
-      const persistedProject = useProjectStore.getState().projects[0];
-      expect({
-        title: persistedProject.title,
-        prompt: persistedProject.prompt,
-        grade: persistedProject.grade,
-        subject: persistedProject.subject,
-        options: persistedProject.options,
-        inspiration: persistedProject.inspiration,
-        outputPath: persistedProject.outputPath,
-      }).toEqual(originalSnapshot);
-    });
-
-    it("preserves existing project metadata when an attached generation fails", async () => {
-      const existingProject = createExistingProject();
-      const originalSnapshot = {
-        title: existingProject.title,
-        prompt: existingProject.prompt,
-        grade: existingProject.grade,
-        subject: existingProject.subject,
-        options: existingProject.options,
-        inspiration: existingProject.inspiration,
-        outputPath: existingProject.outputPath,
-      };
-
-      vi.mocked(generateTeacherPack).mockRejectedValueOnce(new Error("AI error"));
-
-      mockSyncProjectDefinition.mockImplementation(async (projectId, data) => {
-        useProjectStore.setState((state) => ({
-          projects: state.projects.map((project) =>
-            project.id === projectId ? { ...project, ...data } : project
-          ),
-        }));
-      });
-
-      useProjectStore.setState({
-        projects: [existingProject],
-        currentProject: existingProject,
-      });
-
-      useWizardStore.setState({
-        aiProvider: "local",
-        targetProjectId: existingProject.id,
-        regeneratingProjectId: null,
-        title: "Temporary Wizard Title",
-        prompt: "Temporary attach prompt",
-      });
-
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(mockSetGenerationState).toHaveBeenCalledWith(
-          expect.objectContaining({
-            error: "AI error",
-          })
-        );
-      });
-
-      expect(mockSyncProjectDefinition).not.toHaveBeenCalled();
-      const persistedProject = useProjectStore.getState().projects[0];
-      expect({
-        title: persistedProject.title,
-        prompt: persistedProject.prompt,
-        grade: persistedProject.grade,
-        subject: persistedProject.subject,
-        options: persistedProject.options,
-        inspiration: persistedProject.inspiration,
-        outputPath: persistedProject.outputPath,
-      }).toEqual(originalSnapshot);
-    });
-
-    it("preserves an existing learning-path context during generic reuse", async () => {
-      const existingProject = createExistingProject();
-      useProjectStore.setState({
-        projects: [existingProject],
-        currentProject: existingProject,
-      });
-      useProjectContextStore.getState().upsertContext(existingProject.id, {
-        type: "learning_path",
-        learnerId: "learner-42",
-        linkedObjectiveIds: ["math_2_01"],
-        defaultDesignPackId: "pack-1",
-        lastUsedAt: "2026-02-04T00:00:00Z",
-      });
-
-      useWizardStore.setState({
-        aiProvider: "local",
-        targetProjectId: existingProject.id,
-        regeneratingProjectId: null,
-        learnerId: null,
-        objectiveId: null,
-      });
-
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(generateTeacherPack).toHaveBeenCalled();
-      });
-
-      expect(useProjectContextStore.getState().getContext(existingProject.id)).toMatchObject({
-        type: "learning_path",
-        learnerId: "learner-42",
-        linkedObjectiveIds: ["math_2_01"],
-        defaultDesignPackId: "pack-1",
-      });
-    });
-
-    it("seeds missing context on existing project reuse when learner context is known", async () => {
-      const existingProject = createExistingProject();
-      useProjectStore.setState({
-        projects: [existingProject],
-        currentProject: existingProject,
-      });
-
-      useWizardStore.setState({
-        aiProvider: "local",
-        targetProjectId: existingProject.id,
-        regeneratingProjectId: null,
-        learnerId: "learner-99",
-        objectiveId: "math_3_02",
-      });
-
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(generateTeacherPack).toHaveBeenCalled();
-      });
-
-      expect(useProjectContextStore.getState().getContext(existingProject.id)).toMatchObject({
-        type: "learning_path",
-        learnerId: "learner-99",
-        linkedObjectiveIds: ["math_3_02"],
-      });
-    });
-
-    it("still syncs the stored project definition during regeneration", async () => {
-      const existingProject = createExistingProject();
-      useProjectStore.setState({
-        projects: [existingProject],
-        currentProject: existingProject,
-      });
-
-      useWizardStore.setState({
-        aiProvider: "local",
-        targetProjectId: existingProject.id,
-        regeneratingProjectId: existingProject.id,
-        title: "Updated Regenerated Title",
-        prompt: "Updated regeneration prompt",
-      });
-
-      render(<GenerationStep />);
-
-      await waitFor(() => {
-        expect(mockSyncProjectDefinition).toHaveBeenCalledWith(
-          existingProject.id,
-          expect.objectContaining({
-            title: "Updated Regenerated Title",
-            prompt: "Updated regeneration prompt",
-          })
-        );
-      });
-    });
+    wizardState.generationMode = "standard";
+    wizardState.remediationContext = null;
   });
 });

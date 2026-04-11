@@ -16,6 +16,7 @@ export function createDefaultProjectContext(
     learnerId: seed?.learnerId,
     linkedObjectiveIds: seed?.linkedObjectiveIds || [],
     defaultDesignPackId: seed?.defaultDesignPackId,
+    selectedInspirationIds: seed?.selectedInspirationIds || [],
     lastUsedAt: seed?.lastUsedAt || new Date().toISOString(),
   };
 }
@@ -33,6 +34,7 @@ export function mergeProjectWithContext(
     learnerId: context?.learnerId,
     linkedObjectiveIds: context?.linkedObjectiveIds || [],
     defaultDesignPackId: context?.defaultDesignPackId,
+    selectedInspirationIds: context?.selectedInspirationIds || [],
     lastUsedAt: context?.lastUsedAt || fallbackLastUsedAt,
   });
 
@@ -63,6 +65,7 @@ export function mergeContextValues(
     ...base,
     ...updates,
     linkedObjectiveIds: updates.linkedObjectiveIds || base.linkedObjectiveIds,
+    selectedInspirationIds: updates.selectedInspirationIds || base.selectedInspirationIds,
   };
 }
 

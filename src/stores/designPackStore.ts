@@ -1,40 +1,60 @@
 import { create } from "zustand";
 import type {
-  DesignPack,
-  DesignPackItem,
   CreateDesignPackData,
+  DesignPack,
+  InspirationItem,
 } from "@/types";
 import {
-  getDesignPacks,
-  getDesignPack,
-  createDesignPack,
-  updateDesignPack,
-  deleteDesignPack,
   addItemToDesignPack,
+  createDesignPack,
+  createDesignPackFromLegacyItems,
+  deleteDesignPack,
+  getDesignPack,
+  getDesignPacks,
   removeItemFromDesignPack,
   reorderDesignPackItems,
-  createDesignPackFromLegacyItems,
+  updateDesignPack,
 } from "@/services/design-pack-storage";
 
+function getPackWarnings(packs: DesignPack[]): Record<string, string[]> {
+  return Object.fromEntries(
+    packs
+      .filter((pack) => (pack.missingItemIds?.length || 0) > 0)
+      .map((pack) => [pack.packId, pack.missingItemIds || []])
+  );
+}
+
+function mergePackWarning(
+  currentWarnings: Record<string, string[]>,
+  pack: DesignPack | null
+): Record<string, string[]> {
+  if (!pack) {
+    return currentWarnings;
+  }
+
+  if (pack.missingItemIds && pack.missingItemIds.length > 0) {
+    return {
+      ...currentWarnings,
+      [pack.packId]: pack.missingItemIds,
+    };
+  }
+
+  return Object.fromEntries(
+    Object.entries(currentWarnings).filter(([packId]) => packId !== pack.packId)
+  );
+}
+
 interface DesignPackState {
-  // Design pack state
   packs: DesignPack[];
+  packWarnings: Record<string, string[]>;
   isLoading: boolean;
   error: string | null;
-
-  // Current pack for editing
   currentPackId: string | null;
   currentPack: DesignPack | null;
-
-  // Selected pack for generation (wizard)
   selectedPackId: string | null;
   selectedPackOrigin: "manual" | "project_default" | null;
-
-  // Computed helpers
   getPackById: (packId: string) => DesignPack | null;
   getSelectedPack: () => DesignPack | null;
-
-  // Pack CRUD actions
   loadPacks: () => Promise<void>;
   loadPack: (packId: string) => Promise<DesignPack | null>;
   createPack: (data: CreateDesignPackData) => Promise<DesignPack>;
@@ -43,13 +63,9 @@ interface DesignPackState {
     updates: Partial<Omit<DesignPack, "packId" | "createdAt">>
   ) => Promise<void>;
   deletePack: (packId: string) => Promise<void>;
-
-  // Item management actions
-  addItem: (packId: string, item: Omit<DesignPackItem, "itemId">) => Promise<DesignPackItem>;
+  addItem: (packId: string, item: Omit<InspirationItem, "id">) => Promise<InspirationItem>;
   removeItem: (packId: string, itemId: string) => Promise<void>;
   reorderItems: (packId: string, itemIds: string[]) => Promise<void>;
-
-  // Migration actions
   createFromLegacyItems: (
     name: string,
     legacyItems: Array<{
@@ -61,22 +77,15 @@ interface DesignPackState {
       storagePath?: string;
     }>
   ) => Promise<DesignPack>;
-
-  // Selection actions
   setCurrentPack: (packId: string | null) => void;
-  selectPack: (
-    packId: string | null,
-    origin?: "manual" | "project_default"
-  ) => void;
-
-  // Utility actions
+  selectPack: (packId: string | null, origin?: "manual" | "project_default") => void;
   clearError: () => void;
   reset: () => void;
 }
 
 export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
-  // Initial state
   packs: [],
+  packWarnings: {},
   isLoading: false,
   error: null,
   currentPackId: null,
@@ -84,30 +93,26 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
   selectedPackId: null,
   selectedPackOrigin: null,
 
-  // ============================================
-  // Computed Helpers
-  // ============================================
-
   getPackById: (packId: string) => {
     const { packs } = get();
-    return packs.find((p) => p.packId === packId) || null;
+    return packs.find((pack) => pack.packId === packId) || null;
   },
 
   getSelectedPack: () => {
     const { packs, selectedPackId } = get();
     if (!selectedPackId) return null;
-    return packs.find((p) => p.packId === selectedPackId) || null;
+    return packs.find((pack) => pack.packId === selectedPackId) || null;
   },
-
-  // ============================================
-  // Pack CRUD Actions
-  // ============================================
 
   loadPacks: async () => {
     set({ isLoading: true, error: null });
     try {
       const packs = await getDesignPacks();
-      set({ packs, isLoading: false });
+      set({
+        packs,
+        packWarnings: getPackWarnings(packs),
+        isLoading: false,
+      });
     } catch (error) {
       set({
         isLoading: false,
@@ -120,7 +125,11 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
     try {
       const pack = await getDesignPack(packId);
       if (pack) {
-        set({ currentPack: pack, currentPackId: packId });
+        set((state) => ({
+          currentPack: pack,
+          currentPackId: packId,
+          packWarnings: mergePackWarning(state.packWarnings, pack),
+        }));
       }
       return pack;
     } catch (error) {
@@ -135,6 +144,7 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
       const pack = await createDesignPack(data);
       set((state) => ({
         packs: [...state.packs, pack],
+        packWarnings: mergePackWarning(state.packWarnings, pack),
         isLoading: false,
       }));
       return pack;
@@ -152,8 +162,9 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
     try {
       const updated = await updateDesignPack(packId, updates);
       set((state) => ({
-        packs: state.packs.map((p) => (p.packId === packId ? updated : p)),
+        packs: state.packs.map((pack) => (pack.packId === packId ? updated : pack)),
         currentPack: state.currentPackId === packId ? updated : state.currentPack,
+        packWarnings: mergePackWarning(state.packWarnings, updated),
         isLoading: false,
       }));
     } catch (error) {
@@ -170,7 +181,10 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
     try {
       await deleteDesignPack(packId);
       set((state) => ({
-        packs: state.packs.filter((p) => p.packId !== packId),
+        packs: state.packs.filter((pack) => pack.packId !== packId),
+        packWarnings: Object.fromEntries(
+          Object.entries(state.packWarnings).filter(([id]) => id !== packId)
+        ),
         currentPackId: state.currentPackId === packId ? null : state.currentPackId,
         currentPack: state.currentPackId === packId ? null : state.currentPack,
         selectedPackId: state.selectedPackId === packId ? null : state.selectedPackId,
@@ -187,24 +201,18 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
     }
   },
 
-  // ============================================
-  // Item Management Actions
-  // ============================================
-
-  addItem: async (packId: string, item: Omit<DesignPackItem, "itemId">) => {
+  addItem: async (packId: string, item: Omit<InspirationItem, "id">) => {
     try {
-      const newItem = await addItemToDesignPack(packId, item);
-
-      // Reload pack to get updated state
+      const savedItem = await addItemToDesignPack(packId, item);
       const updatedPack = await getDesignPack(packId);
       if (updatedPack) {
         set((state) => ({
-          packs: state.packs.map((p) => (p.packId === packId ? updatedPack : p)),
+          packs: state.packs.map((pack) => (pack.packId === packId ? updatedPack : pack)),
           currentPack: state.currentPackId === packId ? updatedPack : state.currentPack,
+          packWarnings: mergePackWarning(state.packWarnings, updatedPack),
         }));
       }
-
-      return newItem;
+      return savedItem;
     } catch (error) {
       console.error("Failed to add item to design pack:", error);
       throw error;
@@ -214,13 +222,12 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
   removeItem: async (packId: string, itemId: string) => {
     try {
       await removeItemFromDesignPack(packId, itemId);
-
-      // Reload pack to get updated state
       const updatedPack = await getDesignPack(packId);
       if (updatedPack) {
         set((state) => ({
-          packs: state.packs.map((p) => (p.packId === packId ? updatedPack : p)),
+          packs: state.packs.map((pack) => (pack.packId === packId ? updatedPack : pack)),
           currentPack: state.currentPackId === packId ? updatedPack : state.currentPack,
+          packWarnings: mergePackWarning(state.packWarnings, updatedPack),
         }));
       }
     } catch (error) {
@@ -232,13 +239,12 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
   reorderItems: async (packId: string, itemIds: string[]) => {
     try {
       await reorderDesignPackItems(packId, itemIds);
-
-      // Reload pack to get updated state
       const updatedPack = await getDesignPack(packId);
       if (updatedPack) {
         set((state) => ({
-          packs: state.packs.map((p) => (p.packId === packId ? updatedPack : p)),
+          packs: state.packs.map((pack) => (pack.packId === packId ? updatedPack : pack)),
           currentPack: state.currentPackId === packId ? updatedPack : state.currentPack,
+          packWarnings: mergePackWarning(state.packWarnings, updatedPack),
         }));
       }
     } catch (error) {
@@ -247,31 +253,27 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
     }
   },
 
-  // ============================================
-  // Migration Actions
-  // ============================================
-
   createFromLegacyItems: async (name, legacyItems) => {
     set({ isLoading: true, error: null });
     try {
       const pack = await createDesignPackFromLegacyItems(name, legacyItems);
       set((state) => ({
         packs: [...state.packs, pack],
+        packWarnings: mergePackWarning(state.packWarnings, pack),
         isLoading: false,
       }));
       return pack;
     } catch (error) {
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : "Failed to create design pack from legacy items",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to create design pack from legacy items",
       });
       throw error;
     }
   },
-
-  // ============================================
-  // Selection Actions
-  // ============================================
 
   setCurrentPack: (packId: string | null) => {
     if (packId) {
@@ -289,15 +291,12 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
     });
   },
 
-  // ============================================
-  // Utility Actions
-  // ============================================
-
   clearError: () => set({ error: null }),
 
   reset: () =>
     set({
       packs: [],
+      packWarnings: {},
       isLoading: false,
       error: null,
       currentPackId: null,
@@ -307,9 +306,7 @@ export const useDesignPackStore = create<DesignPackState>()((set, get) => ({
     }),
 }));
 
-// Export convenience selector hooks
-export const useDesignPacks = () =>
-  useDesignPackStore((state) => state.packs);
+export const useDesignPacks = () => useDesignPackStore((state) => state.packs);
 
 export const useSelectedDesignPack = () =>
   useDesignPackStore((state) => state.getSelectedPack());

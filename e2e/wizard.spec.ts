@@ -238,6 +238,23 @@ test.describe("Creation Wizard", () => {
   });
 
   test("WIZ-013: Can select different provider", async ({ authenticatedPage: page }) => {
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "ta-settings",
+        JSON.stringify({
+          state: {
+            defaultAiProvider: "local",
+            apiEndpointPreset: "local",
+            customApiEndpoint: "",
+            allowPremiumOnLocalDev: true,
+          },
+          version: 0,
+        })
+      );
+    });
+    await page.reload();
+    await page.waitForSelector("main", { timeout: 10000 });
+
     const promptArea = page.getByPlaceholder(/describe|create|what would you like/i);
     const createButton = page.getByRole("button", { name: /create/i });
 

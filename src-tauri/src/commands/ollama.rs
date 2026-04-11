@@ -286,8 +286,8 @@ pub async fn list_ollama_models() -> Result<Vec<OllamaModel>, String> {
 pub fn get_recommended_models() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
         (
-            "phi4-mini",
-            "3.8B",
+            "gemma3:4b",
+            "4B",
             "Best overall for worksheets and lesson plans on 8-16GB PCs",
         ),
         (
@@ -296,9 +296,14 @@ pub fn get_recommended_models() -> Vec<(&'static str, &'static str, &'static str
             "Most compatible fallback for smaller family PCs",
         ),
         (
-            "mistral",
-            "7B",
-            "Heavier model with stronger writing quality if you have extra RAM",
+            "phi4-mini",
+            "3.8B",
+            "Secondary fallback if you want a compact reasoning-oriented model",
+        ),
+        (
+            "gemma4:e4b",
+            "E4B",
+            "Optional higher-quality local tier for larger 16GB+ machines",
         ),
     ]
 }

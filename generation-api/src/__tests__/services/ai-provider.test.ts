@@ -45,13 +45,14 @@ describe("AI Provider Service", () => {
     // Set required env vars
     process.env.OPENAI_API_KEY = "test-openai-key";
     process.env.OLLAMA_BASE_URL = "http://localhost:11434";
-    process.env.OLLAMA_MODEL = "phi4-mini";
     delete process.env.OPENAI_MODEL;
+    delete process.env.OLLAMA_MODEL;
+    delete process.env.OLLAMA_PRIMARY_MODEL;
 
     // Default: Ollama is available
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ models: [{ name: "phi4-mini" }] }),
+      json: () => Promise.resolve({ models: [{ name: "gemma3:4b" }] }),
     });
   });
 
@@ -59,6 +60,7 @@ describe("AI Provider Service", () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.OLLAMA_BASE_URL;
     delete process.env.OLLAMA_MODEL;
+    delete process.env.OLLAMA_PRIMARY_MODEL;
     delete process.env.OPENAI_MODEL;
   });
 
@@ -119,11 +121,24 @@ describe("AI Provider Service", () => {
         });
 
         expect(mockChatCreate).toHaveBeenCalledWith(
-          expect.objectContaining({ model: "phi4-mini" })
+          expect.objectContaining({ model: "gemma3:4b" })
         );
         expect(result.content).toBe("Mock Ollama response");
         expect(result.inputTokens).toBe(80);
         expect(result.outputTokens).toBe(120);
+      });
+
+      it("should use OLLAMA_PRIMARY_MODEL when OLLAMA_MODEL is not set", async () => {
+        process.env.OLLAMA_PRIMARY_MODEL = "llama3.2";
+        resetClients();
+
+        await generateContent("Test prompt", {
+          provider: "ollama",
+        });
+
+        expect(mockChatCreate).toHaveBeenCalledWith(
+          expect.objectContaining({ model: "llama3.2" })
+        );
       });
 
       it("should throw error when Ollama is not running", async () => {

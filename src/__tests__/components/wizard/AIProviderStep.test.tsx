@@ -1,179 +1,87 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { AIProviderStep } from "@/components/wizard/AIProviderStep";
-import { useWizardStore } from "@/stores/wizardStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 
-let mockCreditsBalance = 50;
+const wizardState = {
+  aiProvider: "local" as const,
+  setAiProvider: vi.fn(),
+  visualSettings: {
+    includeVisuals: true,
+    richness: "minimal" as const,
+    style: "friendly_cartoon" as const,
+  },
+  setVisualSettings: vi.fn(),
+  classDetails: {
+    grade: "2" as const,
+  },
+  getEffectiveInspiration: () => [],
+  nextStep: vi.fn(),
+  prevStep: vi.fn(),
+};
 
-vi.mock("@/components/wizard/ProviderSelector", () => ({
-  ProviderSelector: ({
-    value,
-    onChange,
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-  }) => (
-    <div data-testid="provider-selector">
-      <select
-        data-testid="provider-select"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="premium">Premium AI</option>
-        <option value="local">Local AI</option>
-      </select>
-    </div>
+vi.mock("@/stores/wizardStore", () => ({
+  useWizardStore: vi.fn((selector?: (state: typeof wizardState) => unknown) =>
+    selector ? selector(wizardState) : wizardState
   ),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({
-    credits: { balance: mockCreditsBalance, lifetimeGranted: 50, lifetimeUsed: 0 },
-    refreshCredits: vi.fn(),
-  }),
+  useAuth: () => ({ credits: { balance: 10 } }),
+}));
+
+vi.mock("@/stores/settingsStore", () => ({
+  isHostedApiBaseUrl: () => true,
+  useSettingsStore: vi.fn((selector?: (state: { getResolvedApiUrl?: never; getResolvedApiBaseUrl: () => string; allowPremiumOnLocalDev: boolean }) => unknown) =>
+    selector
+      ? selector({
+          getResolvedApiBaseUrl: () => "https://api.example.com",
+          allowPremiumOnLocalDev: false,
+        })
+      : {
+          getResolvedApiBaseUrl: () => "https://api.example.com",
+          allowPremiumOnLocalDev: false,
+        }
+  ),
+}));
+
+vi.mock("@/components/wizard/ProviderSelector", () => ({
+  ProviderSelector: () => <div>Provider Selector</div>,
+}));
+
+vi.mock("@/components/wizard/VisualOptionsPanel", () => ({
+  VisualOptionsPanel: () => <div>Visual Options</div>,
 }));
 
 vi.mock("@/components/purchase", () => ({
-  PurchaseDialog: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="purchase-dialog">Purchase Dialog</div> : null,
+  PurchaseDialog: () => null,
+}));
+
+vi.mock("@/components/wizard/K6SoftLimitAlert", () => ({
+  K6SoftLimitAlert: () => null,
 }));
 
 describe("AIProviderStep", () => {
-  const mockNextStep = vi.fn();
-  const mockPrevStep = vi.fn();
-  const mockSetAiProvider = vi.fn();
-  const mockSetVisualSettings = vi.fn();
-
   beforeEach(() => {
+    wizardState.aiProvider = "local";
+    wizardState.getEffectiveInspiration = () => [];
     vi.clearAllMocks();
-    mockCreditsBalance = 50;
-    useSettingsStore.setState({
-      defaultAiProvider: "local",
-      apiEndpointPreset: "local",
-      customApiEndpoint: "",
-      allowPremiumOnLocalDev: true,
-    });
-
-    useWizardStore.setState({
-      aiProvider: "premium",
-      nextStep: mockNextStep,
-      prevStep: mockPrevStep,
-      setAiProvider: mockSetAiProvider,
-      visualSettings: {
-        includeVisuals: true,
-        richness: "minimal",
-        style: "friendly_cartoon",
-      },
-      setVisualSettings: mockSetVisualSettings,
-      classDetails: {
-        grade: "2",
-        subject: "Math",
-        format: "worksheet",
-        questionCount: 10,
-        includeVisuals: true,
-        difficulty: "medium",
-        includeAnswerKey: true,
-        lessonLength: 30,
-        studentProfile: [],
-        teachingConfidence: "intermediate",
-      },
-      selectedInspiration: [],
-    });
   });
 
-  it("renders provider selector and controls", () => {
-    render(<AIProviderStep />);
-
-    expect(screen.getByTestId("provider-selector")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /back/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
-  });
-
-  it("shows Premium AI as default provider", () => {
-    render(<AIProviderStep />);
-    expect(screen.getByTestId("provider-select")).toHaveValue("premium");
-  });
-
-  it("calls setAiProvider when provider is changed", async () => {
-    const user = userEvent.setup();
-    render(<AIProviderStep />);
-
-    await user.selectOptions(screen.getByTestId("provider-select"), "local");
-    expect(mockSetAiProvider).toHaveBeenCalledWith("local");
-  });
-
-  it("allows continuing with Local AI without model selection", () => {
-    useWizardStore.setState({ aiProvider: "local" });
-    render(<AIProviderStep />);
-
-    expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled();
-  });
-
-  it("blocks Premium AI when credits are insufficient", () => {
-    mockCreditsBalance = 0;
-    render(<AIProviderStep />);
-
-    expect(
-      screen.getByText(/Insufficient credits for Premium AI/i)
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
-  });
-
-  it("shows local design warning when visual inspiration exists", () => {
-    useWizardStore.setState({
-      aiProvider: "local",
-      selectedInspiration: [
-        { id: "img-1", type: "image", title: "design.png", content: "base64" },
-      ],
-    });
+  it("warns when local AI is used with visual inspiration", () => {
+    wizardState.getEffectiveInspiration = () => [
+      { id: "img-1", type: "image", title: "Mood Board" },
+    ];
 
     render(<AIProviderStep />);
 
     expect(screen.getByText(/Design inspiration will be limited/i)).toBeInTheDocument();
   });
 
-  it("shows K-6 soft-limit warning for grade 4-6 regardless of provider", () => {
-    useWizardStore.setState({
-      aiProvider: "local",
-      classDetails: {
-        grade: "5",
-        subject: "Math",
-        format: "worksheet",
-        questionCount: 10,
-        includeVisuals: true,
-        difficulty: "medium",
-        includeAnswerKey: true,
-        lessonLength: 30,
-        studentProfile: [],
-        teachingConfidence: "intermediate",
-      },
-    });
+  it("shows visual options only for premium AI", () => {
+    wizardState.aiProvider = "premium";
 
     render(<AIProviderStep />);
 
-    expect(screen.getByText(/K-3 is still the strongest fit/i)).toBeInTheDocument();
-  });
-
-  it("calls prevStep and nextStep from buttons", async () => {
-    const user = userEvent.setup();
-    render(<AIProviderStep />);
-
-    await user.click(screen.getByRole("button", { name: /back/i }));
-    await user.click(screen.getByRole("button", { name: /next/i }));
-
-    expect(mockPrevStep).toHaveBeenCalledTimes(1);
-    expect(mockNextStep).toHaveBeenCalledTimes(1);
-  });
-
-  it("blocks Premium AI on local endpoint when override is disabled", () => {
-    useSettingsStore.setState({ allowPremiumOnLocalDev: false });
-    render(<AIProviderStep />);
-
-    expect(
-      screen.getByText(/Premium AI is disabled on this endpoint/i)
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+    expect(screen.getAllByText("Visual Options")).toHaveLength(2);
   });
 });

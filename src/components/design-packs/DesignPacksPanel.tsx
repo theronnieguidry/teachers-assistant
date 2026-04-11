@@ -1,16 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  X,
-  Plus,
-  Upload,
-  Loader2,
-  Package,
-  Pencil,
-  Trash2,
-  Check,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
+import { X, Plus, Upload, Loader2, Package, Trash2, Check, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,7 +20,7 @@ import { useDesignPackStore } from "@/stores/designPackStore";
 import { cn } from "@/lib/utils";
 import { getInspirationIcon } from "@/lib/inspiration-icons";
 import { useInspirationDrop, type DropInspirationInput } from "@/hooks/useInspirationDrop";
-import type { DesignPack, DesignPackItem } from "@/types";
+import type { DesignPack, InspirationItem } from "@/types";
 
 export function DesignPacksPanel() {
   const {
@@ -164,9 +153,9 @@ export function DesignPacksPanel() {
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Design Pack</DialogTitle>
+            <DialogTitle>Create Inspiration Pack</DialogTitle>
             <DialogDescription>
-              Create a new design pack to organize your inspiration items.
+              Create a named pack to organize reusable inspiration items.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -204,7 +193,7 @@ interface DesignPackCardProps {
   onDelete: () => void;
   onAddUrl: () => void;
   onRemoveItem: (itemId: string) => void;
-  onAddDroppedItem: (item: DropInspirationInput) => Promise<DesignPackItem>;
+  onAddDroppedItem: (item: DropInspirationInput) => Promise<InspirationItem>;
 }
 
 function DesignPackCard({
@@ -297,9 +286,10 @@ function DesignPackCard({
               <div className="space-y-1">
                 {pack.items.map((item) => {
                   const Icon = getInspirationIcon(item.type);
+                  const itemKey = item.id || (item as { itemId?: string }).itemId || item.title;
                   return (
                     <div
-                      key={item.itemId}
+                      key={itemKey}
                       className="flex items-center gap-2 p-1 rounded bg-secondary/50 group"
                     >
                       <Icon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
@@ -308,7 +298,7 @@ function DesignPackCard({
                         variant="ghost"
                         size="icon"
                         className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => onRemoveItem(item.itemId)}
+                        onClick={() => onRemoveItem(itemKey)}
                       >
                         <X className="h-2 w-2" />
                       </Button>

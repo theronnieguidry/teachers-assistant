@@ -1,7 +1,18 @@
 import { create } from "zustand";
 import { supabase } from "@/services/supabase";
+import {
+  bulkUpsertInspirationItems,
+  deleteInspirationItem,
+  getInspirationItems,
+  saveInspirationItem,
+} from "@/services/inspiration-storage";
+import {
+  createDesignPack,
+  getDesignPacks,
+  updateDesignPack,
+} from "@/services/design-pack-storage";
+import { mergeInspirationItems } from "@/lib/inspiration-merge";
 import { toast } from "@/stores/toastStore";
-import { withTimeout, TIMEOUTS } from "@/lib/async-utils";
 import type { InspirationItem } from "@/types";
 import type { InspirationType } from "@/types/database";
 
@@ -29,29 +40,26 @@ function mapDbItemToItem(item: DbInspirationItem): InspirationItem {
   };
 }
 
+function sortItems(items: InspirationItem[]): InspirationItem[] {
+  return [...items].sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bTime - aTime;
+  });
+}
+
 interface InspirationState {
   items: InspirationItem[];
   isLoading: boolean;
   error: string | null;
-
-  // Actions
+  loadItems: () => Promise<void>;
   fetchItems: () => Promise<void>;
-  addItem: (item: Omit<InspirationItem, "id" | "userId" | "createdAt">) => Promise<InspirationItem>;
-  removeItem: (id: string) => Promise<void>;
+  addItem: (item: Omit<InspirationItem, "id">) => Promise<InspirationItem>;
   updateItem: (id: string, data: Partial<InspirationItem>) => Promise<void>;
+  removeItem: (id: string) => Promise<void>;
+  bulkUpsertItems: (items: InspirationItem[]) => Promise<InspirationItem[]>;
+  importLegacyCloudItems: () => Promise<InspirationItem[]>;
   clearError: () => void;
-
-  // Local-only actions for wizard (temporary items before project creation)
-  addLocalItem: (item: Omit<InspirationItem, "id">) => InspirationItem;
-  removeLocalItem: (id: string) => void;
-  clearLocalItems: () => void;
-
-  // Persist local items to database (called during project creation)
-  persistLocalItems: () => Promise<Map<string, string>>;
-}
-
-function generateLocalId(): string {
-  return `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export const useInspirationStore = create<InspirationState>((set, get) => ({
@@ -59,18 +67,119 @@ export const useInspirationStore = create<InspirationState>((set, get) => ({
   isLoading: false,
   error: null,
 
+  loadItems: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const items = await getInspirationItems();
+      set({ items: sortItems(items), isLoading: false });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load inspiration items";
+      set({ error: message, isLoading: false });
+    }
+  },
+
   fetchItems: async () => {
+    await get().loadItems();
+  },
+
+  addItem: async (itemData) => {
     try {
       set({ isLoading: true, error: null });
 
-      const { data: { user } } = await withTimeout(
-        supabase.auth.getUser(),
-        TIMEOUTS.SUPABASE_QUERY,
-        "fetchUser"
-      );
+      const item = await saveInspirationItem({
+        ...itemData,
+        id: crypto.randomUUID(),
+        createdAt: new Date(),
+      });
+
+      set((state) => ({
+        items: sortItems([item, ...state.items.filter((existing) => existing.id !== item.id)]),
+        isLoading: false,
+      }));
+
+      return item;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to add inspiration item";
+      set({ error: message, isLoading: false });
+      toast.error("Failed to add item", message);
+      throw error;
+    }
+  },
+
+  updateItem: async (id, data) => {
+    try {
+      set({ isLoading: true, error: null });
+      const existing = get().items.find((item) => item.id === id);
+      if (!existing) {
+        throw new Error(`Inspiration item not found: ${id}`);
+      }
+
+      const updated = await saveInspirationItem({
+        ...existing,
+        ...data,
+        id,
+      });
+
+      set((state) => ({
+        items: sortItems(
+          state.items.map((item) => (item.id === id ? updated : item))
+        ),
+        isLoading: false,
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update inspiration item";
+      set({ error: message, isLoading: false });
+      toast.error("Failed to update item", message);
+      throw error;
+    }
+  },
+
+  removeItem: async (id) => {
+    try {
+      set({ isLoading: true, error: null });
+      await deleteInspirationItem(id);
+      set((state) => ({
+        items: state.items.filter((item) => item.id !== id),
+        isLoading: false,
+      }));
+      toast.success("Item removed", "Inspiration item has been removed from your library.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to remove inspiration item";
+      set({ error: message, isLoading: false });
+      toast.error("Failed to remove item", message);
+      throw error;
+    }
+  },
+
+  bulkUpsertItems: async (items) => {
+    try {
+      set({ isLoading: true, error: null });
+      const savedItems = await bulkUpsertInspirationItems(items);
+      const merged = mergeInspirationItems(get().items, savedItems);
+      set({ items: sortItems(merged), isLoading: false });
+      return savedItems;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to save inspiration items";
+      set({ error: message, isLoading: false });
+      throw error;
+    }
+  },
+
+  importLegacyCloudItems: async () => {
+    try {
+      set({ isLoading: true, error: null });
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (!user) {
-        set({ items: [], isLoading: false });
-        return;
+        throw new Error("Not authenticated");
       }
 
       const { data, error } = await supabase
@@ -79,217 +188,51 @@ export const useInspirationStore = create<InspirationState>((set, get) => ({
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      const items = ((data || []) as DbInspirationItem[]).map(mapDbItemToItem);
-      set({ items });
+      const importedItems = ((data || []) as DbInspirationItem[]).map(mapDbItemToItem);
+      const savedItems = await bulkUpsertInspirationItems(importedItems);
+      const allLocalItems = await getInspirationItems();
+      const packName = `Migrated Inspiration (${new Date().toISOString().slice(0, 10)})`;
+      const existingPack = (await getDesignPacks()).find((pack) => pack.name === packName);
+
+      if (savedItems.length > 0) {
+        if (existingPack) {
+          await updateDesignPack(existingPack.packId, {
+            items: mergeInspirationItems(existingPack.items, savedItems),
+          });
+        } else {
+          await createDesignPack({
+            name: packName,
+            description: "Imported from legacy cloud inspiration",
+            items: savedItems,
+          });
+        }
+      }
+
+      set({
+        items: sortItems(allLocalItems),
+        isLoading: false,
+      });
+
+      toast.success(
+        "Cloud inspiration imported",
+        savedItems.length === 0
+          ? "No new inspiration items were added."
+          : `${savedItems.length} item${savedItems.length === 1 ? "" : "s"} imported to your local library.`
+      );
+
+      return savedItems;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to fetch inspiration items";
-      set({ error: message });
-      console.error("Failed to fetch inspiration items:", error);
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  addItem: async (itemData) => {
-    try {
-      set({ isLoading: true, error: null });
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const insertData = {
-        user_id: user.id,
-        type: itemData.type,
-        title: itemData.title || null,
-        source_url: itemData.sourceUrl || null,
-        content: itemData.content || null,
-        storage_path: itemData.storagePath || null,
-      };
-
-      const { data, error } = await supabase
-        .from("inspiration_items")
-        .insert(insertData as never)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const item = mapDbItemToItem(data as DbInspirationItem);
-
-      set((state) => ({
-        items: [item, ...state.items],
-      }));
-
-      return item;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to add inspiration item";
-      set({ error: message });
-      toast.error("Failed to add item", message);
+      const message =
+        error instanceof Error ? error.message : "Failed to import cloud inspiration";
+      set({ error: message, isLoading: false });
+      toast.error("Import failed", message);
       throw error;
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  removeItem: async (id) => {
-    // Check if it's a local item (not yet persisted)
-    if (id.startsWith("local_")) {
-      set((state) => ({
-        items: state.items.filter((item) => item.id !== id),
-      }));
-      return;
-    }
-
-    try {
-      set({ isLoading: true, error: null });
-
-      const { error } = await supabase
-        .from("inspiration_items")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      set((state) => ({
-        items: state.items.filter((item) => item.id !== id),
-      }));
-
-      toast.success("Item removed", "Inspiration item has been removed from your library.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to remove inspiration item";
-      set({ error: message });
-      toast.error("Failed to remove item", message);
-      throw error;
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  updateItem: async (id, data) => {
-    // Check if it's a local item
-    if (id.startsWith("local_")) {
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === id ? { ...item, ...data } : item
-        ),
-      }));
-      return;
-    }
-
-    try {
-      set({ isLoading: true, error: null });
-
-      const updateData: Record<string, unknown> = {};
-      if (data.title !== undefined) updateData.title = data.title;
-      if (data.type !== undefined) updateData.type = data.type;
-      if (data.sourceUrl !== undefined) updateData.source_url = data.sourceUrl;
-      if (data.content !== undefined) updateData.content = data.content;
-      if (data.storagePath !== undefined) updateData.storage_path = data.storagePath;
-
-      const { error } = await supabase
-        .from("inspiration_items")
-        .update(updateData as never)
-        .eq("id", id);
-
-      if (error) throw error;
-
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === id ? { ...item, ...data } : item
-        ),
-      }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to update inspiration item";
-      set({ error: message });
-      toast.error("Failed to update item", message);
-      throw error;
-    } finally {
-      set({ isLoading: false });
     }
   },
 
   clearError: () => set({ error: null }),
-
-  // Local-only actions for temporary items (e.g., during wizard flow before persisting)
-  addLocalItem: (itemData) => {
-    const item: InspirationItem = {
-      ...itemData,
-      id: generateLocalId(),
-    };
-    set((state) => ({
-      items: [...state.items, item],
-      error: null,
-    }));
-    return item;
-  },
-
-  removeLocalItem: (id) => {
-    set((state) => ({
-      items: state.items.filter((item) => item.id !== id),
-    }));
-  },
-
-  clearLocalItems: () => {
-    set((state) => ({
-      items: state.items.filter((item) => !item.id.startsWith("local_")),
-      error: null,
-    }));
-  },
-
-  persistLocalItems: async () => {
-    const localItems = get().items.filter((item) => item.id.startsWith("local_"));
-    const idMapping = new Map<string, string>();
-
-    if (localItems.length === 0) {
-      console.log("[inspirationStore] No local items to persist");
-      return idMapping;
-    }
-
-    console.log(`[inspirationStore] Persisting ${localItems.length} local items in parallel...`);
-
-    // Persist all items in parallel with individual timeouts
-    const results = await Promise.all(
-      localItems.map(async (item) => {
-        try {
-          console.log(`[inspirationStore] Persisting item: ${item.id}`);
-          const persisted = await withTimeout(
-            get().addItem({
-              type: item.type,
-              title: item.title,
-              sourceUrl: item.sourceUrl,
-              content: item.content,
-              storagePath: item.storagePath,
-            }),
-            TIMEOUTS.INSPIRATION_PERSIST,
-            `persistItem-${item.id}`
-          );
-          console.log(`[inspirationStore] Persisted ${item.id} -> ${persisted.id}`);
-          return { localId: item.id, persistedId: persisted.id, success: true as const };
-        } catch (error) {
-          console.error(`[inspirationStore] Failed to persist item ${item.id}:`, error);
-          return { localId: item.id, persistedId: null, success: false as const };
-        }
-      })
-    );
-
-    // Build the ID mapping from successful persists
-    for (const result of results) {
-      if (result.success && result.persistedId) {
-        idMapping.set(result.localId, result.persistedId);
-      }
-    }
-
-    const successCount = results.filter((r) => r.success).length;
-    const failCount = results.filter((r) => !r.success).length;
-    console.log(`[inspirationStore] Persist complete: ${successCount} succeeded, ${failCount} failed`);
-
-    // Remove all local items from store (they're now persisted or failed)
-    set((state) => ({
-      items: state.items.filter((item) => !item.id.startsWith("local_")),
-    }));
-
-    return idMapping;
-  },
 }));

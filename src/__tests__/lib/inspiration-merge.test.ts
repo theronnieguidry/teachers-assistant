@@ -1,25 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { mapDesignPackItemsToInspiration, mergeInspirationItems } from "@/lib/inspiration-merge";
+import { createInspirationMergeKey, mergeInspirationItems } from "@/lib/inspiration-merge";
 
 describe("inspiration merge utilities", () => {
-  it("maps design pack items into inspiration-compatible items", () => {
-    const mapped = mapDesignPackItemsToInspiration("pack-1", [
-      {
-        itemId: "item-1",
+  it("builds deterministic merge keys from canonical inspiration fields", () => {
+    expect(
+      createInspirationMergeKey({
         type: "url",
         title: "Example",
         sourceUrl: "https://example.com",
-      },
-    ]);
-
-    expect(mapped).toEqual([
-      expect.objectContaining({
-        id: "pack:pack-1:item-1",
-        type: "url",
-        title: "Example",
-        sourceUrl: "https://example.com",
-      }),
-    ]);
+      })
+    ).toBe("url|https://example.com|Example||");
   });
 
   it("merges ad-hoc and design-pack inspiration deterministically with de-duplication", () => {

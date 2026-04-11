@@ -10,6 +10,8 @@ export type {
   LessonLength,
   LessonMetadata,
   GenerationMode,
+  RemediationMissedCheckpoint,
+  RemediationContext,
   VisualRichness,
   VisualStyle,
   VisualSettings,
@@ -36,6 +38,7 @@ import type {
   DesignPackContext,
   LessonMetadata,
   GenerationMode,
+  RemediationContext,
   VisualSettings,
 } from "@shared/types";
 import type { Grade, ProjectStatus } from "./database";
@@ -99,12 +102,14 @@ export interface GenerationRequest {
   options: ProjectOptions;
   inspiration: InspirationItem[];
   objectiveId?: string | null;
+  // Deprecated compatibility only. Active frontend requests should omit this.
   designPackContext?: DesignPackContext;
   aiProvider?: "premium" | "local" | "claude" | "openai" | "ollama";
   aiModel?: string;
   prePolished?: boolean;
   generationMode?: GenerationMode;
   visualSettings?: VisualSettings;
+  remediationContext?: RemediationContext;
 }
 
 // ============================================

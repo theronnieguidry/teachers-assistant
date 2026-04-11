@@ -17,7 +17,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 // Mock generator service
 const mockGenerateTeacherPack = vi.fn();
-const mockGetResolvedLocalModel = vi.fn(() => "llama3.1:8b");
+const mockGetResolvedLocalModel = vi.fn(() => "gemma3:4b");
 
 vi.mock("../../services/generator.js", () => ({
   generateTeacherPack: (...args: unknown[]) => mockGenerateTeacherPack(...args),
@@ -321,7 +321,7 @@ describe("Generate Route", () => {
       expect.anything(),
       expect.objectContaining({
         aiProvider: "local",
-        model: "llama3.1:8b",
+        model: "gemma3:4b",
       }),
       expect.any(Function)
     );
@@ -373,7 +373,7 @@ describe("Generate Route", () => {
     );
   });
 
-  it("should merge design-pack context into inspiration and pass context to generator", async () => {
+  it("should merge design-pack context into inspiration and pass only flattened inspiration to the generator", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
@@ -423,9 +423,10 @@ describe("Generate Route", () => {
     expect(response.status).toBe(200);
     expect(mockGenerateTeacherPack).toHaveBeenCalledWith(
       expect.objectContaining({
-        designPackContext: expect.objectContaining({
-          packId: "pack-1",
-        }),
+        inspiration: expect.arrayContaining([
+          expect.objectContaining({ id: "insp-1" }),
+          expect.objectContaining({ id: "pack-item-2" }),
+        ]),
       }),
       expect.anything(),
       expect.anything(),
@@ -473,5 +474,69 @@ describe("Generate Route", () => {
       expect.anything(),
       expect.any(Function)
     );
+  });
+
+  it("should accept remediation mode with remediationContext", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    mockGenerateTeacherPack.mockResolvedValue({
+      projectId: "project-123",
+      versionId: "version-456",
+      worksheetHtml: "<html>Worksheet</html>",
+      lessonPlanHtml: "",
+      answerKeyHtml: "<html>Answers</html>",
+      teacherScriptHtml: "<html>Teacher script</html>",
+      creditsUsed: 5,
+    });
+
+    const response = await request(app)
+      .post("/generate")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        ...validRequestBody,
+        generationMode: "remediation_pack",
+        remediationContext: {
+          objectiveId: "math-2-1",
+          objectiveText: "Add within 20",
+          subject: "Math",
+          grade: "2",
+          score: 33,
+          wrongAnswerSummary: "Needs help with regrouping.",
+          missedCheckpoints: [{ kind: "core", prompt: "Can the learner add within 20?" }],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(mockGenerateTeacherPack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        remediationContext: expect.objectContaining({
+          objectiveId: "math-2-1",
+          score: 33,
+        }),
+      }),
+      expect.anything(),
+      expect.anything(),
+      expect.any(Function)
+    );
+  });
+
+  it("should reject remediation mode without remediationContext", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    const response = await request(app)
+      .post("/generate")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        ...validRequestBody,
+        generationMode: "remediation_pack",
+      });
+
+    expect(response.status).toBe(400);
   });
 });

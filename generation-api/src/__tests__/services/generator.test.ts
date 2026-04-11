@@ -8,7 +8,7 @@ vi.mock("../../services/ai-provider.js", () => ({
   requiresCredits: vi.fn((provider: string) => provider !== "local" && provider !== "ollama"),
   resolveModel: vi.fn(({ provider, model }: { provider: string; model?: string }) => {
     if (model) return model;
-    return provider === "local" || provider === "ollama" ? "phi4-mini" : "gpt-4.1";
+    return provider === "local" || provider === "ollama" ? "gemma3:4b" : "gpt-4.1";
   }),
 }));
 
@@ -423,6 +423,126 @@ describe("Generator Service", () => {
       );
 
       expect(result.imageStats).toBeUndefined();
+    });
+
+    it("routes remediation_pack and returns worksheet, answer key, and teacher script", async () => {
+      vi.mocked(generateContent)
+        .mockResolvedValueOnce({
+          content: "<html><body>Remediation worksheet</body></html>",
+          inputTokens: 100,
+          outputTokens: 200,
+        })
+        .mockResolvedValueOnce({
+          content: "<html><body>Remediation answer key</body></html>",
+          inputTokens: 50,
+          outputTokens: 100,
+        })
+        .mockResolvedValueOnce({
+          content: "<html><body>Teacher coaching</body></html>",
+          inputTokens: 50,
+          outputTokens: 100,
+        });
+
+      const result = await generateTeacherPack(
+        {
+          ...baseRequest,
+          options: {
+            ...baseRequest.options,
+            includeVisuals: false,
+            questionCount: 5,
+          },
+          remediationContext: {
+            objectiveId: "math-2-1",
+            objectiveText: "Add within 20",
+            subject: "Math",
+            grade: "2",
+            score: 33,
+            wrongAnswerSummary: "Needs help with regrouping.",
+            missedCheckpoints: [{ kind: "core", prompt: "Can the learner add within 20?" }],
+          },
+        },
+        "user-123",
+        { aiProvider: "openai", generationMode: "remediation_pack" }
+      );
+
+      expect(result.worksheetHtml).toContain("Remediation worksheet");
+      expect(result.answerKeyHtml).toContain("Remediation answer key");
+      expect(result.teacherScriptHtml).toContain("Teacher coaching");
+      expect(generateContent).toHaveBeenCalledTimes(3);
+      expect(mockSupabase.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          teacher_script_html: "<html><body>Teacher coaching</body></html>",
+          generation_mode: "remediation_pack",
+        })
+      );
+    });
+
+    it("refunds reserved credits when remediation generation fails", async () => {
+      vi.mocked(generateContent).mockRejectedValue(new Error("Remediation failed"));
+
+      await expect(
+        generateTeacherPack(
+          {
+            ...baseRequest,
+            remediationContext: {
+              objectiveId: "math-2-1",
+              objectiveText: "Add within 20",
+              subject: "Math",
+              grade: "2",
+              score: 33,
+              wrongAnswerSummary: "Needs help with regrouping.",
+              missedCheckpoints: [{ kind: "core", prompt: "Can the learner add within 20?" }],
+            },
+          },
+          "user-123",
+          { aiProvider: "openai", generationMode: "remediation_pack" }
+        )
+      ).rejects.toThrow("Remediation failed");
+
+      expect(refundCredits).toHaveBeenCalledWith(
+        "user-123",
+        5,
+        "project-123",
+        expect.stringContaining("Remediation generation failed")
+      );
+    });
+
+    it("skips credit reservation for local remediation generation", async () => {
+      vi.mocked(generateContent)
+        .mockResolvedValueOnce({
+          content: "<html><body>Remediation worksheet</body></html>",
+          inputTokens: 100,
+          outputTokens: 200,
+        })
+        .mockResolvedValueOnce({
+          content: "<html><body>Remediation answer key</body></html>",
+          inputTokens: 50,
+          outputTokens: 100,
+        })
+        .mockResolvedValueOnce({
+          content: "<html><body>Teacher coaching</body></html>",
+          inputTokens: 50,
+          outputTokens: 100,
+        });
+
+      await generateTeacherPack(
+        {
+          ...baseRequest,
+          remediationContext: {
+            objectiveId: "math-2-1",
+            objectiveText: "Add within 20",
+            subject: "Math",
+            grade: "2",
+            score: 33,
+            wrongAnswerSummary: "Needs help with regrouping.",
+            missedCheckpoints: [{ kind: "core", prompt: "Can the learner add within 20?" }],
+          },
+        },
+        "user-123",
+        { aiProvider: "local", generationMode: "remediation_pack" }
+      );
+
+      expect(reserveCredits).not.toHaveBeenCalled();
     });
   });
 

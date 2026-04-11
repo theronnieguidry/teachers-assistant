@@ -5,7 +5,6 @@ test.describe("Learning Path Feature", () => {
     fixtureOptions: {
       withLearnerProfile: false,
       creditBalance: 50,
-      suppressOllamaSetup: true,
     },
   });
 
@@ -190,6 +189,79 @@ test.describe("Learning Path Feature", () => {
     test("LP-022: clicking Start Lesson should open wizard dialog", async ({ authenticatedPage: page }) => {
       await page.getByRole("button", { name: /start lesson/i }).click();
       await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
+    });
+  });
+
+  test.describe("Quick Check Integration", () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+      await page.getByRole("button", { name: /add.*learner/i }).click();
+      const nameInput = page.getByPlaceholder(/emma|nickname|name/i);
+      await nameInput.fill("Emma");
+      await nameInput.press("Enter");
+      await expect(page.getByRole("dialog")).toBeHidden({ timeout: 5000 });
+    });
+
+    test("LP-023: Quick Check button opens the dialog from Today", async ({ authenticatedPage: page }) => {
+      await page.getByRole("button", { name: /^quick check$/i }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible({ timeout: 5000 });
+      await expect(dialog.getByRole("heading", { name: "Quick Check" })).toBeVisible();
+    });
+
+    test("LP-024: submitting 3/3 shows 100% and an advance recommendation", async ({ authenticatedPage: page }) => {
+      await page.getByRole("button", { name: /^quick check$/i }).click();
+      const dialog = page.getByRole("dialog");
+
+      await dialog.getByRole("button", { name: "Correct" }).nth(0).click();
+      await dialog.getByRole("button", { name: "Correct" }).nth(1).click();
+      await dialog.getByRole("button", { name: "Correct" }).nth(2).click();
+      await dialog.getByRole("button", { name: /save quick check/i }).click();
+
+      await expect(dialog.getByText(/100%/)).toBeVisible({ timeout: 5000 });
+      await expect(dialog.getByText(/ready to move on/i)).toBeVisible();
+    });
+
+    test("LP-025: submitting 2/3 surfaces Practice Again", async ({ authenticatedPage: page }) => {
+      await page.getByRole("button", { name: /^quick check$/i }).click();
+      const dialog = page.getByRole("dialog");
+
+      await dialog.getByRole("button", { name: "Correct" }).nth(0).click();
+      await dialog.getByRole("button", { name: "Correct" }).nth(1).click();
+      await dialog.getByRole("button", { name: "Needs help" }).nth(2).click();
+      await dialog.getByRole("button", { name: /save quick check/i }).click();
+
+      await expect(
+        dialog.getByRole("button", { name: /practice again/i })
+      ).toBeVisible({ timeout: 5000 });
+    });
+
+    test("LP-026: submitting 1/3 surfaces Generate Remediation", async ({ authenticatedPage: page }) => {
+      await page.getByRole("button", { name: /^quick check$/i }).click();
+      const dialog = page.getByRole("dialog");
+
+      await dialog.getByRole("button", { name: "Correct" }).nth(0).click();
+      await dialog.getByRole("button", { name: "Needs help" }).nth(1).click();
+      await dialog.getByRole("button", { name: "Needs help" }).nth(2).click();
+      await dialog.getByRole("button", { name: /save quick check/i }).click();
+
+      await expect(
+        dialog.getByRole("button", { name: /generate remediation/i })
+      ).toBeVisible({ timeout: 5000 });
+    });
+
+    test("LP-027: remediation CTA opens the wizard in remediation mode", async ({ authenticatedPage: page }) => {
+      await page.getByRole("button", { name: /^quick check$/i }).click();
+      const dialog = page.getByRole("dialog");
+
+      await dialog.getByRole("button", { name: "Correct" }).nth(0).click();
+      await dialog.getByRole("button", { name: "Needs help" }).nth(1).click();
+      await dialog.getByRole("button", { name: "Needs help" }).nth(2).click();
+      await dialog.getByRole("button", { name: /save quick check/i }).click();
+      await dialog.getByRole("button", { name: /generate remediation/i }).click();
+
+      await expect(page.getByText(/Create: Remediation:/i)).toBeVisible({
+        timeout: 5000,
+      });
     });
   });
 });

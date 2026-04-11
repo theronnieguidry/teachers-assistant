@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ObjectiveCard } from "./ObjectiveCard";
 import { MasteryBadge } from "./MasteryBadge";
+import { QuickCheckDialog } from "@/components/quick-check";
 import { useLearnerStore } from "@/stores/learnerStore";
 import { useWizardStore } from "@/stores/wizardStore";
 import {
@@ -13,7 +14,12 @@ import {
   getAllSubjectProgress,
   getObjectiveById,
 } from "@/lib/curriculum";
-import type { MasteryState, CurriculumUnit } from "@/types";
+import type {
+  CurriculumObjective,
+  MasteryState,
+  CurriculumUnit,
+  QuickCheckResult,
+} from "@/types";
 import {
   Filter,
   ChevronDown,
@@ -48,14 +54,22 @@ export function LearningPathView({
   const [selectedSubject, setSelectedSubject] = useState(initialSubject || "Math");
   const [masteryFilter, setMasteryFilter] = useState<MasteryFilter>("all");
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
+  const [quickCheckContext, setQuickCheckContext] = useState<{
+    objective: CurriculumObjective;
+    subject: string;
+  } | null>(null);
 
   // Select raw state to avoid infinite loops
   const profiles = useLearnerStore((state) => state.profiles);
   const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
   const masteryData = useLearnerStore((state) => state.masteryData);
+  const quickCheckHistory = useLearnerStore((state) => state.quickCheckHistory);
   const loadMastery = useLearnerStore((state) => state.loadMastery);
   const openWizardOneOffForLearner = useWizardStore(
     (state) => state.openWizardOneOffForLearner
+  );
+  const openWizardForRemediation = useWizardStore(
+    (state) => state.openWizardForRemediation
   );
 
   // Compute derived values with useMemo
@@ -68,6 +82,22 @@ export function LearningPathView({
     if (!activeProfile) return [];
     return getAllSubjectProgress(activeProfile.grade, masteryData);
   }, [activeProfile, masteryData]);
+
+  const latestQuickCheckByObjective = useMemo<Record<string, QuickCheckResult>>(
+    () =>
+      quickCheckHistory.reduce<Record<string, QuickCheckResult>>((acc, result) => {
+        const existing = acc[result.objectiveId];
+        if (
+          !existing ||
+          new Date(result.createdAt).getTime() >
+            new Date(existing.createdAt).getTime()
+        ) {
+          acc[result.objectiveId] = result;
+        }
+        return acc;
+      }, {}),
+    [quickCheckHistory]
+  );
 
   // Update subject when initialSubject changes
   useEffect(() => {
@@ -352,6 +382,32 @@ export function LearningPathView({
                                 subject={subject}
                                 masteryState={getMasteryState(objective.id)}
                                 highlighted={highlightObjectiveId === objective.id}
+                                latestQuickCheck={
+                                  latestQuickCheckByObjective[objective.id] || null
+                                }
+                                onQuickCheck={() =>
+                                  setQuickCheckContext({ objective, subject })
+                                }
+                                onRemediate={() => {
+                                  const latestResult =
+                                    latestQuickCheckByObjective[objective.id];
+                                  if (!latestResult || !activeProfile) return;
+                                  openWizardForRemediation(
+                                    {
+                                      id: objective.id,
+                                      text: objective.text,
+                                      difficulty: objective.difficulty,
+                                      estimatedMinutes: objective.estimatedMinutes,
+                                      unitTitle: `${subject} - ${unit.title}`,
+                                      whyRecommended: "Quick Check remediation",
+                                      vocabulary: objective.vocabulary,
+                                      activities: objective.activities,
+                                      misconceptions: objective.misconceptions,
+                                    },
+                                    activeProfile,
+                                    latestResult
+                                  );
+                                }}
                               />
                             ))}
                           </div>
@@ -370,6 +426,20 @@ export function LearningPathView({
           </TabsContent>
         ))}
       </Tabs>
+
+      {activeProfile && quickCheckContext ? (
+        <QuickCheckDialog
+          open={Boolean(quickCheckContext)}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setQuickCheckContext(null);
+            }
+          }}
+          objective={quickCheckContext.objective}
+          subject={quickCheckContext.subject}
+          learner={activeProfile}
+        />
+      ) : null}
     </div>
   );
 }

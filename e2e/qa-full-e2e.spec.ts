@@ -64,21 +64,8 @@ function parseSseCompleteEvent(body: string) {
   };
 }
 
-async function dismissFirstRunOllamaDialog(page: Page) {
-  await page.evaluate(() => {
-    localStorage.setItem("ta-ollama-setup-seen", "true");
-  });
-
-  const dialog = page.getByRole("dialog", { name: "Local AI Setup" });
-  if (await dialog.isVisible().catch(() => false)) {
-    await page.getByRole("button", { name: "Close" }).first().click();
-    await expect(dialog).not.toBeVisible({ timeout: 10000 });
-  }
-}
-
 async function seedQaSettings(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("ta-ollama-setup-seen", "true");
     localStorage.setItem(
       "ta-settings",
       JSON.stringify({
@@ -106,8 +93,6 @@ async function login(page: Page) {
   await expect(page.getByText("What are we creating today?")).toBeVisible({
     timeout: 30000,
   });
-
-  await dismissFirstRunOllamaDialog(page);
 }
 
 async function openWizard(page: Page, prompt: string) {

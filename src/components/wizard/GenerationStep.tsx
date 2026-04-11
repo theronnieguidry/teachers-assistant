@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, XCircle, Sparkles, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useProjectContextStore } from "@/stores/projectContextStore";
-import { useInspirationStore } from "@/stores/inspirationStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useArtifactStore } from "@/stores/artifactStore";
 import { useDesignPackStore } from "@/stores/designPackStore";
@@ -13,7 +13,6 @@ import { toast } from "@/stores/toastStore";
 import { generateTeacherPack, estimateCredits, GenerationApiError } from "@/services/generation-api";
 import { saveTeacherPack } from "@/services/tauri-bridge";
 import { cn } from "@/lib/utils";
-import { mapDesignPackItemsToInspiration, mergeInspirationItems } from "@/lib/inspiration-merge";
 import { PurchaseDialog } from "@/components/purchase";
 import { CreditEstimate } from "./CreditEstimate";
 import type { GenerationProgress, EstimateResponse } from "@/types";
@@ -78,21 +77,23 @@ export function GenerationStep() {
     objectiveId,
     learnerId,
     classDetails,
-    selectedInspiration,
+    selectedInspirationIds,
+    getEffectiveInspiration,
     outputPath,
     aiProvider,
     regeneratingProjectId,
     targetProjectId,
     generationMode,
     visualSettings,
+    remediationContext,
     prevStep,
   } = useWizardStore();
 
   // Use the polished prompt if available and user chose to use it
   const finalPrompt = usePolishedPrompt && polishedPrompt ? polishedPrompt : prompt;
+  const effectiveInspiration = getEffectiveInspiration();
   const { createProject, syncProjectDefinition, updateProject, setCurrentProject } =
     useProjectStore();
-  const { persistLocalItems } = useInspirationStore();
   const { session } = useAuthStore();
   const { credits } = useAuth();
   const selectedPackId = useDesignPackStore((state) => state.selectedPackId);
@@ -152,7 +153,9 @@ export function GenerationStep() {
             format: classDetails.format,
             includeAnswerKey: classDetails.includeAnswerKey,
           },
+          generationMode,
           visualSettings: visualSettings,
+          remediationContext: remediationContext || undefined,
         },
         session.access_token
       );
@@ -183,19 +186,9 @@ export function GenerationStep() {
 
     console.log("[GenerationStep] Starting generation...");
     console.log(`[GenerationStep] AI Provider: ${aiProvider}`);
-    const designPackInspiration = selectedPack
-      ? mapDesignPackItemsToInspiration(selectedPack.packId, selectedPack.items)
-      : [];
-    const mergedInspiration = mergeInspirationItems(selectedInspiration, designPackInspiration);
-    const designPackContext = selectedPack
-      ? {
-          packId: selectedPack.packId,
-          items: designPackInspiration,
-        }
-      : undefined;
 
     console.log(
-      `[GenerationStep] Selected inspiration items: ${selectedInspiration.length} (merged total: ${mergedInspiration.length})`
+      `[GenerationStep] Selected inspiration ids: ${selectedInspirationIds.length} (effective total: ${effectiveInspiration.length})`
     );
 
     setGenerationState({
@@ -208,24 +201,10 @@ export function GenerationStep() {
     let projectId: string | null = null;
 
     try {
-      const localItemCount = selectedInspiration.filter((i) => i.id.startsWith("local_")).length;
       console.log(
-        `[GenerationStep] Preparing canonical project flow with ${localItemCount} local inspiration items`
+        `[GenerationStep] Preparing canonical project flow with ${effectiveInspiration.length} effective inspiration items`
       );
-      setGenerationState({ progress: 3, message: "Saving inspiration items..." });
-
-      console.log("[GenerationStep] Persisting local inspiration items...");
-      const idMapping = await persistLocalItems();
-      console.log(`[GenerationStep] Persisted ${idMapping.size} items`);
-
-      const persistedInspiration = selectedInspiration.map((item) => ({
-        ...item,
-        id: item.id.startsWith("local_") ? idMapping.get(item.id) || item.id : item.id,
-      }));
-
-      const inspirationIds = persistedInspiration
-        .map((item) => item.id)
-        .filter((id) => !id.startsWith("local_"));
+      setGenerationState({ progress: 3, message: "Preparing inspiration..." });
 
       const projectDefinition = {
         title,
@@ -243,8 +222,7 @@ export function GenerationStep() {
           teachingConfidence: classDetails.teachingConfidence,
           objectiveId: objectiveId || undefined,
         },
-        inspiration: persistedInspiration,
-        inspirationIds,
+        inspiration: effectiveInspiration,
         outputPath: outputPath || undefined,
       };
 
@@ -291,6 +269,8 @@ export function GenerationStep() {
       if (objectiveId) {
         contextStore.linkObjective(projectId, objectiveId);
       }
+      contextStore.setDefaultDesignPack(projectId, selectedPackId || undefined);
+      contextStore.setSelectedInspirationIds(projectId, selectedInspirationIds);
 
       await updateProject(projectId, {
         status: "generating",
@@ -320,13 +300,15 @@ export function GenerationStep() {
             studentProfile: classDetails.studentProfile,
             teachingConfidence: classDetails.teachingConfidence,
           },
-          inspiration: mergedInspiration,
-          designPackContext,
+          inspiration: effectiveInspiration,
           aiProvider,
           prePolished: usePolishedPrompt && polishedPrompt !== null,
-          // Premium pipeline parameters
-          generationMode: isPremium ? generationMode : "standard",
-          visualSettings: isPremium ? visualSettings : undefined,
+          generationMode,
+          visualSettings:
+            isPremium || generationMode === "remediation_pack"
+              ? visualSettings
+              : undefined,
+          remediationContext: remediationContext || undefined,
         },
         session.access_token,
         handleProgress
@@ -511,6 +493,16 @@ export function GenerationStep() {
 
   return (
     <div className="space-y-6 py-4">
+      {generationMode === "remediation_pack" ? (
+        <Alert>
+          <AlertTitle>Remediation pack</AlertTitle>
+          <AlertDescription>
+            This run will generate a focused worksheet, answer key, and teacher
+            coaching based on the missed checkpoints.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {/* Progress indicator */}
       <div className="flex flex-col items-center">
         {generationError ? (

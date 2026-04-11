@@ -6,7 +6,109 @@ import type {
   LearnerMasteryData,
   ObjectiveMastery,
   QuickCheckResult,
+  QuickCheckRecommendation,
+  QuickCheckResultItem,
+  QuickCheckCheckpointKind,
 } from "@/types";
+
+type LegacyQuickCheckItem = {
+  questionId?: string;
+  correct: boolean;
+  note?: string;
+};
+
+type LegacyQuickCheckResult = {
+  resultId?: string;
+  learnerId?: string;
+  objectiveId: string;
+  subject?: string;
+  score: number;
+  totalQuestions?: number;
+  correctAnswers?: number;
+  recommendation?: QuickCheckRecommendation;
+  wrongAnswerSummary?: string;
+  items: Array<
+    LegacyQuickCheckItem | Partial<QuickCheckResultItem>
+  >;
+  createdAt?: string;
+};
+
+function deriveQuickCheckRecommendation(score: number): QuickCheckRecommendation {
+  if (score >= 80) return "advance";
+  if (score >= 50) return "practice";
+  return "remediate";
+}
+
+function deriveQuickCheckKind(checkpointId: string): QuickCheckCheckpointKind {
+  if (checkpointId.endsWith("-vocabulary")) return "vocabulary";
+  if (checkpointId.endsWith("-misconception")) return "misconception";
+  return "core";
+}
+
+function summarizeIncorrectItems(items: QuickCheckResultItem[]): string {
+  return items
+    .filter((item) => !item.correct)
+    .slice(0, 3)
+    .map((item) => {
+      const prompt = item.prompt.trim();
+      const note = item.note?.trim();
+      if (prompt && note) return `${prompt} Note: ${note}.`;
+      return prompt || note || "";
+    })
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function normalizeQuickCheckItem(item: LegacyQuickCheckItem | Partial<QuickCheckResultItem>): QuickCheckResultItem {
+  if ("checkpointId" in item && item.checkpointId) {
+    return {
+      checkpointId: item.checkpointId,
+      kind: item.kind || deriveQuickCheckKind(item.checkpointId),
+      prompt: item.prompt || "",
+      correct: Boolean(item.correct),
+      note: item.note,
+    };
+  }
+
+  const checkpointId = item.questionId || crypto.randomUUID();
+  return {
+    checkpointId,
+    kind: deriveQuickCheckKind(checkpointId),
+    prompt: "",
+    correct: Boolean(item.correct),
+    note: item.note,
+  };
+}
+
+function normalizeQuickCheckResult(
+  learnerId: string,
+  result: LegacyQuickCheckResult | QuickCheckResult
+): QuickCheckResult {
+  const items = Array.isArray(result.items)
+    ? result.items.map(normalizeQuickCheckItem)
+    : [];
+  const totalQuestions = result.totalQuestions ?? items.length;
+  const correctAnswers =
+    result.correctAnswers ?? items.filter((item) => item.correct).length;
+  const wrongAnswerSummary =
+    result.wrongAnswerSummary || summarizeIncorrectItems(items);
+
+  return {
+    resultId: result.resultId || crypto.randomUUID(),
+    learnerId: result.learnerId || learnerId,
+    objectiveId: result.objectiveId,
+    subject: result.subject || "",
+    score: result.score,
+    totalQuestions,
+    correctAnswers,
+    items,
+    recommendation:
+      result.recommendation || deriveQuickCheckRecommendation(result.score),
+    wrongAnswerSummary,
+    createdAt: result.createdAt || new Date().toISOString(),
+  };
+}
 
 // ============================================
 // Profile Functions
@@ -220,18 +322,21 @@ export async function getQuickCheckHistory(
     // Browser fallback
     const stored = localStorage.getItem(`learner-quickchecks-${learnerId}`);
     if (!stored) return [];
-    const history: QuickCheckResult[] = JSON.parse(stored);
-    if (objectiveId) {
-      return history.filter((h) => h.objectiveId === objectiveId);
-    }
-    return history;
+    const rawHistory: Array<LegacyQuickCheckResult | QuickCheckResult> = JSON.parse(stored);
+    const history = rawHistory.map((entry) =>
+      normalizeQuickCheckResult(learnerId, entry)
+    );
+    return objectiveId
+      ? history.filter((h) => h.objectiveId === objectiveId)
+      : history;
   }
 
   const result = await invoke<string>("get_quick_check_history", {
     learnerId,
     objectiveId: objectiveId || null,
   });
-  return JSON.parse(result);
+  const rawHistory: Array<LegacyQuickCheckResult | QuickCheckResult> = JSON.parse(result);
+  return rawHistory.map((entry) => normalizeQuickCheckResult(learnerId, entry));
 }
 
 /**

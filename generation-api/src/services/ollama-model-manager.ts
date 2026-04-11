@@ -5,8 +5,8 @@
  */
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-const DEFAULT_PRIMARY_MODEL = "llama3.1:8b";
-const DEFAULT_FALLBACK_MODELS = ["qwen2.5:7b", "gemma3:4b", "llama3.2"];
+const DEFAULT_PRIMARY_MODEL = "gemma3:4b";
+const DEFAULT_FALLBACK_MODELS = ["llama3.2", "phi4-mini"];
 
 export interface OllamaModelPolicy {
   primaryModel: string;

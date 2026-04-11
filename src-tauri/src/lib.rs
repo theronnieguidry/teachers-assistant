@@ -1,6 +1,9 @@
 mod commands;
 
-use commands::{file_system, dialog, learner_storage, library_storage, design_pack_storage, project_storage};
+use commands::{
+    design_pack_storage, dialog, file_system, inspiration_storage, learner_storage,
+    library_storage, project_storage,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -29,6 +32,12 @@ pub fn run() {
             library_storage::save_artifact,
             library_storage::delete_artifact,
             library_storage::search_artifacts,
+            // Inspiration storage commands
+            inspiration_storage::get_inspiration_items,
+            inspiration_storage::get_inspiration_item,
+            inspiration_storage::save_inspiration_item,
+            inspiration_storage::delete_inspiration_item,
+            inspiration_storage::bulk_upsert_inspiration_items,
             // Design pack storage commands (Issue #20)
             design_pack_storage::get_design_packs,
             design_pack_storage::get_design_pack,

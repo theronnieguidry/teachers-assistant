@@ -21,7 +21,7 @@ export function AIProviderStep() {
     visualSettings,
     setVisualSettings,
     classDetails,
-    selectedInspiration,
+    getEffectiveInspiration,
     nextStep,
     prevStep,
   } = useWizardStore();
@@ -47,9 +47,10 @@ export function AIProviderStep() {
   // Can proceed if: Premium AI with enough credits, or Local AI (backend-managed model)
   const canProceed =
     aiProvider === "local" || (premiumAllowedByEndpoint && hasEnoughCredits);
+  const effectiveInspiration = getEffectiveInspiration();
 
   // Check if there are design inspirations selected (images, PDFs, URLs)
-  const hasDesignInspiration = selectedInspiration.some(
+  const hasDesignInspiration = effectiveInspiration.some(
     (item) => item.type === "image" || item.type === "pdf" || item.type === "url"
   );
 

@@ -6,6 +6,7 @@ import type {
   CurriculumObjective,
   CurriculumUnit,
   MasteryState,
+  QuickCheckResult,
 } from "@/types";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useLearnerStore } from "@/stores/learnerStore";
@@ -19,9 +20,23 @@ interface ObjectiveCardProps {
   masteryState: MasteryState;
   highlighted?: boolean;
   compact?: boolean;
+  latestQuickCheck?: QuickCheckResult | null;
   onStartLesson?: () => void;
   onPractice?: () => void;
+  onQuickCheck?: () => void;
+  onRemediate?: () => void;
   onMarkComplete?: () => void;
+}
+
+function getQuickCheckSummary(result: QuickCheckResult): string {
+  switch (result.recommendation) {
+    case "advance":
+      return `Latest Quick Check: ${result.score}% • Ready to advance`;
+    case "practice":
+      return `Latest Quick Check: ${result.score}% • Practice recommended`;
+    case "remediate":
+      return `Latest Quick Check: ${result.score}% • Remediation recommended`;
+  }
 }
 
 export function ObjectiveCard({
@@ -31,8 +46,11 @@ export function ObjectiveCard({
   masteryState,
   highlighted = false,
   compact = false,
+  latestQuickCheck = null,
   onStartLesson,
   onPractice,
+  onQuickCheck,
+  onRemediate,
   onMarkComplete,
 }: ObjectiveCardProps) {
   const openWizardFromObjective = useWizardStore(
@@ -168,7 +186,7 @@ export function ObjectiveCard({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 mt-3 pt-3 border-t">
+        <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
           <Button size="sm" onClick={handleStartLesson} className="flex-1">
             <Play className="h-4 w-4 mr-1" />
             {masteryState === "not_started" ? "Start Lesson" : "Continue"}
@@ -176,6 +194,9 @@ export function ObjectiveCard({
           <Button size="sm" variant="outline" onClick={handlePractice}>
             <FileText className="h-4 w-4 mr-1" />
             Practice
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onQuickCheck}>
+            {latestQuickCheck ? "Check Again" : "Quick Check"}
           </Button>
           {masteryState !== "mastered" && (
             <Button
@@ -188,6 +209,19 @@ export function ObjectiveCard({
             </Button>
           )}
         </div>
+
+        {latestQuickCheck ? (
+          <div className="mt-3 space-y-2 text-sm">
+            <p className="text-muted-foreground">
+              {getQuickCheckSummary(latestQuickCheck)}
+            </p>
+            {latestQuickCheck.recommendation === "remediate" && onRemediate ? (
+              <Button size="sm" variant="outline" onClick={onRemediate}>
+                Generate Remediation
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

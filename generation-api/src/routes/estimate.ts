@@ -12,6 +12,24 @@ import type { EstimateResponse, VisualRichness } from "../types/premium.js";
 
 const router = Router();
 
+const remediationContextSchema = z.object({
+  objectiveId: z.string().min(1),
+  objectiveText: z.string().min(1),
+  subject: z.string().min(1),
+  grade: z.enum(["K", "1", "2", "3", "4", "5", "6"]),
+  score: z.number().min(0).max(100),
+  wrongAnswerSummary: z.string(),
+  missedCheckpoints: z
+    .array(
+      z.object({
+        kind: z.enum(["core", "vocabulary", "misconception"]),
+        prompt: z.string().min(1),
+        note: z.string().optional(),
+      })
+    )
+    .min(1),
+});
+
 const estimateRequestSchema = z.object({
   grade: z.enum(["K", "1", "2", "3", "4", "5", "6"]),
   subject: z.string().min(1),
@@ -34,13 +52,48 @@ const estimateRequestSchema = z.object({
     })
     .optional()
     .default({}),
-  generationMode: z.enum(["standard", "premium_plan_pipeline"]).optional().default("standard"),
+  generationMode: z
+    .enum([
+      "standard",
+      "premium_plan_pipeline",
+      "premium_lesson_plan_pipeline",
+      "remediation_pack",
+    ])
+    .optional()
+    .default("standard"),
+  remediationContext: remediationContextSchema.optional(),
+}).superRefine((data, ctx) => {
+  if (data.generationMode === "remediation_pack" && !data.remediationContext) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["remediationContext"],
+      message: "remediationContext is required for remediation_pack mode",
+    });
+  }
 });
 
 /**
  * Calculate estimated credits based on generation parameters
  */
 function calculateEstimate(params: z.infer<typeof estimateRequestSchema>): EstimateResponse {
+  if (params.generationMode === "remediation_pack") {
+    const expectedCredits = 5;
+    return {
+      estimate: {
+        minCredits: Math.max(3, Math.floor(expectedCredits * 0.8)),
+        maxCredits: Math.ceil(expectedCredits * 1.3),
+        expectedCredits,
+        breakdown: {
+          textGeneration: 5,
+          imageGeneration: 0,
+          qualityGate: 0,
+        },
+      },
+      disclaimer:
+        "Actual usage may vary slightly. Unused credits are refunded automatically if generation fails.",
+    };
+  }
+
   const questionCount = params.options.questionCount || 10;
   const includeAnswerKey = params.options.includeAnswerKey !== false;
   const includeLessonPlan = params.options.format === "lesson_plan" || params.options.format === "both";
@@ -68,7 +121,10 @@ function calculateEstimate(params: z.infer<typeof estimateRequestSchema>): Estim
   }
 
   // Premium pipeline has additional planning/validation overhead
-  if (params.generationMode === "premium_plan_pipeline") {
+  if (
+    params.generationMode === "premium_plan_pipeline" ||
+    params.generationMode === "premium_lesson_plan_pipeline"
+  ) {
     textCredits += 1;
   }
 

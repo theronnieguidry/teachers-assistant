@@ -11,6 +11,9 @@ import {
   getSubjectProgress,
   getAllSubjectProgress,
   calculateMasteryFromScore,
+  calculateQuickCheckRecommendation,
+  buildQuickCheckTemplate,
+  summarizeMissedCheckpoints,
   getReadyToLearnObjectives,
 } from "@/lib/curriculum";
 import type { LearnerMasteryData } from "@/types";
@@ -215,6 +218,66 @@ describe("curriculum", () => {
     it("returns needs_review for below 50", () => {
       expect(calculateMasteryFromScore(49)).toBe("needs_review");
       expect(calculateMasteryFromScore(0)).toBe("needs_review");
+    });
+  });
+
+  describe("quick check helpers", () => {
+    it("builds a deterministic 3-checkpoint template", () => {
+      const objective = {
+        id: "custom-1",
+        text: "Add within 20",
+        prereqs: [],
+        difficulty: "standard" as const,
+        estimatedMinutes: 15,
+        misconceptions: ["Forgetting to count on"],
+        vocabulary: ["sum"],
+        activities: ["Use counters"],
+      };
+
+      const checkpoints = buildQuickCheckTemplate(objective, "Math");
+      expect(checkpoints).toHaveLength(3);
+      expect(checkpoints.map((checkpoint) => checkpoint.kind)).toEqual([
+        "core",
+        "vocabulary",
+        "misconception",
+      ]);
+      expect(checkpoints[0].prompt).toContain("Add within 20");
+      expect(checkpoints[1].prompt).toContain('"sum"');
+      expect(checkpoints[2].prompt).toContain("Forgetting to count on");
+    });
+
+    it("maps quick check recommendation from score thresholds", () => {
+      expect(calculateQuickCheckRecommendation(95)).toBe("advance");
+      expect(calculateQuickCheckRecommendation(67)).toBe("practice");
+      expect(calculateQuickCheckRecommendation(33)).toBe("remediate");
+    });
+
+    it("summarizes missed checkpoints compactly", () => {
+      const summary = summarizeMissedCheckpoints([
+        {
+          checkpointId: "c1",
+          kind: "core",
+          prompt: "Can the learner demonstrate regrouping?",
+          correct: false,
+          note: "Still counting by ones.",
+        },
+        {
+          checkpointId: "c2",
+          kind: "vocabulary",
+          prompt: 'Can the learner use "sum" correctly?',
+          correct: true,
+        },
+        {
+          checkpointId: "c3",
+          kind: "misconception",
+          prompt: "Did the learner avoid forgetting to carry?",
+          correct: false,
+        },
+      ]);
+
+      expect(summary).toContain("regrouping");
+      expect(summary).toContain("Still counting by ones.");
+      expect(summary).toContain("forgetting to carry");
     });
   });
 

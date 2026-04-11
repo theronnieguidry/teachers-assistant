@@ -31,6 +31,14 @@ vi.mock("@/services/learner-storage", () => ({
     lastSessionDate: null,
   }),
   updateObjectiveMasteryState: vi.fn().mockResolvedValue(undefined),
+  getQuickCheckHistory: vi.fn().mockResolvedValue([]),
+  saveQuickCheckResult: vi.fn().mockImplementation((_learnerId, result) =>
+    Promise.resolve({
+      ...result,
+      resultId: "quick-check-1",
+      createdAt: "2026-04-10T12:00:00.000Z",
+    })
+  ),
   getActiveLearnerIdFromStorage: vi.fn().mockReturnValue(null),
   setActiveLearnerIdToStorage: vi.fn(),
 }));
@@ -40,6 +48,17 @@ vi.mock("@/lib/curriculum", () => ({
   getNextRecommendedObjective: vi.fn().mockReturnValue(null),
   getAllSubjectProgress: vi.fn().mockReturnValue([]),
   getSubjectProgress: vi.fn().mockReturnValue(null),
+  calculateMasteryFromScore: vi.fn((score: number) => {
+    if (score >= 80) return "mastered";
+    if (score >= 50) return "in_progress";
+    return "needs_review";
+  }),
+  calculateQuickCheckRecommendation: vi.fn((score: number) => {
+    if (score >= 80) return "advance";
+    if (score >= 50) return "practice";
+    return "remediate";
+  }),
+  summarizeMissedCheckpoints: vi.fn(() => "Needs another round on regrouping."),
 }));
 
 const mockLearnerProfile: LearnerProfile = {
@@ -82,6 +101,8 @@ describe("learnerStore", () => {
       error: null,
       masteryData: null,
       isMasteryLoading: false,
+      quickCheckHistory: [],
+      isQuickCheckLoading: false,
     });
     vi.clearAllMocks();
   });
@@ -212,6 +233,127 @@ describe("learnerStore", () => {
 
       const { masteryData } = useLearnerStore.getState();
       expect(masteryData?.objectives["math_1_01"]?.state).toBe("needs_review");
+    });
+
+    it("submitQuickCheck updates mastery to mastered for 3/3", async () => {
+      useLearnerStore.setState({
+        profiles: [mockLearnerProfile],
+        activeLearnerId: "test-learner-1",
+        masteryData: mockMasteryData,
+      });
+
+      const result = await useLearnerStore.getState().submitQuickCheck({
+        objectiveId: "math_1_04",
+        subject: "Math",
+        items: [
+          { checkpointId: "c1", kind: "core", prompt: "Core", correct: true },
+          { checkpointId: "c2", kind: "vocabulary", prompt: "Vocabulary", correct: true },
+          { checkpointId: "c3", kind: "misconception", prompt: "Misconception", correct: true },
+        ],
+      });
+
+      expect(result.score).toBe(100);
+      expect(useLearnerStore.getState().masteryData?.objectives["math_1_04"]?.state).toBe(
+        "mastered"
+      );
+    });
+
+    it("submitQuickCheck updates mastery to in_progress for 2/3", async () => {
+      useLearnerStore.setState({
+        profiles: [mockLearnerProfile],
+        activeLearnerId: "test-learner-1",
+        masteryData: mockMasteryData,
+      });
+
+      const result = await useLearnerStore.getState().submitQuickCheck({
+        objectiveId: "math_1_05",
+        subject: "Math",
+        items: [
+          { checkpointId: "c1", kind: "core", prompt: "Core", correct: true },
+          { checkpointId: "c2", kind: "vocabulary", prompt: "Vocabulary", correct: true },
+          { checkpointId: "c3", kind: "misconception", prompt: "Misconception", correct: false },
+        ],
+      });
+
+      expect(result.score).toBe(67);
+      expect(
+        useLearnerStore.getState().masteryData?.objectives["math_1_05"]?.state
+      ).toBe("in_progress");
+    });
+
+    it("submitQuickCheck updates mastery to needs_review for 1/3", async () => {
+      useLearnerStore.setState({
+        profiles: [mockLearnerProfile],
+        activeLearnerId: "test-learner-1",
+        masteryData: mockMasteryData,
+      });
+
+      const result = await useLearnerStore.getState().submitQuickCheck({
+        objectiveId: "math_1_06",
+        subject: "Math",
+        items: [
+          { checkpointId: "c1", kind: "core", prompt: "Core", correct: true },
+          { checkpointId: "c2", kind: "vocabulary", prompt: "Vocabulary", correct: false },
+          { checkpointId: "c3", kind: "misconception", prompt: "Misconception", correct: false },
+        ],
+      });
+
+      expect(result.score).toBe(33);
+      expect(
+        useLearnerStore.getState().masteryData?.objectives["math_1_06"]?.state
+      ).toBe("needs_review");
+    });
+
+    it("getLatestQuickCheck returns the newest result for an objective", () => {
+      useLearnerStore.setState({
+        quickCheckHistory: [
+          {
+            resultId: "old",
+            learnerId: "test-learner-1",
+            objectiveId: "math_1_01",
+            subject: "Math",
+            score: 67,
+            totalQuestions: 3,
+            correctAnswers: 2,
+            items: [],
+            recommendation: "practice",
+            wrongAnswerSummary: "",
+            createdAt: "2026-04-10T12:00:00.000Z",
+          },
+          {
+            resultId: "new",
+            learnerId: "test-learner-1",
+            objectiveId: "math_1_01",
+            subject: "Math",
+            score: 100,
+            totalQuestions: 3,
+            correctAnswers: 3,
+            items: [],
+            recommendation: "advance",
+            wrongAnswerSummary: "",
+            createdAt: "2026-04-10T13:00:00.000Z",
+          },
+        ],
+      });
+
+      expect(useLearnerStore.getState().getLatestQuickCheck("math_1_01")?.resultId).toBe(
+        "new"
+      );
+    });
+
+    it("submitQuickCheck throws without an active learner", async () => {
+      useLearnerStore.setState({
+        profiles: [mockLearnerProfile],
+        activeLearnerId: null,
+      });
+
+      await expect(
+        useLearnerStore.getState().submitQuickCheck({
+          objectiveId: "math_1_07",
+          subject: "Math",
+          items: [{ checkpointId: "c1", kind: "core", prompt: "Core", correct: true }],
+        })
+      ).rejects.toThrow("No active learner selected");
     });
   });
 

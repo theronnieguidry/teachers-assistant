@@ -39,7 +39,27 @@ export interface LessonMetadata {
 // Generation Mode
 // ============================================
 
-export type GenerationMode = "standard" | "premium_plan_pipeline" | "premium_lesson_plan_pipeline";
+export type GenerationMode =
+  | "standard"
+  | "premium_plan_pipeline"
+  | "premium_lesson_plan_pipeline"
+  | "remediation_pack";
+
+export interface RemediationMissedCheckpoint {
+  kind: "core" | "vocabulary" | "misconception";
+  prompt: string;
+  note?: string;
+}
+
+export interface RemediationContext {
+  objectiveId: string;
+  objectiveText: string;
+  subject: string;
+  grade: Grade;
+  score: number;
+  wrongAnswerSummary: string;
+  missedCheckpoints: RemediationMissedCheckpoint[];
+}
 
 // ============================================
 // Visual Settings
@@ -91,6 +111,10 @@ export interface InspirationItem {
   createdAt?: Date;
 }
 
+/**
+ * Deprecated compatibility shape for one release while older clients roll off.
+ * Active generation requests should send flattened `inspiration` only.
+ */
 export interface DesignPackContext {
   packId: string;
   items: InspirationItem[];
@@ -148,6 +172,7 @@ export interface EstimateRequest {
   options: ProjectOptions;
   visualSettings?: VisualSettings;
   generationMode?: GenerationMode;
+  remediationContext?: RemediationContext;
 }
 
 export interface EstimateResponse {

@@ -48,8 +48,9 @@ npm run tauri dev
 ### Model Defaults
 
 - **Premium AI**: `gpt-4.1` for text and vision, plus GPT Image for generated worksheet visuals
-- **Local AI**: `phi4-mini` is the recommended Ollama model for mainstream 8-16GB family PCs
-- **Fallback local models**: `llama3.2` for maximum compatibility, `mistral` if you want a heavier local model
+- **Local AI**: `gemma3:4b` is the recommended backend-managed Ollama model for mainstream 8-16GB family PCs
+- **Fallback local models**: `llama3.2` for maximum compatibility and `phi4-mini` as a secondary fallback
+- **Optional local quality tier**: `gemma4:e4b` if you explicitly want a heavier 16GB+ model
 
 ### Testing
 

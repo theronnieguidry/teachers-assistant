@@ -83,6 +83,7 @@ export function migrateProject(project: Project): ProjectContext {
     projectId: project.id,
     type: "quick_create", // Legacy projects are quick create
     linkedObjectiveIds: storedObjectiveId ? [storedObjectiveId] : [],
+    selectedInspirationIds: [],
     lastUsedAt:
       project.completedAt?.toISOString() ||
       project.updatedAt?.toISOString() ||
@@ -198,12 +199,8 @@ export function migrateInspirationItems(
     name: packName,
     description: "Migrated from legacy design inspiration",
     items: items.map((item) => ({
-      itemId: item.id.startsWith("local_") ? crypto.randomUUID() : item.id,
-      type: item.type,
-      title: item.title,
-      sourceUrl: item.sourceUrl,
-      content: item.content,
-      storagePath: item.storagePath,
+      ...item,
+      id: item.id.startsWith("local_") ? crypto.randomUUID() : item.id,
     })),
     createdAt: now,
     updatedAt: now,

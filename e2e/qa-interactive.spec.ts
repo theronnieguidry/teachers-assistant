@@ -348,19 +348,20 @@ test.describe("QA Interactive Exploration", () => {
       console.log(`  Header button ${i}: "${text?.substring(0, 20) || '(no text)'}"`);
     }
 
-    // Click first button (often settings)
-    if (headerBtnCount > 0) {
-      await headerButtons.first().click();
+    const settingsButton = page.getByTitle("Generation API settings");
+    if (await settingsButton.isVisible().catch(() => false)) {
+      await settingsButton.click();
       await page.waitForTimeout(1000);
 
       const settingsDialog = page.getByRole("dialog");
       if (await settingsDialog.isVisible()) {
         console.log("✓ Dialog opened from header button");
 
-        // Check for Ollama status
-        const ollamaStatus = page.getByRole("heading", { name: "Local AI Setup" });
-        if (await ollamaStatus.isVisible()) {
-          console.log("✓ Local AI Setup dialog visible");
+        const endpointDialog = page.getByRole("heading", {
+          name: "Generation API Endpoint",
+        });
+        if (await endpointDialog.isVisible()) {
+          console.log("✓ Generation API settings dialog visible");
         }
 
         // Close dialog

@@ -326,11 +326,15 @@ describe("Learner Storage Service", () => {
         const mockHistory: QuickCheckResult[] = [
           {
             resultId: "result-1",
+            learnerId,
             objectiveId: "obj-1",
+            subject: "Math",
             score: 80,
             totalQuestions: 5,
             correctAnswers: 4,
-            passed: true,
+            items: [],
+            recommendation: "advance",
+            wrongAnswerSummary: "",
             createdAt: "2024-01-15T10:00:00Z",
           },
         ];
@@ -348,20 +352,28 @@ describe("Learner Storage Service", () => {
         const mockHistory: QuickCheckResult[] = [
           {
             resultId: "result-1",
+            learnerId,
             objectiveId: "obj-1",
+            subject: "Math",
             score: 80,
             totalQuestions: 5,
             correctAnswers: 4,
-            passed: true,
+            items: [],
+            recommendation: "advance",
+            wrongAnswerSummary: "",
             createdAt: "2024-01-15T10:00:00Z",
           },
           {
             resultId: "result-2",
+            learnerId,
             objectiveId: "obj-2",
+            subject: "Math",
             score: 60,
             totalQuestions: 5,
             correctAnswers: 3,
-            passed: false,
+            items: [],
+            recommendation: "practice",
+            wrongAnswerSummary: "",
             createdAt: "2024-01-15T11:00:00Z",
           },
         ];
@@ -374,16 +386,46 @@ describe("Learner Storage Service", () => {
         expect(history).toHaveLength(1);
         expect(history[0].objectiveId).toBe("obj-1");
       });
+
+      it("normalizes legacy stored results into the current quick check shape", async () => {
+        localStorage.setItem(
+          `learner-quickchecks-${learnerId}`,
+          JSON.stringify([
+            {
+              objectiveId: "obj-legacy",
+              score: 33,
+              items: [{ questionId: "obj-legacy-core", correct: false }],
+            },
+          ])
+        );
+
+        const history = await getQuickCheckHistory(learnerId);
+        expect(history[0]).toMatchObject({
+          learnerId,
+          objectiveId: "obj-legacy",
+          recommendation: "remediate",
+          wrongAnswerSummary: "",
+        });
+        expect(history[0].items[0]).toMatchObject({
+          checkpointId: "obj-legacy-core",
+          kind: "core",
+          correct: false,
+        });
+      });
     });
 
     describe("saveQuickCheckResult", () => {
       it("should save quick check result", async () => {
         const result = await saveQuickCheckResult(learnerId, {
+          learnerId,
           objectiveId: "obj-1",
+          subject: "Math",
           score: 100,
           totalQuestions: 5,
           correctAnswers: 5,
-          passed: true,
+          items: [],
+          recommendation: "advance",
+          wrongAnswerSummary: "",
         });
 
         expect(result.resultId).toBeDefined();
@@ -394,19 +436,27 @@ describe("Learner Storage Service", () => {
 
       it("should append to existing history", async () => {
         await saveQuickCheckResult(learnerId, {
+          learnerId,
           objectiveId: "obj-1",
+          subject: "Math",
           score: 80,
           totalQuestions: 5,
           correctAnswers: 4,
-          passed: true,
+          items: [],
+          recommendation: "advance",
+          wrongAnswerSummary: "",
         });
 
         await saveQuickCheckResult(learnerId, {
+          learnerId,
           objectiveId: "obj-2",
+          subject: "Math",
           score: 60,
           totalQuestions: 5,
           correctAnswers: 3,
-          passed: false,
+          items: [],
+          recommendation: "practice",
+          wrongAnswerSummary: "Needs another round",
         });
 
         const history = await getQuickCheckHistory(learnerId);

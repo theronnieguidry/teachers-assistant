@@ -97,8 +97,15 @@ vi.mock("@/lib/curriculum", () => ({
 let mockProfiles: Array<{ learnerId: string; displayName: string; grade: string }> = [];
 let mockActiveLearnerId: string | null = null;
 let mockMasteryData: { objectives: Record<string, { state: string }> } | null = null;
+let mockQuickCheckHistory: Array<{
+  objectiveId: string;
+  score: number;
+  recommendation: "advance" | "practice" | "remediate";
+  createdAt: string;
+}> = [];
 const mockLoadMastery = vi.fn();
 const mockOpenWizardOneOffForLearner = vi.fn();
+const mockOpenWizardForRemediation = vi.fn();
 
 vi.mock("@/stores/learnerStore", () => ({
   useLearnerStore: vi.fn((selector) =>
@@ -106,6 +113,7 @@ vi.mock("@/stores/learnerStore", () => ({
       profiles: mockProfiles,
       activeLearnerId: mockActiveLearnerId,
       masteryData: mockMasteryData,
+      quickCheckHistory: mockQuickCheckHistory,
       loadMastery: mockLoadMastery,
     })
   ),
@@ -115,6 +123,7 @@ vi.mock("@/stores/wizardStore", () => ({
   useWizardStore: vi.fn((selector) =>
     selector({
       openWizardOneOffForLearner: mockOpenWizardOneOffForLearner,
+      openWizardForRemediation: mockOpenWizardForRemediation,
     })
   ),
 }));
@@ -124,9 +133,11 @@ vi.mock("@/components/learning-path/ObjectiveCard", () => ({
   ObjectiveCard: ({
     objective,
     highlighted,
+    onQuickCheck,
   }: {
     objective: { id: string; text: string };
     highlighted?: boolean;
+    onQuickCheck?: () => void;
   }) => (
     <div
       data-testid="objective-card"
@@ -134,8 +145,14 @@ vi.mock("@/components/learning-path/ObjectiveCard", () => ({
       data-highlighted={highlighted ? "true" : "false"}
     >
       {objective.text}
+      <button onClick={onQuickCheck}>Quick Check</button>
     </div>
   ),
+}));
+
+vi.mock("@/components/quick-check", () => ({
+  QuickCheckDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="quick-check-dialog">Quick Check Dialog</div> : null,
 }));
 
 describe("LearningPathView", () => {
@@ -144,7 +161,9 @@ describe("LearningPathView", () => {
     mockProfiles = [];
     mockActiveLearnerId = null;
     mockMasteryData = null;
+    mockQuickCheckHistory = [];
     mockOpenWizardOneOffForLearner.mockReset();
+    mockOpenWizardForRemediation.mockReset();
   });
 
   describe("no active profile", () => {
@@ -229,6 +248,13 @@ describe("LearningPathView", () => {
         expect.objectContaining({ learnerId: "learner-1" }),
         "Math"
       );
+    });
+
+    it("hosts the quick check dialog when an objective quick check is launched", () => {
+      render(<LearningPathView />);
+      fireEvent.click(screen.getByText("Numbers and Place Value"));
+      fireEvent.click(screen.getAllByRole("button", { name: "Quick Check" })[0]);
+      expect(screen.getByTestId("quick-check-dialog")).toBeInTheDocument();
     });
   });
 

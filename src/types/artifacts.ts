@@ -1,5 +1,6 @@
 import type { Grade, ProjectStatus } from "./database";
 import type { MasteryState } from "./learner";
+import type { InspirationItem } from "@shared/types";
 
 // ============================================
 // Project Unification Types (Issue #20)
@@ -80,18 +81,6 @@ export function parseObjectiveId(id: string): { grade: string; subject: string; 
 // ============================================
 
 /**
- * Individual item within a design pack
- */
-export interface DesignPackItem {
-  itemId: string;
-  type: "url" | "pdf" | "image" | "text";
-  title: string;
-  sourceUrl?: string;     // For URLs
-  content?: string;       // For PDFs/images (base64) or text
-  storagePath?: string;   // Media type for vision API
-}
-
-/**
  * Parsed design summary from inspiration items
  */
 export interface ParsedDesignSummary {
@@ -102,13 +91,27 @@ export interface ParsedDesignSummary {
 }
 
 /**
- * Design Pack - a named bundle of design inspiration items
+ * Persisted design pack format. Packs reference canonical inspiration items.
+ */
+export interface StoredDesignPack {
+  packId: string;
+  name: string;
+  description?: string;
+  itemIds: string[];
+  parsedSummary?: ParsedDesignSummary;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * UI-facing design pack resolved from canonical inspiration items.
  */
 export interface DesignPack {
   packId: string;
   name: string;
   description?: string;
-  items: DesignPackItem[];
+  items: InspirationItem[];
+  missingItemIds?: string[];
   parsedSummary?: ParsedDesignSummary;
   createdAt: string;  // ISO string
   updatedAt: string;
@@ -120,7 +123,7 @@ export interface DesignPack {
 export interface CreateDesignPackData {
   name: string;
   description?: string;
-  items?: DesignPackItem[];
+  items?: InspirationItem[];
 }
 
 // ============================================
@@ -255,6 +258,7 @@ export interface ProjectContext {
   learnerId?: string;
   linkedObjectiveIds: string[];
   defaultDesignPackId?: string;
+  selectedInspirationIds: string[];
   lastUsedAt: string;
 }
 

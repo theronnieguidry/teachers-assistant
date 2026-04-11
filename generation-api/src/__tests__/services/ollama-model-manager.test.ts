@@ -14,8 +14,8 @@ describe("ollama-model-manager", () => {
     vi.clearAllMocks();
     resetOllamaModelManagerForTests();
 
-    process.env.OLLAMA_PRIMARY_MODEL = "llama3.1:8b";
-    process.env.OLLAMA_FALLBACK_MODELS = "qwen2.5:7b,gemma3:4b,llama3.2";
+    process.env.OLLAMA_PRIMARY_MODEL = "gemma3:4b";
+    process.env.OLLAMA_FALLBACK_MODELS = "llama3.2,phi4-mini";
     process.env.OLLAMA_AUTO_PULL = "true";
     process.env.OLLAMA_WARMUP_TIMEOUT_MS = "2000";
   });
@@ -30,20 +30,6 @@ describe("ollama-model-manager", () => {
   it("selects primary model when already installed", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({ models: [{ name: "llama3.1:8b" }] }),
-    });
-
-    const result = await warmupLocalModel();
-
-    expect(result.localModelReady).toBe(true);
-    expect(result.activeModel).toBe("llama3.1:8b");
-    expect(result.lastError).toBeNull();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("falls back to installed secondary model when primary is missing", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
       json: () => Promise.resolve({ models: [{ name: "gemma3:4b" }] }),
     });
 
@@ -51,6 +37,20 @@ describe("ollama-model-manager", () => {
 
     expect(result.localModelReady).toBe(true);
     expect(result.activeModel).toBe("gemma3:4b");
+    expect(result.lastError).toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to installed secondary model when primary is missing", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ models: [{ name: "llama3.2" }] }),
+    });
+
+    const result = await warmupLocalModel();
+
+    expect(result.localModelReady).toBe(true);
+    expect(result.activeModel).toBe("llama3.2");
   });
 
   it("pulls and activates the primary model when none are installed", async () => {
@@ -62,13 +62,13 @@ describe("ollama-model-manager", () => {
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ models: [{ name: "llama3.1:8b" }] }),
+        json: () => Promise.resolve({ models: [{ name: "gemma3:4b" }] }),
       });
 
     const result = await warmupLocalModel();
 
     expect(result.localModelReady).toBe(true);
-    expect(result.activeModel).toBe("llama3.1:8b");
+    expect(result.activeModel).toBe("gemma3:4b");
 
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/pull"),
@@ -91,12 +91,12 @@ describe("ollama-model-manager", () => {
 
     resolveTags?.({
       ok: true,
-      json: () => Promise.resolve({ models: [{ name: "llama3.1:8b" }] }),
+      json: () => Promise.resolve({ models: [{ name: "gemma3:4b" }] }),
     });
 
     const [r1, r2] = await Promise.all([first, second]);
-    expect(r1.activeModel).toBe("llama3.1:8b");
-    expect(r2.activeModel).toBe("llama3.1:8b");
+    expect(r1.activeModel).toBe("gemma3:4b");
+    expect(r2.activeModel).toBe("gemma3:4b");
   });
 
   it("reports unreachable state when Ollama is down", async () => {
@@ -112,6 +112,6 @@ describe("ollama-model-manager", () => {
   });
 
   it("returns primary model as resolution fallback when warmup has not completed", () => {
-    expect(getResolvedLocalModel()).toBe("llama3.1:8b");
+    expect(getResolvedLocalModel()).toBe("gemma3:4b");
   });
 });

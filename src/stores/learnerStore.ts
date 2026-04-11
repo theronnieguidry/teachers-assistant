@@ -7,6 +7,8 @@ import type {
   MasteryState,
   LearnerObjectiveRecommendation,
   SubjectProgress,
+  QuickCheckResult,
+  QuickCheckResultItem,
 } from "@/types";
 import {
   getLearnerProfiles,
@@ -17,11 +19,16 @@ import {
   updateObjectiveMasteryState,
   getActiveLearnerIdFromStorage,
   setActiveLearnerIdToStorage,
+  getQuickCheckHistory,
+  saveQuickCheckResult,
 } from "@/services/learner-storage";
 import {
   getNextRecommendedObjective,
   getAllSubjectProgress,
   getSubjectProgress as getCurriculumSubjectProgress,
+  calculateMasteryFromScore,
+  calculateQuickCheckRecommendation,
+  summarizeMissedCheckpoints,
 } from "@/lib/curriculum";
 
 interface LearnerState {
@@ -34,6 +41,8 @@ interface LearnerState {
   // Mastery state
   masteryData: LearnerMasteryData | null;
   isMasteryLoading: boolean;
+  quickCheckHistory: QuickCheckResult[];
+  isQuickCheckLoading: boolean;
 
   // Computed helpers (accessed via getState())
   getActiveProfile: () => LearnerProfile | null;
@@ -62,6 +71,13 @@ interface LearnerState {
   markObjectiveStarted: (objectiveId: string, subject: string) => Promise<void>;
   markObjectiveMastered: (objectiveId: string, subject: string) => Promise<void>;
   markObjectiveNeedsReview: (objectiveId: string, subject: string) => Promise<void>;
+  loadQuickCheckHistory: (objectiveId?: string) => Promise<void>;
+  getLatestQuickCheck: (objectiveId: string) => QuickCheckResult | null;
+  submitQuickCheck: (params: {
+    objectiveId: string;
+    subject: string;
+    items: QuickCheckResultItem[];
+  }) => Promise<QuickCheckResult>;
 
   // Utility actions
   clearError: () => void;
@@ -76,6 +92,8 @@ export const useLearnerStore = create<LearnerState>()((set, get) => ({
   error: null,
   masteryData: null,
   isMasteryLoading: false,
+  quickCheckHistory: [],
+  isQuickCheckLoading: false,
 
   // ============================================
   // Computed Helpers
@@ -124,9 +142,14 @@ export const useLearnerStore = create<LearnerState>()((set, get) => ({
         const exists = profiles.some((p) => p.learnerId === activeLearnerId);
         if (exists) {
           await get().loadMastery(activeLearnerId);
+          await get().loadQuickCheckHistory();
         } else {
           // Active learner no longer exists, clear it
-          set({ activeLearnerId: null, masteryData: null });
+          set({
+            activeLearnerId: null,
+            masteryData: null,
+            quickCheckHistory: [],
+          });
           setActiveLearnerIdToStorage(null);
         }
       }
@@ -194,6 +217,8 @@ export const useLearnerStore = create<LearnerState>()((set, get) => ({
           state.activeLearnerId === learnerId ? null : state.activeLearnerId,
         masteryData:
           state.activeLearnerId === learnerId ? null : state.masteryData,
+        quickCheckHistory:
+          state.activeLearnerId === learnerId ? [] : state.quickCheckHistory,
       }));
 
       // Update localStorage
@@ -217,8 +242,9 @@ export const useLearnerStore = create<LearnerState>()((set, get) => ({
     // Load mastery data for the new active learner
     if (learnerId) {
       get().loadMastery(learnerId);
+      get().loadQuickCheckHistory();
     } else {
-      set({ masteryData: null });
+      set({ masteryData: null, quickCheckHistory: [] });
     }
   },
 
@@ -307,6 +333,74 @@ export const useLearnerStore = create<LearnerState>()((set, get) => ({
     await get().updateObjectiveMastery(objectiveId, subject, "needs_review");
   },
 
+  loadQuickCheckHistory: async (objectiveId?: string) => {
+    const { activeLearnerId } = get();
+    if (!activeLearnerId) {
+      set({ quickCheckHistory: [], isQuickCheckLoading: false });
+      return;
+    }
+
+    set({ isQuickCheckLoading: true });
+    try {
+      const quickCheckHistory = await getQuickCheckHistory(activeLearnerId, objectiveId);
+      set({ quickCheckHistory, isQuickCheckLoading: false });
+    } catch (error) {
+      console.error("Failed to load quick check history:", error);
+      set({ quickCheckHistory: [], isQuickCheckLoading: false });
+    }
+  },
+
+  getLatestQuickCheck: (objectiveId: string) => {
+    const { quickCheckHistory } = get();
+    const matching = quickCheckHistory
+      .filter((result) => result.objectiveId === objectiveId)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    return matching[0] || null;
+  },
+
+  submitQuickCheck: async ({ objectiveId, subject, items }) => {
+    const { activeLearnerId } = get();
+    if (!activeLearnerId) {
+      throw new Error("No active learner selected");
+    }
+
+    const totalQuestions = items.length;
+    const correctAnswers = items.filter((item) => item.correct).length;
+    const score =
+      totalQuestions > 0
+        ? Math.round((correctAnswers / totalQuestions) * 100)
+        : 0;
+    const recommendation = calculateQuickCheckRecommendation(score);
+    const wrongAnswerSummary = summarizeMissedCheckpoints(items);
+
+    const savedResult = await saveQuickCheckResult(activeLearnerId, {
+      learnerId: activeLearnerId,
+      objectiveId,
+      subject,
+      score,
+      totalQuestions,
+      correctAnswers,
+      items,
+      recommendation,
+      wrongAnswerSummary,
+    });
+
+    const masteryState = calculateMasteryFromScore(score);
+    await get().updateObjectiveMastery(objectiveId, subject, masteryState, score);
+
+    set((state) => ({
+      quickCheckHistory: [...state.quickCheckHistory, savedResult].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+    }));
+
+    return savedResult;
+  },
+
   // ============================================
   // Utility Actions
   // ============================================
@@ -318,10 +412,12 @@ export const useLearnerStore = create<LearnerState>()((set, get) => ({
       profiles: [],
       activeLearnerId: null,
       isLoading: false,
-      error: null,
-      masteryData: null,
-      isMasteryLoading: false,
-    }),
+        error: null,
+        masteryData: null,
+        isMasteryLoading: false,
+        quickCheckHistory: [],
+        isQuickCheckLoading: false,
+      }),
 }));
 
 // Export convenience selector hooks

@@ -21,7 +21,7 @@ describe("WizardDialog", () => {
       title: "Test Project",
       prompt: "",
       classDetails: null,
-      selectedInspiration: [],
+      selectedInspirationIds: [],
       outputPath: null,
       isGenerating: false,
       generationProgress: 0,

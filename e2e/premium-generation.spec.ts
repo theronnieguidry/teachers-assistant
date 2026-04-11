@@ -627,7 +627,6 @@ test.describe("Premium Generation", () => {
       fixtureOptions: {
         withLearnerProfile: true,
         creditBalance: 2,
-        suppressOllamaSetup: true,
       },
     });
 

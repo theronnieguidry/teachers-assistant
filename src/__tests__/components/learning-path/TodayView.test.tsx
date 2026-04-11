@@ -17,6 +17,12 @@ let mockProfiles: Array<{
 }> = [];
 let mockActiveLearnerId: string | null = null;
 let mockMasteryData: { learnerId: string; objectives: Record<string, unknown> } | null = null;
+let mockQuickCheckHistory: Array<{
+  objectiveId: string;
+  score: number;
+  recommendation: "advance" | "practice" | "remediate";
+  createdAt: string;
+}> = [];
 
 // Mock curriculum functions for computing derived state
 vi.mock("@/lib/curriculum", () => ({
@@ -34,6 +40,7 @@ vi.mock("@/stores/learnerStore", () => ({
       profiles: mockProfiles,
       activeLearnerId: mockActiveLearnerId,
       masteryData: mockMasteryData,
+      quickCheckHistory: mockQuickCheckHistory,
       loadProfiles: mockLoadProfiles,
       loadMastery: mockLoadMastery,
       markObjectiveStarted: mockMarkObjectiveStarted,
@@ -56,12 +63,18 @@ vi.mock("@/components/learner", () => ({
     open ? <div data-testid="create-learner-dialog">Create Learner Dialog</div> : null,
 }));
 
+vi.mock("@/components/quick-check", () => ({
+  QuickCheckDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="quick-check-dialog">Quick Check Dialog</div> : null,
+}));
+
 describe("TodayView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockProfiles = [];
     mockActiveLearnerId = null;
     mockMasteryData = null;
+    mockQuickCheckHistory = [];
     mockGetNextRecommendedObjective.mockReturnValue(null);
     mockGetAllSubjectProgress.mockReturnValue([]);
   });
@@ -193,6 +206,11 @@ describe("TodayView", () => {
       expect(screen.getByText("Quick Practice")).toBeInTheDocument();
     });
 
+    it("shows Quick Check button", () => {
+      render(<TodayView />);
+      expect(screen.getByRole("button", { name: "Quick Check" })).toBeInTheDocument();
+    });
+
     it("shows Create one-off button and launches one-off flow with learner context", () => {
       render(<TodayView />);
       fireEvent.click(screen.getByText("Create one-off"));
@@ -200,6 +218,22 @@ describe("TodayView", () => {
         expect.objectContaining({ learnerId: "1", grade: "2" }),
         "Math"
       );
+    });
+
+    it("renders the latest quick check summary when one exists", () => {
+      mockQuickCheckHistory = [
+        {
+          objectiveId: "math-2-1",
+          score: 67,
+          recommendation: "practice",
+          createdAt: "2026-04-10T12:00:00.000Z",
+        },
+      ];
+
+      render(<TodayView />);
+      expect(
+        screen.getByText("Latest Quick Check: 67% • Practice recommended")
+      ).toBeInTheDocument();
     });
   });
 

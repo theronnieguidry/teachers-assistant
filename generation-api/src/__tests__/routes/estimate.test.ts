@@ -165,4 +165,46 @@ describe("POST /estimate", () => {
     expect(response.status).toBe(200);
     expect(response.body.estimate.breakdown).toHaveProperty("qualityGate");
   });
+
+  it("should return a fixed remediation estimate of 5 expected credits", async () => {
+    const response = await request(app)
+      .post("/estimate")
+      .send({
+        grade: "2",
+        subject: "Math",
+        options: {
+          questionCount: 5,
+          includeVisuals: false,
+          format: "worksheet",
+          includeAnswerKey: true,
+        },
+        generationMode: "remediation_pack",
+        remediationContext: {
+          objectiveId: "math-2-1",
+          objectiveText: "Add within 20",
+          subject: "Math",
+          grade: "2",
+          score: 33,
+          wrongAnswerSummary: "Needs help with regrouping.",
+          missedCheckpoints: [{ kind: "core", prompt: "Can the learner add within 20?" }],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.estimate.expectedCredits).toBe(5);
+    expect(response.body.estimate.breakdown.imageGeneration).toBe(0);
+  });
+
+  it("should reject remediation mode without remediationContext", async () => {
+    const response = await request(app)
+      .post("/estimate")
+      .send({
+        grade: "2",
+        subject: "Math",
+        options: { format: "worksheet" },
+        generationMode: "remediation_pack",
+      });
+
+    expect(response.status).toBe(400);
+  });
 });

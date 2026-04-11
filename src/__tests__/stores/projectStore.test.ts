@@ -1035,8 +1035,8 @@ describe("projectStore", () => {
     });
   });
 
-  describe("createProject with inspiration linking", () => {
-    it("should link inspiration items via junction table when IDs provided", async () => {
+  describe("createProject with inspiration snapshots", () => {
+    it("persists flattened inspiration on the project record without writing new junction rows", async () => {
       vi.mocked(supabase.auth.getUser).mockResolvedValue({
         data: { user: { id: "user-123" } },
         error: null,
@@ -1050,10 +1050,17 @@ describe("projectStore", () => {
       });
 
       let junctionInsertCalled = false;
+      let projectInsertPayload: Record<string, unknown> | null = null;
       vi.mocked(supabase.from).mockImplementation((table: string) => {
         if (table === "projects") {
           return {
-            insert: insertMock,
+            insert: vi.fn((payload) => {
+              projectInsertPayload = payload as Record<string, unknown>;
+              return {
+                select: selectMock,
+                single: singleMock,
+              };
+            }),
             select: selectMock,
             single: singleMock,
           } as never;
@@ -1072,13 +1079,16 @@ describe("projectStore", () => {
         prompt: "Create a math worksheet",
         grade: "2",
         subject: "Math",
-        inspirationIds: ["insp-1", "insp-2"],
+        inspiration: [{ id: "insp-1", type: "url", title: "Example" }],
       });
 
-      expect(junctionInsertCalled).toBe(true);
+      expect(projectInsertPayload?.inspiration).toEqual([
+        { id: "insp-1", type: "url", title: "Example" },
+      ]);
+      expect(junctionInsertCalled).toBe(false);
     });
 
-    it("should not fail project creation if junction table insert fails", async () => {
+    it("still creates the project when inspiration is present without relying on project_inspiration", async () => {
       vi.mocked(supabase.auth.getUser).mockResolvedValue({
         data: { user: { id: "user-123" } },
         error: null,
@@ -1112,7 +1122,7 @@ describe("projectStore", () => {
         prompt: "Create a math worksheet",
         grade: "2",
         subject: "Math",
-        inspirationIds: ["insp-1"],
+        inspiration: [{ id: "insp-1", type: "url", title: "Example" }],
       });
 
       expect(result.id).toBe("project-123");

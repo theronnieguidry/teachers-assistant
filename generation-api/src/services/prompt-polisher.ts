@@ -6,7 +6,7 @@
  */
 
 import type { Grade } from "../types.js";
-import { getDefaultOllamaModel } from "./ai-provider.js";
+import { getResolvedLocalModel } from "./ollama-model-manager.js";
 
 export interface PolishContext {
   prompt: string;
@@ -69,6 +69,16 @@ export interface PolishResult {
   skipReason?: string;
 }
 
+function sanitizePolishedResponse(response: string | undefined): string {
+  if (!response) return "";
+
+  return response
+    .replace(/<thinking\b[^>]*>[\s\S]*?<\/thinking>/gi, "")
+    .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, "")
+    .replace(/<\/?(thinking|think)\b[^>]*>/gi, "")
+    .trim();
+}
+
 /**
  * Polish a user's prompt using Ollama
  *
@@ -96,7 +106,7 @@ export async function polishPrompt(ctx: PolishContext): Promise<PolishResult> {
   }
 
   const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-  const model = process.env.POLISH_MODEL || getDefaultOllamaModel();
+  const model = process.env.POLISH_MODEL || getResolvedLocalModel();
 
   try {
     const polishingPrompt = buildPolishingPrompt(ctx);
@@ -122,7 +132,7 @@ export async function polishPrompt(ctx: PolishContext): Promise<PolishResult> {
     }
 
     const data = await response.json();
-    const polished = data.response?.trim();
+    const polished = sanitizePolishedResponse(data.response);
 
     // Validate the polished prompt
     if (polished && polished.length > 20 && polished.length < 1000) {

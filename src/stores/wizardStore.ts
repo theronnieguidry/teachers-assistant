@@ -12,12 +12,20 @@ import type {
   LessonLength,
   ObjectiveRecommendation,
   LearnerProfile,
+  RemediationContext,
+  QuickCheckResult,
 } from "@/types";
 import { DEFAULT_VISUAL_SETTINGS } from "@/types";
 import { useProjectStore } from "@/stores/projectStore";
 import { useProjectContextStore } from "@/stores/projectContextStore";
 import { useDesignPackStore } from "@/stores/designPackStore";
+import { useInspirationStore } from "@/stores/inspirationStore";
 import { useSettingsStore, type AiProvider } from "@/stores/settingsStore";
+import {
+  bulkUpsertInspirationItems,
+  getInspirationItems,
+} from "@/services/inspiration-storage";
+import { mergeInspirationItems } from "@/lib/inspiration-merge";
 import {
   getPreferredProjectType,
   getStoredObjectiveId,
@@ -124,7 +132,8 @@ interface WizardState {
   objectiveId: string | null;
   learnerId: string | null;
   classDetails: ClassDetails | null;
-  selectedInspiration: InspirationItem[];
+  remediationContext: RemediationContext | null;
+  selectedInspirationIds: string[];
   outputPath: string | null;
 
   // AI Provider state
@@ -159,6 +168,11 @@ interface WizardState {
     learner: LearnerProfile,
     format?: "worksheet" | "lesson_plan" | "both"
   ) => void;
+  openWizardForRemediation: (
+    objective: ObjectiveRecommendation,
+    learner: LearnerProfile,
+    quickCheckResult: QuickCheckResult
+  ) => void;
   openWizardOneOffForLearner: (learner: LearnerProfile, subject?: string) => void;
   closeWizard: () => void;
   setStep: (step: WizardStep) => void;
@@ -167,7 +181,9 @@ interface WizardState {
   setPrompt: (prompt: string) => void;
   setTitle: (title: string) => void;
   setClassDetails: (details: ClassDetails) => void;
-  setSelectedInspiration: (items: InspirationItem[]) => void;
+  setSelectedInspirationIds: (itemIds: string[]) => void;
+  getSelectedInspirationItems: () => InspirationItem[];
+  getEffectiveInspiration: () => InspirationItem[];
   setOutputPath: (path: string) => void;
   setAiProvider: (provider: AiProvider) => void;
   setGenerationMode: (mode: GenerationMode) => void;
@@ -206,7 +222,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   objectiveId: null,
   learnerId: null,
   classDetails: null,
-  selectedInspiration: [],
+  remediationContext: null,
+  selectedInspirationIds: [],
   outputPath: null,
   aiProvider: "local",
   generationMode: "standard",
@@ -237,7 +254,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       objectiveId: null,
       learnerId: null,
       classDetails: { ...defaultClassDetails },
-      selectedInspiration: [],
+      remediationContext: null,
+      selectedInspirationIds: [],
       outputPath: null,
       aiProvider: defaultProvider,
       generationMode: defaultMode,
@@ -257,15 +275,30 @@ export const useWizardStore = create<WizardState>((set, get) => ({
     // Extract options with defaults
     const options = project.options || {};
     const objectiveId = getStoredObjectiveId(options);
-    const projectContext = useProjectContextStore.getState().getContext(project.id);
+    const projectContextStore = useProjectContextStore.getState();
+    const projectContext = projectContextStore.getContext(project.id);
     applyProjectDefaultDesignPack(project.id);
+    const localItems = await getInspirationItems();
+    const localItemIds = new Set(localItems.map((item) => item.id));
+    let selectedInspirationIds = projectContext?.selectedInspirationIds || [];
 
-    // Try to fetch inspiration from junction table first (proper relational approach)
-    let inspiration = await useProjectStore.getState().fetchProjectInspiration(project.id);
+    const localSelectionAvailable =
+      selectedInspirationIds.length > 0 &&
+      selectedInspirationIds.every((itemId) => localItemIds.has(itemId));
 
-    // Fallback to JSONB for legacy projects or if junction table is empty
-    if (inspiration.length === 0 && project.inspiration && project.inspiration.length > 0) {
-      inspiration = project.inspiration;
+    if (!localSelectionAvailable) {
+      let inspiration = await useProjectStore.getState().fetchProjectInspiration(project.id);
+      if (inspiration.length === 0 && project.inspiration && project.inspiration.length > 0) {
+        inspiration = project.inspiration;
+      }
+
+      if (inspiration.length > 0) {
+        const savedItems = await bulkUpsertInspirationItems(inspiration);
+        selectedInspirationIds = savedItems.map((item) => item.id);
+        projectContextStore.setSelectedInspirationIds(project.id, selectedInspirationIds);
+      } else if (!localSelectionAvailable) {
+        selectedInspirationIds = [];
+      }
     }
 
     // Use the user's default AI provider from settings
@@ -293,7 +326,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
         studentProfile: (options.studentProfile as StudentProfileFlag[]) || [],
         teachingConfidence: (options.teachingConfidence as TeachingConfidence) || "intermediate",
       },
-      selectedInspiration: inspiration,
+      remediationContext: null,
+      selectedInspirationIds,
       outputPath: project.outputPath || null,
       aiProvider: defaultProvider,
       generationMode: defaultMode,
@@ -333,7 +367,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
         studentProfile: [],
         teachingConfidence: "intermediate",
       },
-      selectedInspiration: [],
+      remediationContext: null,
+      selectedInspirationIds: project.selectedInspirationIds || [],
       outputPath: project.outputPath || null,
       aiProvider: defaultProvider,
       generationMode: defaultMode,
@@ -405,11 +440,74 @@ export const useWizardStore = create<WizardState>((set, get) => ({
         studentProfile: [],
         teachingConfidence: learner.adultConfidence,
       },
-      selectedInspiration: [],
+      remediationContext: null,
+      selectedInspirationIds: [],
       outputPath: null,
       aiProvider: defaultProvider,
       generationMode: defaultMode,
       visualSettings: { ...DEFAULT_VISUAL_SETTINGS },
+      polishedPrompt: null,
+      usePolishedPrompt: true,
+      regeneratingProjectId: null,
+      targetProjectId,
+      isGenerating: false,
+      generationProgress: 0,
+      generationMessage: "",
+      generationError: null,
+    });
+  },
+
+  openWizardForRemediation: (objective, learner, quickCheckResult) => {
+    const subject = resolveSubjectFromUnitTitle(objective.unitTitle);
+    const title = `Remediation: ${objective.text}`.slice(0, 50);
+    const defaultProvider = useSettingsStore.getState().defaultAiProvider;
+    const targetProjectId = resolveDefaultTargetProjectId({
+      learnerId: learner.learnerId,
+      preferredType: getPreferredProjectType(true),
+    });
+    applyProjectDefaultDesignPack(targetProjectId);
+
+    const remediationContext: RemediationContext = {
+      objectiveId: objective.id,
+      objectiveText: objective.text,
+      subject,
+      grade: learner.grade,
+      score: quickCheckResult.score,
+      wrongAnswerSummary: quickCheckResult.wrongAnswerSummary,
+      missedCheckpoints: quickCheckResult.items
+        .filter((item) => !item.correct)
+        .map((item) => ({
+          kind: item.kind,
+          prompt: item.prompt,
+          note: item.note,
+        })),
+    };
+
+    set({
+      isOpen: true,
+      currentStep: 1,
+      prompt: `Create a focused remediation worksheet for Grade ${learner.grade} ${subject} on ${objective.text}. Target the learner's missed areas and keep the support gentle and concrete.`,
+      title,
+      objectiveId: objective.id,
+      learnerId: learner.learnerId,
+      classDetails: {
+        grade: learner.grade,
+        subject,
+        format: "worksheet",
+        questionCount: 5,
+        includeVisuals: false,
+        difficulty: "easy",
+        includeAnswerKey: true,
+        lessonLength: 15,
+        studentProfile: [],
+        teachingConfidence: learner.adultConfidence,
+      },
+      remediationContext,
+      selectedInspirationIds: [],
+      outputPath: null,
+      aiProvider: defaultProvider,
+      generationMode: "remediation_pack",
+      visualSettings: { ...DEFAULT_VISUAL_SETTINGS, includeVisuals: false },
       polishedPrompt: null,
       usePolishedPrompt: true,
       regeneratingProjectId: null,
@@ -455,7 +553,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
         studentProfile: [],
         teachingConfidence: learner.adultConfidence || "intermediate",
       },
-      selectedInspiration: [],
+      remediationContext: null,
+      selectedInspirationIds: [],
       outputPath: null,
       aiProvider: defaultProvider,
       generationMode: defaultMode,
@@ -502,13 +601,30 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   },
 
   setClassDetails: (details) => {
-    const { aiProvider } = get();
-    const generationMode = resolveGenerationMode(aiProvider, details?.format);
+    const { aiProvider, remediationContext } = get();
+    const generationMode = remediationContext
+      ? "remediation_pack"
+      : resolveGenerationMode(aiProvider, details?.format);
     set({ classDetails: details, generationMode });
   },
 
-  setSelectedInspiration: (items) => {
-    set({ selectedInspiration: items });
+  setSelectedInspirationIds: (itemIds) => {
+    set({ selectedInspirationIds: Array.from(new Set(itemIds)) });
+  },
+
+  getSelectedInspirationItems: () => {
+    const selectedIds = new Set(get().selectedInspirationIds);
+    return useInspirationStore
+      .getState()
+      .items.filter((item) => selectedIds.has(item.id));
+  },
+
+  getEffectiveInspiration: () => {
+    const selectedPack = useDesignPackStore.getState().getSelectedPack();
+    return mergeInspirationItems(
+      get().getSelectedInspirationItems(),
+      selectedPack?.items || []
+    );
   },
 
   setOutputPath: (path) => {
@@ -516,8 +632,10 @@ export const useWizardStore = create<WizardState>((set, get) => ({
   },
 
   setAiProvider: (provider) => {
-    const { classDetails } = get();
-    const generationMode = resolveGenerationMode(provider, classDetails?.format);
+    const { classDetails, remediationContext } = get();
+    const generationMode = remediationContext
+      ? "remediation_pack"
+      : resolveGenerationMode(provider, classDetails?.format);
     set({ aiProvider: provider, generationMode });
   },
 
@@ -563,7 +681,8 @@ export const useWizardStore = create<WizardState>((set, get) => ({
       objectiveId: null,
       learnerId: null,
       classDetails: null,
-      selectedInspiration: [],
+      remediationContext: null,
+      selectedInspirationIds: [],
       outputPath: null,
       aiProvider: defaultProvider,
       generationMode: defaultMode,

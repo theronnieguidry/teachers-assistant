@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -7,6 +7,7 @@ import { useWizardStore } from "@/stores/wizardStore";
 import { SubjectProgressCard } from "./SubjectProgress";
 import { MasteryBadge } from "./MasteryBadge";
 import { CreateLearnerDialog } from "@/components/learner";
+import { QuickCheckDialog } from "@/components/quick-check";
 import {
   Play,
   FileText,
@@ -17,11 +18,11 @@ import {
   ArrowRight,
   PlusCircle,
 } from "lucide-react";
-import { useState } from "react";
 import {
   getNextRecommendedObjective,
   getAllSubjectProgress,
 } from "@/lib/curriculum";
+import type { CurriculumObjective, QuickCheckResult } from "@/types";
 
 interface TodayViewProps {
   onNavigateToLearningPath?: (subject?: string) => void;
@@ -29,11 +30,15 @@ interface TodayViewProps {
 
 export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [quickCheckObjective, setQuickCheckObjective] =
+    useState<CurriculumObjective | null>(null);
+  const [quickCheckSubject, setQuickCheckSubject] = useState("");
 
   // Select primitive/stable state values directly
   const profiles = useLearnerStore((state) => state.profiles);
   const activeLearnerId = useLearnerStore((state) => state.activeLearnerId);
   const masteryData = useLearnerStore((state) => state.masteryData);
+  const quickCheckHistory = useLearnerStore((state) => state.quickCheckHistory);
   const loadProfiles = useLearnerStore((state) => state.loadProfiles);
   const loadMastery = useLearnerStore((state) => state.loadMastery);
   const markObjectiveStarted = useLearnerStore((state) => state.markObjectiveStarted);
@@ -53,6 +58,18 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
     if (!activeProfile) return [];
     return getAllSubjectProgress(activeProfile.grade, masteryData);
   }, [activeProfile, masteryData]);
+
+  const latestQuickCheck = useMemo<QuickCheckResult | null>(() => {
+    if (!nextObjective) return null;
+    return (
+      quickCheckHistory
+        .filter((result) => result.objectiveId === nextObjective.objective.id)
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0] || null
+    );
+  }, [nextObjective, quickCheckHistory]);
 
   const openWizardFromObjective = useWizardStore(
     (state) => state.openWizardFromObjective
@@ -171,6 +188,12 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
     openWizardOneOffForLearner(activeProfile, nextObjective?.subject);
   };
 
+  const handleQuickCheck = () => {
+    if (!nextObjective) return;
+    setQuickCheckObjective(nextObjective.objective);
+    setQuickCheckSubject(nextObjective.subject);
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Greeting */}
@@ -215,7 +238,7 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex flex-wrap gap-3 pt-2">
               <Button onClick={handleStartLesson} className="gap-2">
                 <Play className="h-4 w-4" />
                 Start Lesson
@@ -228,7 +251,16 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
                 <PlusCircle className="h-4 w-4" />
                 Create one-off
               </Button>
+              <Button variant="outline" onClick={handleQuickCheck}>
+                Quick Check
+              </Button>
             </div>
+
+            {latestQuickCheck ? (
+              <p className="text-sm text-muted-foreground">
+                {getQuickCheckSummary(latestQuickCheck)}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : (
@@ -289,8 +321,34 @@ export function TodayView({ onNavigateToLearningPath }: TodayViewProps) {
           ))}
         </div>
       </div>
+
+      {activeProfile && quickCheckObjective ? (
+        <QuickCheckDialog
+          open={Boolean(quickCheckObjective)}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setQuickCheckObjective(null);
+              setQuickCheckSubject("");
+            }
+          }}
+          objective={quickCheckObjective}
+          subject={quickCheckSubject}
+          learner={activeProfile}
+        />
+      ) : null}
     </div>
   );
+}
+
+function getQuickCheckSummary(result: QuickCheckResult): string {
+  switch (result.recommendation) {
+    case "advance":
+      return `Latest Quick Check: ${result.score}% • Advance recommended`;
+    case "practice":
+      return `Latest Quick Check: ${result.score}% • Practice recommended`;
+    case "remediate":
+      return `Latest Quick Check: ${result.score}% • Remediation recommended`;
+  }
 }
 
 function getGreeting(): string {

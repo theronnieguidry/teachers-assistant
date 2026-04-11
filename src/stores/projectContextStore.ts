@@ -10,7 +10,7 @@ import {
 } from "@/lib/project-context";
 
 const PROJECT_CONTEXT_STORAGE_KEY = "ta-project-contexts";
-const PROJECT_CONTEXT_MIGRATION_VERSION = 1;
+const PROJECT_CONTEXT_MIGRATION_VERSION = 2;
 
 interface LastUsedProjectOptions {
   learnerId?: string | null;
@@ -40,6 +40,10 @@ interface ProjectContextState {
   setDefaultDesignPack: (
     projectId: string,
     designPackId: string | undefined
+  ) => ProjectContext;
+  setSelectedInspirationIds: (
+    projectId: string,
+    inspirationIds: string[]
   ) => ProjectContext;
   removeContext: (projectId: string) => void;
   migrateLegacyUnifiedProjects: (projects: Project[]) => Promise<LegacyMigrationResult>;
@@ -133,6 +137,12 @@ export const useProjectContextStore = create<ProjectContextState>()(
         return get().upsertContext(projectId, { defaultDesignPackId: designPackId });
       },
 
+      setSelectedInspirationIds: (projectId, inspirationIds) => {
+        return get().upsertContext(projectId, {
+          selectedInspirationIds: Array.from(new Set(inspirationIds)),
+        });
+      },
+
       removeContext: (projectId) => {
         set((state) => {
           if (!state.contexts[projectId]) return state;
@@ -198,6 +208,8 @@ export const useProjectContextStore = create<ProjectContextState>()(
               linkedObjectiveIds: mergedLinkedObjectives,
               defaultDesignPackId:
                 existingContext?.defaultDesignPackId || legacyProject.defaultDesignPackId,
+              selectedInspirationIds:
+                existingContext?.selectedInspirationIds || [],
               lastUsedAt:
                 existingContext &&
                 new Date(existingContext.lastUsedAt).getTime() >
@@ -249,9 +261,15 @@ export const useProjectContextStore = create<ProjectContextState>()(
       }),
       merge: (persisted, current) => {
         const stored = persisted as Partial<ProjectContextState> | undefined;
+        const normalizedContexts = Object.fromEntries(
+          Object.entries(stored?.contexts || current.contexts).map(([projectId, context]) => [
+            projectId,
+            createDefaultProjectContext(projectId, context),
+          ])
+        );
         return {
           ...current,
-          contexts: stored?.contexts || current.contexts,
+          contexts: normalizedContexts,
           migration: stored?.migration || current.migration,
         };
       },

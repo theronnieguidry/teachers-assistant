@@ -3,17 +3,20 @@ import { Plus, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWizardStore } from "@/stores/wizardStore";
 import { useInspirationStore } from "@/stores/inspirationStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { getInspirationIcon } from "@/lib/inspiration-icons";
 import { useInspirationDrop } from "@/hooks/useInspirationDrop";
-import type { InspirationItem } from "@/types";
 
 export function InspirationStep() {
-  const { selectedInspiration, setSelectedInspiration, nextStep, prevStep } =
+  const { selectedInspirationIds, setSelectedInspirationIds, nextStep, prevStep } =
     useWizardStore();
-  const { items: globalItems, isLoading, addLocalItem, fetchItems } = useInspirationStore();
+  const selectedPack = useDesignPackStore((state) => state.getSelectedPack());
+  const { items: globalItems, isLoading, addItem, fetchItems } = useInspirationStore();
   const { user } = useAuthStore();
+  const selectedItemIds = new Set(selectedInspirationIds);
+  const selectedItems = globalItems.filter((item) => selectedItemIds.has(item.id));
 
   // Load inspiration items if not already loaded
   useEffect(() => {
@@ -22,38 +25,37 @@ export function InspirationStep() {
     }
   }, [user, globalItems.length, fetchItems]);
 
-  const toggleItem = (item: InspirationItem) => {
-    const isSelected = selectedInspiration.some((i) => i.id === item.id);
+  const toggleItem = (itemId: string) => {
+    const isSelected = selectedItemIds.has(itemId);
     if (isSelected) {
-      setSelectedInspiration(
-        selectedInspiration.filter((i) => i.id !== item.id)
+      setSelectedInspirationIds(
+        selectedInspirationIds.filter((existingItemId) => existingItemId !== itemId)
       );
     } else {
-      setSelectedInspiration([...selectedInspiration, item]);
+      setSelectedInspirationIds([...selectedInspirationIds, itemId]);
     }
   };
 
-  const handleAddUrl = () => {
+  const handleAddUrl = async () => {
     const url = prompt("Enter a URL for inspiration:");
     if (url && url.startsWith("http")) {
-      const newItem = addLocalItem({
+      const newItem = await addItem({
         type: "url",
         title: new URL(url).hostname,
         sourceUrl: url,
       });
-      // Auto-select the newly added item
-      setSelectedInspiration([...selectedInspiration, newItem]);
+      setSelectedInspirationIds([...selectedInspirationIds, newItem.id]);
     }
   };
 
   const { isDragging, handleDrop, handleDragOver, handleDragLeave } =
-    useInspirationDrop<InspirationItem>({
-      onAddItem: (item) => addLocalItem(item),
+    useInspirationDrop({
+      onAddItem: (item) => addItem(item),
       onItemsAdded: (newItems) => {
         if (newItems.length === 0) return;
-        const merged = [...selectedInspiration, ...newItems];
-        const deduped = Array.from(new Map(merged.map((item) => [item.id, item])).values());
-        setSelectedInspiration(deduped);
+        setSelectedInspirationIds(
+          Array.from(new Set([...selectedInspirationIds, ...newItems.map((item) => item.id)]))
+        );
       },
       onError: (error, context) => {
         console.error(`Failed to process dropped inspiration item: ${context || "unknown"}`, error);
@@ -68,7 +70,7 @@ export function InspirationStep() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Select inspiration items to guide the AI in creating your materials.
+          Select local inspiration items to guide the AI in creating your materials.
         </p>
         <Button
           variant="outline"
@@ -80,6 +82,17 @@ export function InspirationStep() {
           Add URL
         </Button>
       </div>
+
+      {selectedPack && (
+        <div className="rounded-lg border bg-muted/40 p-3">
+          <p className="text-sm font-medium">Selected Pack: {selectedPack.name}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {selectedPack.items.length} pack item
+            {selectedPack.items.length === 1 ? "" : "s"} will be included along with the
+            inspiration you select here.
+          </p>
+        </div>
+      )}
 
       {/* Drop zone */}
       <div
@@ -118,9 +131,7 @@ export function InspirationStep() {
         <div className="space-y-2 max-h-60 overflow-auto">
           {globalItems.map((item) => {
             const Icon = getInspirationIcon(item.type);
-            const isSelected = selectedInspiration.some(
-              (i) => i.id === item.id
-            );
+            const isSelected = selectedItemIds.has(item.id);
 
             return (
               <div
@@ -131,7 +142,7 @@ export function InspirationStep() {
                     ? "border-primary bg-primary/5"
                     : "hover:bg-accent"
                 )}
-                onClick={() => toggleItem(item)}
+                onClick={() => toggleItem(item.id)}
               >
                 <div
                   className={cn(
@@ -168,10 +179,10 @@ export function InspirationStep() {
         </div>
       )}
 
-      {selectedInspiration.length > 0 && (
+      {selectedItems.length > 0 && (
         <p className="text-sm text-muted-foreground">
-          {selectedInspiration.length} item
-          {selectedInspiration.length !== 1 ? "s" : ""} selected
+          {selectedItems.length} item
+          {selectedItems.length !== 1 ? "s" : ""} selected
         </p>
       )}
 
@@ -180,7 +191,7 @@ export function InspirationStep() {
           Back
         </Button>
         <Button onClick={handleContinue}>
-          {selectedInspiration.length === 0 ? "Skip" : "Next"}
+          {selectedItems.length === 0 ? "Skip" : "Next"}
         </Button>
       </div>
     </div>

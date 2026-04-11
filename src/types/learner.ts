@@ -68,21 +68,35 @@ export type { CurriculumObjective, CurriculumUnit, CurriculumPack } from "@share
 // Quick Check Types (Phase 2)
 // ============================================
 
-export interface QuickCheckQuestion {
-  questionId: string;
-  questionText: string;
-  options: string[];
-  correctIndex: number;
+export type QuickCheckCheckpointKind = "core" | "vocabulary" | "misconception";
+
+export interface QuickCheckCheckpoint {
+  checkpointId: string;
+  kind: QuickCheckCheckpointKind;
+  prompt: string;
+}
+
+export type QuickCheckRecommendation = "advance" | "practice" | "remediate";
+
+export interface QuickCheckResultItem {
+  checkpointId: string;
+  kind: QuickCheckCheckpointKind;
+  prompt: string;
+  correct: boolean;
+  note?: string;
 }
 
 export interface QuickCheckResult {
   resultId: string;
   learnerId: string;
   objectiveId: string;
+  subject: string;
   score: number; // 0-100
   totalQuestions: number;
   correctAnswers: number;
-  items: { questionId: string; correct: boolean }[];
+  items: QuickCheckResultItem[];
+  recommendation: QuickCheckRecommendation;
+  wrongAnswerSummary: string;
   createdAt: string;
 }
 

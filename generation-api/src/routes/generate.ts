@@ -4,9 +4,13 @@ import type { AuthenticatedRequest } from "../middleware/auth.js";
 import { generateTeacherPack } from "../services/generator.js";
 import { getSupabaseClient } from "../services/credits.js";
 import { getResolvedLocalModel } from "../services/ollama-model-manager.js";
-import type { GenerationRequest, AIProvider, InspirationItem } from "../types.js";
+import type {
+  GenerationRequest,
+  AIProvider,
+  InspirationItem,
+  RemediationContext,
+} from "../types.js";
 import type { VisualSettings, GenerationMode } from "../types/premium.js";
-import { DEFAULT_VISUAL_SETTINGS } from "../types/premium.js";
 
 const router = Router();
 
@@ -20,6 +24,24 @@ const inspirationItemSchema = z.object({
   sourceUrl: z.string().optional(),
   content: z.string().optional(),
   storagePath: z.string().optional(),
+});
+
+const remediationContextSchema: z.ZodType<RemediationContext> = z.object({
+  objectiveId: z.string().min(1),
+  objectiveText: z.string().min(1),
+  subject: z.string().min(1),
+  grade: z.enum(["K", "1", "2", "3", "4", "5", "6"]),
+  score: z.number().min(0).max(100),
+  wrongAnswerSummary: z.string(),
+  missedCheckpoints: z
+    .array(
+      z.object({
+        kind: z.enum(["core", "vocabulary", "misconception"]),
+        prompt: z.string().min(1),
+        note: z.string().optional(),
+      })
+    )
+    .min(1),
 });
 
 const generateRequestSchema = z.object({
@@ -54,7 +76,15 @@ const generateRequestSchema = z.object({
   aiProvider: z.enum(["premium", "local", "claude", "openai", "ollama"]).optional(),
   aiModel: z.string().optional(),
   // Premium pipeline parameters
-  generationMode: z.enum(["standard", "premium_plan_pipeline", "premium_lesson_plan_pipeline"]).optional().default("standard"),
+  generationMode: z
+    .enum([
+      "standard",
+      "premium_plan_pipeline",
+      "premium_lesson_plan_pipeline",
+      "remediation_pack",
+    ])
+    .optional()
+    .default("standard"),
   visualSettings: z
     .object({
       includeVisuals: z.boolean().optional().default(true),
@@ -64,6 +94,15 @@ const generateRequestSchema = z.object({
     })
     .optional(),
   prePolished: z.boolean().optional().default(false),
+  remediationContext: remediationContextSchema.optional(),
+}).superRefine((data, ctx) => {
+  if (data.generationMode === "remediation_pack" && !data.remediationContext) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["remediationContext"],
+      message: "remediationContext is required for remediation_pack mode",
+    });
+  }
 });
 
 function extractQualityFailureDetails(error: unknown): {
@@ -131,6 +170,20 @@ function mergeInspirationItems(primary: InspirationItem[], secondary: Inspiratio
   return Array.from(merged.values());
 }
 
+function logDeprecatedGenerationFields(
+  projectId: string,
+  fields: Array<"designPackContext" | "inspirationIds">
+): void {
+  if (fields.length === 0) {
+    return;
+  }
+
+  console.warn(
+    `[${projectId}] Deprecated generation request fields used: ${fields.join(", ")}. ` +
+      "Send flattened inspiration only."
+  );
+}
+
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.userId) {
@@ -150,15 +203,21 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
 
     const data = parseResult.data;
     const aiProvider = (data.aiProvider || DEFAULT_AI_PROVIDER) as AIProvider;
+    const deprecatedFields: Array<"designPackContext" | "inspirationIds"> = [];
 
-    // Fetch inspiration items from DB if IDs provided, otherwise use embedded items
     let inspiration = data.inspiration;
     if (data.inspirationIds && data.inspirationIds.length > 0) {
-      inspiration = await fetchInspirationItems(data.inspirationIds, req.userId);
+      deprecatedFields.push("inspirationIds");
+      inspiration = mergeInspirationItems(
+        inspiration,
+        await fetchInspirationItems(data.inspirationIds, req.userId)
+      );
     }
     if (data.designPackContext?.items?.length) {
+      deprecatedFields.push("designPackContext");
       inspiration = mergeInspirationItems(inspiration, data.designPackContext.items);
     }
+    logDeprecatedGenerationFields(data.projectId, deprecatedFields);
 
     // Build visual settings with defaults
     const visualSettings: VisualSettings = {
@@ -178,14 +237,9 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       options: data.options,
       inspiration,
       objectiveId: data.objectiveId || undefined,
-      designPackContext: data.designPackContext
-        ? {
-            packId: data.designPackContext.packId,
-            items: data.designPackContext.items,
-          }
-        : undefined,
       aiProvider,
       prePolished: data.prePolished,
+      remediationContext: data.remediationContext,
     };
 
     const requestedModel = data.aiModel;

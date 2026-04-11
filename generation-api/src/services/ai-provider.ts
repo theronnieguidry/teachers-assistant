@@ -28,7 +28,7 @@ export function getDefaultOpenAIModel(): string {
 }
 
 export function getDefaultOllamaModel(): string {
-  return process.env.OLLAMA_MODEL || "phi4-mini";
+  return process.env.OLLAMA_MODEL || process.env.OLLAMA_PRIMARY_MODEL || "gemma3:4b";
 }
 
 export function resolveModel(config: Pick<AIProviderConfig, "provider" | "model">): string {
@@ -159,7 +159,7 @@ async function generateWithOllama(
   const available = await isOllamaAvailable();
   if (!available) {
     throw new Error(
-      "Ollama is not running. Please start Ollama with 'ollama serve' and ensure you have a model pulled (e.g., 'ollama pull phi4-mini')"
+      "Ollama is not running. Please start Ollama with 'ollama serve' and ensure you have a model pulled (e.g., 'ollama pull gemma3:4b')"
     );
   }
 

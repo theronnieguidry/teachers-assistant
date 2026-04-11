@@ -1,61 +1,180 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriContext } from "./tauri-bridge";
+import {
+  bulkUpsertInspirationItems,
+  getInspirationItems,
+} from "@/services/inspiration-storage";
 import type {
-  DesignPack,
-  DesignPackItem,
   CreateDesignPackData,
+  DesignPack,
+  InspirationItem,
+  StoredDesignPack,
 } from "@/types";
 
-// ============================================
-// Design Pack Functions
-// ============================================
+const DESIGN_PACKS_KEY = "design-packs";
 
-/**
- * Get all design packs
- */
-export async function getDesignPacks(): Promise<DesignPack[]> {
-  if (!isTauriContext()) {
-    // Browser fallback - use localStorage
-    const stored = localStorage.getItem("design-packs");
-    return stored ? JSON.parse(stored) : [];
-  }
-
-  const result = await invoke<string>("get_design_packs");
-  return JSON.parse(result);
+interface LegacyDesignPackItem {
+  id?: string;
+  itemId?: string;
+  type: InspirationItem["type"];
+  title: string;
+  sourceUrl?: string;
+  content?: string;
+  storagePath?: string;
 }
 
-/**
- * Get a specific design pack by ID
- */
-export async function getDesignPack(packId: string): Promise<DesignPack | null> {
-  if (!isTauriContext()) {
-    // Browser fallback
-    const packs = await getDesignPacks();
-    return packs.find((p) => p.packId === packId) || null;
+type RawDesignPack = StoredDesignPack & { items?: LegacyDesignPackItem[] };
+
+function normalizeLegacyItem(item: LegacyDesignPackItem): InspirationItem {
+  return {
+    id: item.id || item.itemId || crypto.randomUUID(),
+    type: item.type,
+    title: item.title,
+    sourceUrl: item.sourceUrl,
+    content: item.content,
+    storagePath: item.storagePath,
+    createdAt: new Date(),
+  };
+}
+
+function isStoredDesignPack(pack: RawDesignPack): pack is StoredDesignPack {
+  return Array.isArray(pack.itemIds);
+}
+
+function getBrowserStoredPacks(): RawDesignPack[] {
+  const stored = localStorage.getItem(DESIGN_PACKS_KEY);
+  if (!stored) {
+    return [];
   }
 
   try {
-    const result = await invoke<string>("get_design_pack", { packId });
-    return JSON.parse(result);
+    return JSON.parse(stored) as RawDesignPack[];
   } catch {
-    return null;
+    return [];
   }
 }
 
-/**
- * Save a design pack (create or update)
- */
-export async function saveDesignPack(pack: DesignPack): Promise<void> {
+function saveBrowserStoredPacks(packs: StoredDesignPack[]): void {
+  localStorage.setItem(DESIGN_PACKS_KEY, JSON.stringify(packs));
+}
+
+async function readStoredPacks(): Promise<RawDesignPack[]> {
   if (!isTauriContext()) {
-    // Browser fallback
-    const packs = await getDesignPacks();
-    const index = packs.findIndex((p) => p.packId === pack.packId);
+    return getBrowserStoredPacks();
+  }
+
+  const result = await invoke<string>("get_design_packs");
+  return JSON.parse(result) as RawDesignPack[];
+}
+
+async function writeStoredPacks(packs: StoredDesignPack[]): Promise<void> {
+  if (!isTauriContext()) {
+    saveBrowserStoredPacks(packs);
+    return;
+  }
+
+  for (const pack of packs) {
+    await invoke("save_design_pack", {
+      pack: JSON.stringify(pack),
+    });
+  }
+
+  const existing = await readStoredPacks();
+  const existingIds = new Set(packs.map((pack) => pack.packId));
+  for (const pack of existing) {
+    if (!existingIds.has(pack.packId)) {
+      await invoke("delete_design_pack", { packId: pack.packId });
+    }
+  }
+}
+
+function resolveDesignPack(
+  pack: StoredDesignPack,
+  itemsById: Map<string, InspirationItem>
+): DesignPack {
+  const items: InspirationItem[] = [];
+  const missingItemIds: string[] = [];
+
+  for (const itemId of pack.itemIds) {
+    const item = itemsById.get(itemId);
+    if (item) {
+      items.push(item);
+    } else {
+      missingItemIds.push(itemId);
+    }
+  }
+
+  return {
+    packId: pack.packId,
+    name: pack.name,
+    description: pack.description,
+    items,
+    missingItemIds: missingItemIds.length > 0 ? missingItemIds : undefined,
+    parsedSummary: pack.parsedSummary,
+    createdAt: pack.createdAt,
+    updatedAt: pack.updatedAt,
+  };
+}
+
+async function migrateStoredPacks(packs: RawDesignPack[]): Promise<StoredDesignPack[]> {
+  const migrated: StoredDesignPack[] = [];
+  let didMigrate = false;
+
+  for (const pack of packs) {
+    if (isStoredDesignPack(pack)) {
+      migrated.push(pack);
+      continue;
+    }
+
+    const embeddedItems = Array.isArray(pack.items)
+      ? pack.items.map(normalizeLegacyItem)
+      : [];
+    const savedItems = await bulkUpsertInspirationItems(embeddedItems);
+
+    migrated.push({
+      packId: pack.packId,
+      name: pack.name,
+      description: pack.description,
+      itemIds: savedItems.map((item) => item.id),
+      parsedSummary: pack.parsedSummary,
+      createdAt: pack.createdAt,
+      updatedAt: pack.updatedAt,
+    });
+    didMigrate = true;
+  }
+
+  if (didMigrate) {
+    await writeStoredPacks(migrated);
+  }
+
+  return migrated;
+}
+
+async function getResolvedPacks(): Promise<{
+  storedPacks: StoredDesignPack[];
+  resolvedPacks: DesignPack[];
+}> {
+  const rawPacks = await readStoredPacks();
+  const storedPacks = await migrateStoredPacks(rawPacks);
+  const items = await getInspirationItems();
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+
+  return {
+    storedPacks,
+    resolvedPacks: storedPacks.map((pack) => resolveDesignPack(pack, itemsById)),
+  };
+}
+
+async function saveStoredPack(pack: StoredDesignPack): Promise<void> {
+  if (!isTauriContext()) {
+    const packs = await migrateStoredPacks(getBrowserStoredPacks());
+    const index = packs.findIndex((existing) => existing.packId === pack.packId);
     if (index >= 0) {
       packs[index] = pack;
     } else {
       packs.push(pack);
     }
-    localStorage.setItem("design-packs", JSON.stringify(packs));
+    saveBrowserStoredPacks(packs);
     return;
   }
 
@@ -64,169 +183,177 @@ export async function saveDesignPack(pack: DesignPack): Promise<void> {
   });
 }
 
-/**
- * Create a new design pack
- */
+async function resolveItemsToIds(items?: InspirationItem[]): Promise<string[]> {
+  if (!items || items.length === 0) {
+    return [];
+  }
+
+  const savedItems = await bulkUpsertInspirationItems(items);
+  return savedItems.map((item) => item.id);
+}
+
+export async function getDesignPacks(): Promise<DesignPack[]> {
+  const { resolvedPacks } = await getResolvedPacks();
+  return resolvedPacks;
+}
+
+export async function getDesignPack(packId: string): Promise<DesignPack | null> {
+  const { resolvedPacks } = await getResolvedPacks();
+  return resolvedPacks.find((pack) => pack.packId === packId) || null;
+}
+
+export async function saveDesignPack(pack: DesignPack): Promise<void> {
+  const itemIds = await resolveItemsToIds(pack.items);
+  await saveStoredPack({
+    packId: pack.packId,
+    name: pack.name,
+    description: pack.description,
+    itemIds,
+    parsedSummary: pack.parsedSummary,
+    createdAt: pack.createdAt,
+    updatedAt: pack.updatedAt,
+  });
+}
+
 export async function createDesignPack(data: CreateDesignPackData): Promise<DesignPack> {
   const now = new Date().toISOString();
-  const pack: DesignPack = {
+  const itemIds = await resolveItemsToIds(data.items);
+
+  const pack: StoredDesignPack = {
     packId: crypto.randomUUID(),
     name: data.name,
     description: data.description,
-    items: data.items || [],
+    itemIds,
     createdAt: now,
     updatedAt: now,
   };
 
-  await saveDesignPack(pack);
-  return pack;
+  await saveStoredPack(pack);
+  return (await getDesignPack(pack.packId)) as DesignPack;
 }
 
-/**
- * Update a design pack
- */
 export async function updateDesignPack(
   packId: string,
   updates: Partial<Omit<DesignPack, "packId" | "createdAt">>
 ): Promise<DesignPack> {
-  const pack = await getDesignPack(packId);
+  const { storedPacks } = await getResolvedPacks();
+  const pack = storedPacks.find((existing) => existing.packId === packId);
   if (!pack) {
     throw new Error(`Design pack not found: ${packId}`);
   }
 
-  const updated: DesignPack = {
+  const updated: StoredDesignPack = {
     ...pack,
-    ...updates,
+    name: updates.name ?? pack.name,
+    description: updates.description ?? pack.description,
+    itemIds: updates.items ? await resolveItemsToIds(updates.items) : pack.itemIds,
+    parsedSummary: updates.parsedSummary ?? pack.parsedSummary,
     updatedAt: new Date().toISOString(),
   };
 
-  await saveDesignPack(updated);
-  return updated;
+  await saveStoredPack(updated);
+  return (await getDesignPack(packId)) as DesignPack;
 }
 
-/**
- * Delete a design pack
- */
 export async function deleteDesignPack(packId: string): Promise<void> {
   if (!isTauriContext()) {
-    // Browser fallback
-    const packs = await getDesignPacks();
-    const filtered = packs.filter((p) => p.packId !== packId);
-    localStorage.setItem("design-packs", JSON.stringify(filtered));
+    const packs = await migrateStoredPacks(getBrowserStoredPacks());
+    saveBrowserStoredPacks(packs.filter((pack) => pack.packId !== packId));
     return;
   }
 
   await invoke("delete_design_pack", { packId });
 }
 
-/**
- * Add an item to a design pack
- */
 export async function addItemToDesignPack(
   packId: string,
-  item: Omit<DesignPackItem, "itemId">
-): Promise<DesignPackItem> {
-  const pack = await getDesignPack(packId);
+  item: Omit<InspirationItem, "id">
+): Promise<InspirationItem> {
+  const { storedPacks } = await getResolvedPacks();
+  const pack = storedPacks.find((existing) => existing.packId === packId);
   if (!pack) {
     throw new Error(`Design pack not found: ${packId}`);
   }
 
-  const newItem: DesignPackItem = {
-    ...item,
-    itemId: crypto.randomUUID(),
-  };
+  const [savedItem] = await bulkUpsertInspirationItems([
+    {
+      ...item,
+      id: crypto.randomUUID(),
+      createdAt: new Date(),
+    },
+  ]);
 
-  pack.items.push(newItem);
-  pack.updatedAt = new Date().toISOString();
+  const updatedItemIds = Array.from(new Set([...pack.itemIds, savedItem.id]));
+  await saveStoredPack({
+    ...pack,
+    itemIds: updatedItemIds,
+    updatedAt: new Date().toISOString(),
+  });
 
-  await saveDesignPack(pack);
-  return newItem;
+  return savedItem;
 }
 
-/**
- * Remove an item from a design pack
- */
 export async function removeItemFromDesignPack(
   packId: string,
   itemId: string
 ): Promise<void> {
-  const pack = await getDesignPack(packId);
+  const { storedPacks } = await getResolvedPacks();
+  const pack = storedPacks.find((existing) => existing.packId === packId);
   if (!pack) {
     throw new Error(`Design pack not found: ${packId}`);
   }
 
-  pack.items = pack.items.filter((i) => i.itemId !== itemId);
-  pack.updatedAt = new Date().toISOString();
-
-  await saveDesignPack(pack);
+  await saveStoredPack({
+    ...pack,
+    itemIds: pack.itemIds.filter((existingItemId) => existingItemId !== itemId),
+    updatedAt: new Date().toISOString(),
+  });
 }
 
-/**
- * Reorder items in a design pack
- */
 export async function reorderDesignPackItems(
   packId: string,
   itemIds: string[]
 ): Promise<void> {
-  const pack = await getDesignPack(packId);
+  const { storedPacks } = await getResolvedPacks();
+  const pack = storedPacks.find((existing) => existing.packId === packId);
   if (!pack) {
     throw new Error(`Design pack not found: ${packId}`);
   }
 
-  // Create a map of items by ID
-  const itemMap = new Map(pack.items.map((i) => [i.itemId, i]));
+  const itemIdSet = new Set(itemIds);
+  const reordered = [
+    ...itemIds.filter((itemId) => pack.itemIds.includes(itemId)),
+    ...pack.itemIds.filter((itemId) => !itemIdSet.has(itemId)),
+  ];
 
-  // Reorder based on itemIds array
-  const reorderedItems: DesignPackItem[] = [];
-  for (const id of itemIds) {
-    const item = itemMap.get(id);
-    if (item) {
-      reorderedItems.push(item);
-      itemMap.delete(id);
-    }
-  }
-
-  // Add any remaining items not in the itemIds array
-  for (const item of itemMap.values()) {
-    reorderedItems.push(item);
-  }
-
-  pack.items = reorderedItems;
-  pack.updatedAt = new Date().toISOString();
-
-  await saveDesignPack(pack);
+  await saveStoredPack({
+    ...pack,
+    itemIds: reordered,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
-/**
- * Convert legacy inspiration items to a design pack
- */
 export async function createDesignPackFromLegacyItems(
   name: string,
   legacyItems: Array<{
     id: string;
-    type: "url" | "pdf" | "image" | "text";
+    type: InspirationItem["type"];
     title: string;
     sourceUrl?: string;
     content?: string;
     storagePath?: string;
   }>
 ): Promise<DesignPack> {
-  const now = new Date().toISOString();
-  const pack: DesignPack = {
-    packId: crypto.randomUUID(),
+  return createDesignPack({
     name,
     items: legacyItems.map((item) => ({
-      itemId: item.id.startsWith("local_") ? crypto.randomUUID() : item.id,
+      id: item.id,
       type: item.type,
       title: item.title,
       sourceUrl: item.sourceUrl,
       content: item.content,
       storagePath: item.storagePath,
+      createdAt: new Date(),
     })),
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  await saveDesignPack(pack);
-  return pack;
+  });
 }

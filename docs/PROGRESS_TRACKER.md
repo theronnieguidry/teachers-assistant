@@ -21,7 +21,16 @@ This document tracks the implementation progress of the TA MVP.
 
 ---
 
-## Recent Milestone (2026-02-11)
+## Local Model Policy Refresh (2026-04-10)
+
+- Recommended backend-managed local model updated to `gemma3:4b`.
+- Current backend fallback chain updated to `llama3.2`, then `phi4-mini`.
+- Prompt polishing now uses the backend-resolved local model path.
+- Prompt polishing strips reasoning tags so short rewritten prompts stay teacher-facing and clean.
+
+---
+
+## Recent Milestone (2026-02-11, superseded by 2026-04-10 policy refresh)
 
 - Backend-managed free local model rollout completed (Issues #51-#57).
 - Local model policy locked to:

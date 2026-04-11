@@ -16,6 +16,9 @@ import {
   buildWorksheetPrompt,
   buildLessonPlanPrompt,
   buildAnswerKeyPrompt,
+  buildRemediationWorksheetPrompt,
+  buildRemediationAnswerKeyPrompt,
+  buildRemediationCoachingPrompt,
 } from "../prompts/templates.js";
 import { parseAllInspiration } from "./inspiration-parser.js";
 import { getSupabaseClient, reserveCredits, refundCredits } from "./credits.js";
@@ -69,6 +72,7 @@ import type { QualityIssue } from "../types/premium.js";
 const ESTIMATED_CREDITS = 5; // Conservative estimate for reservation
 const PREMIUM_ESTIMATED_CREDITS = 7; // Higher estimate for premium pipeline
 const PREMIUM_LESSON_PLAN_CREDITS = 8; // Estimate for lesson plan pipeline (includes teacher script)
+const REMEDIATION_ESTIMATED_CREDITS = 5;
 
 interface TeacherSafeQualityReportIssue {
   category: string;
@@ -198,6 +202,10 @@ export async function generateTeacherPack(
   // Route to premium lesson plan pipeline if requested
   if (generationMode === "premium_lesson_plan_pipeline") {
     return generatePremiumLessonPlan(request, userId, config, onProgress);
+  }
+
+  if (generationMode === "remediation_pack") {
+    return generateRemediationPack(request, userId, config, onProgress);
   }
 
   // Continue with standard pipeline
@@ -482,6 +490,235 @@ export async function generateTeacherPack(
 
     // Update project status to failed
     console.log("[generator] Updating project status to 'failed'...");
+    const supabase = getSupabaseClient();
+    await supabase
+      .from("projects")
+      .update({
+        status: "failed",
+        error_message: error instanceof Error ? error.message : "Unknown error",
+      })
+      .eq("id", request.projectId);
+
+    throw error;
+  }
+}
+
+async function generateRemediationPack(
+  request: GenerationRequest,
+  userId: string,
+  config: GeneratorConfig,
+  onProgress?: ProgressCallback
+): Promise<GenerationResult> {
+  const startTime = Date.now();
+  const remediationContext = request.remediationContext;
+
+  if (!remediationContext || remediationContext.missedCheckpoints.length === 0) {
+    throw new Error("Remediation context is required for remediation generation");
+  }
+
+  console.log(
+    `[generator:remediation] Starting remediation pack for project ${request.projectId}`
+  );
+
+  const aiConfig: AIProviderConfig = {
+    provider: config.aiProvider,
+    model: config.model,
+    maxTokens: 8192,
+  };
+  const resolvedModel = resolveModel(aiConfig);
+  const needsCredits = requiresCredits(config.aiProvider);
+
+  if (needsCredits) {
+    const reserved = await reserveCredits(
+      userId,
+      REMEDIATION_ESTIMATED_CREDITS,
+      request.projectId
+    );
+    if (!reserved) {
+      throw new Error("Insufficient credits");
+    }
+  }
+
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+
+  try {
+    const supabase = getSupabaseClient();
+    await supabase
+      .from("projects")
+      .update({ status: "generating" })
+      .eq("id", request.projectId);
+
+    let parsedInspiration: ParsedInspiration[] = [];
+    if ((request.inspiration ?? []).length > 0) {
+      onProgress?.({
+        step: "worksheet",
+        progress: 5,
+        message: "Processing inspiration materials...",
+      });
+      parsedInspiration = await parseAllInspiration(request.inspiration ?? [], aiConfig);
+    }
+
+    const promptContext = {
+      prompt: request.prompt,
+      grade: request.grade,
+      subject: request.subject,
+      options: request.options,
+      inspiration: parsedInspiration,
+      remediationContext,
+    };
+
+    onProgress?.({
+      step: "worksheet",
+      progress: 20,
+      message: "Generating remediation worksheet...",
+    });
+
+    const worksheetResponse = await generateContent(
+      buildRemediationWorksheetPrompt(promptContext),
+      aiConfig
+    );
+    const worksheetHtml = extractHtml(worksheetResponse.content);
+    totalInputTokens += worksheetResponse.inputTokens;
+    totalOutputTokens += worksheetResponse.outputTokens;
+
+    onProgress?.({
+      step: "answer_key",
+      progress: 50,
+      message: "Generating answer key...",
+    });
+
+    const answerKeyResponse = await generateContent(
+      buildRemediationAnswerKeyPrompt(promptContext, worksheetHtml),
+      aiConfig
+    );
+    const answerKeyHtml = extractHtml(answerKeyResponse.content);
+    totalInputTokens += answerKeyResponse.inputTokens;
+    totalOutputTokens += answerKeyResponse.outputTokens;
+
+    onProgress?.({
+      step: "lesson_plan",
+      progress: 75,
+      message: "Generating teacher coaching...",
+    });
+
+    const coachingResponse = await generateContent(
+      buildRemediationCoachingPrompt(promptContext),
+      aiConfig
+    );
+    const teacherScriptHtml = extractHtml(coachingResponse.content);
+    totalInputTokens += coachingResponse.inputTokens;
+    totalOutputTokens += coachingResponse.outputTokens;
+
+    if (!worksheetHtml || !answerKeyHtml || !teacherScriptHtml) {
+      throw new Error("Remediation generation returned empty HTML");
+    }
+
+    const creditsUsed = calculateCredits(totalInputTokens, totalOutputTokens);
+
+    onProgress?.({
+      step: "complete",
+      progress: 95,
+      message: "Saving results...",
+    });
+
+    const { data: existingVersions } = await supabase
+      .from("project_versions")
+      .select("version_number")
+      .eq("project_id", request.projectId)
+      .order("version_number", { ascending: false })
+      .limit(1);
+
+    const nextVersionNumber =
+      existingVersions && existingVersions.length > 0
+        ? existingVersions[0].version_number + 1
+        : 1;
+
+    const { data: version, error: versionError, droppedColumns } =
+      await insertProjectVersionWithFallback<{ id: string }>(supabase, {
+        project_id: request.projectId,
+        version_number: nextVersionNumber,
+        worksheet_html: worksheetHtml,
+        lesson_plan_html: null,
+        answer_key_html: answerKeyHtml,
+        teacher_script_html: teacherScriptHtml,
+        student_activity_html: null,
+        materials_list_html: null,
+        ai_provider: config.aiProvider,
+        ai_model: resolvedModel,
+        input_tokens: totalInputTokens,
+        output_tokens: totalOutputTokens,
+        generation_mode: "remediation_pack",
+      });
+
+    if (versionError) {
+      throw new Error(`Failed to save version: ${versionError.message}`);
+    }
+    if (droppedColumns.length > 0) {
+      console.warn(
+        `[generator:remediation] Saved project version without unsupported metadata columns: ${droppedColumns.join(", ")}`
+      );
+    }
+    if (!version) {
+      throw new Error("Failed to save version: no version returned");
+    }
+
+    await supabase
+      .from("projects")
+      .update({
+        status: "completed",
+        credits_used: needsCredits ? creditsUsed : 0,
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", request.projectId);
+
+    if (needsCredits && creditsUsed < REMEDIATION_ESTIMATED_CREDITS) {
+      await refundCredits(
+        userId,
+        REMEDIATION_ESTIMATED_CREDITS - creditsUsed,
+        request.projectId,
+        "Actual usage less than reserved"
+      );
+    }
+
+    console.log(
+      `[generator:remediation] Generation complete in ${Date.now() - startTime}ms`
+    );
+
+    onProgress?.({
+      step: "complete",
+      progress: 100,
+      message: "Complete!",
+    });
+
+    return {
+      projectId: request.projectId,
+      versionId: version.id,
+      worksheetHtml,
+      lessonPlanHtml: "",
+      answerKeyHtml,
+      teacherScriptHtml,
+      studentActivityHtml: "",
+      materialsListHtml: "",
+      creditsUsed,
+    };
+  } catch (error) {
+    console.error(
+      `[generator:remediation] Generation failed after ${Date.now() - startTime}ms:`,
+      error
+    );
+
+    if (needsCredits) {
+      await refundCredits(
+        userId,
+        REMEDIATION_ESTIMATED_CREDITS,
+        request.projectId,
+        `Remediation generation failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+
     const supabase = getSupabaseClient();
     await supabase
       .from("projects")

@@ -4,10 +4,14 @@ import { ObjectiveCard } from "@/components/learning-path/ObjectiveCard";
 import type { CurriculumObjective, CurriculumUnit, MasteryState } from "@/types";
 
 // Mock stores
+const mockOpenWizardFromObjective = vi.fn();
+const mockMarkObjectiveStarted = vi.fn();
+const mockMarkObjectiveMastered = vi.fn();
+
 vi.mock("@/stores/wizardStore", () => ({
   useWizardStore: vi.fn((selector) =>
     selector({
-      openWizardFromObjective: vi.fn(),
+      openWizardFromObjective: mockOpenWizardFromObjective,
     })
   ),
 }));
@@ -23,8 +27,8 @@ vi.mock("@/stores/learnerStore", () => ({
         },
       ],
       activeLearnerId: "learner-1",
-      markObjectiveStarted: vi.fn(),
-      markObjectiveMastered: vi.fn(),
+      markObjectiveStarted: mockMarkObjectiveStarted,
+      markObjectiveMastered: mockMarkObjectiveMastered,
     })
   ),
 }));
@@ -128,6 +132,18 @@ describe("ObjectiveCard", () => {
       expect(screen.getByText("Practice")).toBeInTheDocument();
     });
 
+    it("shows Quick Check button", () => {
+      render(
+        <ObjectiveCard
+          objective={mockObjective}
+          unit={mockUnit}
+          subject="Math"
+          masteryState="not_started"
+        />
+      );
+      expect(screen.getByRole("button", { name: "Quick Check" })).toBeInTheDocument();
+    });
+
     it("shows mark complete button when not mastered", () => {
       render(
         <ObjectiveCard
@@ -177,6 +193,38 @@ describe("ObjectiveCard", () => {
         />
       );
       expect(screen.queryByText("Common challenges:")).not.toBeInTheDocument();
+    });
+
+    it("shows latest quick check summary and remediation CTA when recommended", () => {
+      const onRemediate = vi.fn();
+      render(
+        <ObjectiveCard
+          objective={mockObjective}
+          unit={mockUnit}
+          subject="Math"
+          masteryState="needs_review"
+          latestQuickCheck={{
+            resultId: "result-1",
+            learnerId: "learner-1",
+            objectiveId: "math-2-1",
+            subject: "Math",
+            score: 33,
+            totalQuestions: 3,
+            correctAnswers: 1,
+            items: [],
+            recommendation: "remediate",
+            wrongAnswerSummary: "Needs help with regrouping",
+            createdAt: "2026-04-10T12:00:00.000Z",
+          }}
+          onRemediate={onRemediate}
+        />
+      );
+
+      expect(
+        screen.getByText("Latest Quick Check: 33% • Remediation recommended")
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Generate Remediation" }));
+      expect(onRemediate).toHaveBeenCalled();
     });
   });
 

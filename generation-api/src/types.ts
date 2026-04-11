@@ -11,10 +11,19 @@ export type {
   GenerationProgress,
   GenerationResult,
   ImageStats,
+  RemediationMissedCheckpoint,
+  RemediationContext,
 } from "@shared/types";
 
 // Import shared types used by local interfaces below
-import type { Grade, ProjectOptions, InspirationItem, DesignPackContext, ImageStats } from "@shared/types";
+import type {
+  Grade,
+  ProjectOptions,
+  InspirationItem,
+  DesignPackContext,
+  ImageStats,
+  RemediationContext,
+} from "@shared/types";
 
 // User-facing provider types + legacy internal types for backward compatibility
 export type AIProvider = "premium" | "local" | "claude" | "openai" | "ollama";
@@ -28,12 +37,15 @@ export interface GenerationRequest {
   grade: Grade;
   subject: string;
   options: ProjectOptions;
-  inspiration?: InspirationItem[];
+  inspiration: InspirationItem[];
+  // Deprecated compatibility input for older clients.
   inspirationIds?: string[];
   objectiveId?: string | null;
+  // Deprecated compatibility input for older clients.
   designPackContext?: DesignPackContext;
   aiProvider?: AIProvider;
   prePolished?: boolean;
+  remediationContext?: RemediationContext;
 }
 
 export interface AuthenticatedRequest {

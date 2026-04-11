@@ -223,7 +223,9 @@ IMAGE_MODEL=gpt-image-1.5
 
 # Local AI (Ollama - free, no API key needed)
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=phi4-mini
+OLLAMA_PRIMARY_MODEL=gemma3:4b
+OLLAMA_FALLBACK_MODELS=llama3.2,phi4-mini
+OLLAMA_MODEL=gemma3:4b
 ```
 
 ## AI Providers
@@ -242,7 +244,7 @@ The application supports two AI provider modes:
 Ollama runs AI models locally on your machine - completely free with no API costs.
 
 **Auto-Install (Recommended):**
-When you install TA Teachers Assistant, Ollama is automatically installed as part of the setup process. On first launch, if no models are available, the app will prompt you to download the recommended `phi4-mini` model.
+When you install TA Teachers Assistant, Ollama is automatically installed as part of the setup process. On first launch, if no models are available, the app will prompt you to download the recommended `gemma3:4b` model.
 
 The Settings (gear icon) in the header opens the Local AI Setup dialog where you can:
 - Install/manage Ollama
@@ -254,22 +256,26 @@ The Settings (gear icon) in the header opens the Local AI Setup dialog where you
 # 1. Download and install from https://ollama.com/download
 
 # 2. Pull a model (choose based on your RAM)
-ollama pull phi4-mini     # Recommended for most 8-16GB family PCs
+ollama pull gemma3:4b     # Recommended for most 8-16GB family PCs
 ollama pull llama3.2      # Most compatible fallback
-ollama pull mistral       # Heavier local option with stronger writing quality
+ollama pull phi4-mini     # Secondary fallback with strong compact reasoning
+ollama pull gemma4:e4b    # Optional higher-quality tier if you have extra RAM
 
 # 3. Start the server
 ollama serve
 
 # 4. Set in generation-api/.env
 AI_PROVIDER=ollama
-OLLAMA_MODEL=phi4-mini
+OLLAMA_PRIMARY_MODEL=gemma3:4b
+OLLAMA_FALLBACK_MODELS=llama3.2,phi4-mini
+OLLAMA_MODEL=gemma3:4b
 ```
 
 **Recommended Models for K-6 Content:**
-- `phi4-mini` - Best overall local default for worksheets and lesson plans on 8-16GB PCs
+- `gemma3:4b` - Best overall local default for worksheets and lesson plans on 8-16GB PCs
 - `llama3.2` - Most compatible fallback for smaller family PCs
-- `mistral` - Heavier local option if you have extra RAM and want stronger writing quality
+- `phi4-mini` - Secondary fallback if you want a compact reasoning-oriented model
+- `gemma4:e4b` - Optional higher-quality local tier for larger 16GB+ machines
 
 ## Local Development & Testing
 

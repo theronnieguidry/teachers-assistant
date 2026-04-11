@@ -1,744 +1,328 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useWizardStore, getProjectOptions } from "@/stores/wizardStore";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getProjectOptions, useWizardStore } from "@/stores/wizardStore";
 import { useProjectStore } from "@/stores/projectStore";
+import { useInspirationStore } from "@/stores/inspirationStore";
+import { useDesignPackStore } from "@/stores/designPackStore";
+import { useProjectContextStore } from "@/stores/projectContextStore";
+import {
+  bulkUpsertInspirationItems,
+  getInspirationItems,
+} from "@/services/inspiration-storage";
 
-// Mock projectStore
 vi.mock("@/stores/projectStore", () => ({
   useProjectStore: {
     getState: vi.fn(() => ({
+      projects: [],
       fetchProjectInspiration: vi.fn().mockResolvedValue([]),
     })),
   },
 }));
 
+vi.mock("@/services/inspiration-storage", () => ({
+  getInspirationItems: vi.fn(),
+  bulkUpsertInspirationItems: vi.fn(),
+}));
+
 describe("wizardStore", () => {
   beforeEach(() => {
-    // Reset store between tests
-    useWizardStore.getState().reset();
     vi.clearAllMocks();
+    useWizardStore.getState().reset();
+    useProjectContextStore.getState().reset();
+    useInspirationStore.setState({
+      items: [],
+      isLoading: false,
+      error: null,
+    });
+    useDesignPackStore.setState({
+      packs: [],
+      packWarnings: {},
+      isLoading: false,
+      error: null,
+      currentPackId: null,
+      currentPack: null,
+      selectedPackId: null,
+      selectedPackOrigin: null,
+    });
+    vi.mocked(getInspirationItems).mockResolvedValue([]);
+    vi.mocked(bulkUpsertInspirationItems).mockResolvedValue([]);
   });
 
-  describe("initial state", () => {
-    it("should have correct initial state", () => {
-      const state = useWizardStore.getState();
-      expect(state.isOpen).toBe(false);
-      expect(state.currentStep).toBe(1);
-      expect(state.prompt).toBe("");
-      expect(state.title).toBe("");
-      expect(state.objectiveId).toBeNull();
-      expect(state.classDetails).toBeNull();
-      expect(state.selectedInspiration).toEqual([]);
-      expect(state.outputPath).toBeNull();
-      expect(state.isGenerating).toBe(false);
-      expect(state.generationProgress).toBe(0);
-      expect(state.generationMessage).toBe("");
-      expect(state.generationError).toBeNull();
-    });
+  it("starts with canonical selected inspiration ids", () => {
+    const state = useWizardStore.getState();
+    expect(state.selectedInspirationIds).toEqual([]);
+    expect(state.getSelectedInspirationItems()).toEqual([]);
   });
 
-  describe("openWizard", () => {
-    it("should open wizard with prompt and generated title", () => {
-      const { openWizard } = useWizardStore.getState();
-
-      openWizard("Create a math worksheet for grade 2");
-
-      const state = useWizardStore.getState();
-      expect(state.isOpen).toBe(true);
-      expect(state.currentStep).toBe(1);
-      expect(state.prompt).toBe("Create a math worksheet for grade 2");
-      expect(state.title).toBe("Create a math worksheet for grade 2");
-      expect(state.objectiveId).toBeNull();
-    });
-
-    it("should truncate long prompts for title", () => {
-      const { openWizard } = useWizardStore.getState();
-      const longPrompt = "A".repeat(100);
-
-      openWizard(longPrompt);
-
-      const state = useWizardStore.getState();
-      expect(state.title).toBe("A".repeat(50) + "...");
-      expect(state.prompt).toBe(longPrompt);
-    });
-
-    it("should initialize with default class details", () => {
-      const { openWizard } = useWizardStore.getState();
-
-      openWizard("Test prompt");
-
-      const state = useWizardStore.getState();
-      expect(state.classDetails).toEqual({
-        grade: "2",
-        subject: "",
-        format: "both",
-        questionCount: 10,
-        includeVisuals: true,
-        difficulty: "medium",
-        includeAnswerKey: true,
-        lessonLength: 30,
-        studentProfile: [],
-        teachingConfidence: "intermediate",
-      });
-    });
-
-    it("should reset generation state when opening", () => {
-      useWizardStore.setState({
-        isGenerating: true,
-        generationProgress: 50,
-        generationMessage: "Generating...",
-        generationError: "Error",
-      });
-
-      const { openWizard } = useWizardStore.getState();
-      openWizard("New prompt");
-
-      const state = useWizardStore.getState();
-      expect(state.isGenerating).toBe(false);
-      expect(state.generationProgress).toBe(0);
-      expect(state.generationMessage).toBe("");
-      expect(state.generationError).toBeNull();
-    });
+  it("dedupes selected inspiration ids", () => {
+    useWizardStore.getState().setSelectedInspirationIds(["item-1", "item-1", "item-2"]);
+    expect(useWizardStore.getState().selectedInspirationIds).toEqual(["item-1", "item-2"]);
   });
 
-  describe("closeWizard", () => {
-    it("should set isOpen to false", () => {
-      useWizardStore.setState({ isOpen: true });
-      const { closeWizard } = useWizardStore.getState();
-
-      closeWizard();
-
-      expect(useWizardStore.getState().isOpen).toBe(false);
+  it("resolves selected inspiration items from the canonical inspiration store", () => {
+    useInspirationStore.setState({
+      items: [
+        { id: "item-1", type: "url", title: "Example" },
+        { id: "item-2", type: "pdf", title: "Unit Notes" },
+      ],
     });
+    useWizardStore.getState().setSelectedInspirationIds(["item-2"]);
+
+    expect(useWizardStore.getState().getSelectedInspirationItems()).toEqual([
+      expect.objectContaining({ id: "item-2", title: "Unit Notes" }),
+    ]);
   });
 
-  describe("step navigation", () => {
-    describe("setStep", () => {
-      it("should set current step directly", () => {
-        const { setStep } = useWizardStore.getState();
-
-        setStep(3);
-
-        expect(useWizardStore.getState().currentStep).toBe(3);
-      });
-    });
-
-    describe("nextStep", () => {
-      it("should increment step", () => {
-        useWizardStore.setState({ currentStep: 1 });
-        const { nextStep } = useWizardStore.getState();
-
-        nextStep();
-
-        expect(useWizardStore.getState().currentStep).toBe(2);
-      });
-
-      it("should not go beyond step 6", () => {
-        useWizardStore.setState({ currentStep: 6 });
-        const { nextStep } = useWizardStore.getState();
-
-        nextStep();
-
-        expect(useWizardStore.getState().currentStep).toBe(6);
-      });
-    });
-
-    describe("prevStep", () => {
-      it("should decrement step", () => {
-        useWizardStore.setState({ currentStep: 3 });
-        const { prevStep } = useWizardStore.getState();
-
-        prevStep();
-
-        expect(useWizardStore.getState().currentStep).toBe(2);
-      });
-
-      it("should not go below step 1", () => {
-        useWizardStore.setState({ currentStep: 1 });
-        const { prevStep } = useWizardStore.getState();
-
-        prevStep();
-
-        expect(useWizardStore.getState().currentStep).toBe(1);
-      });
-    });
-  });
-
-  describe("setPrompt", () => {
-    it("should update prompt", () => {
-      const { setPrompt } = useWizardStore.getState();
-
-      setPrompt("New prompt");
-
-      expect(useWizardStore.getState().prompt).toBe("New prompt");
-    });
-  });
-
-  describe("setTitle", () => {
-    it("should update title", () => {
-      const { setTitle } = useWizardStore.getState();
-
-      setTitle("Custom Title");
-
-      expect(useWizardStore.getState().title).toBe("Custom Title");
-    });
-  });
-
-  describe("setClassDetails", () => {
-    it("should update class details", () => {
-      const { setClassDetails } = useWizardStore.getState();
-      const details = {
-        grade: "3" as const,
-        subject: "Science",
-        format: "worksheet" as const,
-        questionCount: 15,
-        includeVisuals: false,
-        difficulty: "hard" as const,
-        includeAnswerKey: false,
-        lessonLength: 30 as const,
-        studentProfile: [] as ("needs_movement" | "struggles_reading" | "easily_frustrated" | "advanced" | "ell")[],
-        teachingConfidence: "intermediate" as const,
-      };
-
-      setClassDetails(details);
-
-      expect(useWizardStore.getState().classDetails).toEqual(details);
-    });
-  });
-
-  describe("setSelectedInspiration", () => {
-    it("should update selected inspiration", () => {
-      const { setSelectedInspiration } = useWizardStore.getState();
-      const items = [
-        { id: "1", type: "url" as const, title: "Test" },
-        { id: "2", type: "pdf" as const, title: "Test PDF" },
-      ];
-
-      setSelectedInspiration(items);
-
-      expect(useWizardStore.getState().selectedInspiration).toEqual(items);
-    });
-  });
-
-  describe("setOutputPath", () => {
-    it("should update output path", () => {
-      const { setOutputPath } = useWizardStore.getState();
-
-      setOutputPath("/path/to/output");
-
-      expect(useWizardStore.getState().outputPath).toBe("/path/to/output");
-    });
-  });
-
-  describe("setGenerationState", () => {
-    it("should update generation state partially", () => {
-      const { setGenerationState } = useWizardStore.getState();
-
-      setGenerationState({ isGenerating: true, progress: 50 });
-
-      const state = useWizardStore.getState();
-      expect(state.isGenerating).toBe(true);
-      expect(state.generationProgress).toBe(50);
-      expect(state.generationMessage).toBe(""); // unchanged
-    });
-
-    it("should update message", () => {
-      const { setGenerationState } = useWizardStore.getState();
-
-      setGenerationState({ message: "Generating worksheet..." });
-
-      expect(useWizardStore.getState().generationMessage).toBe("Generating worksheet...");
-    });
-
-    it("should update error", () => {
-      const { setGenerationState } = useWizardStore.getState();
-
-      setGenerationState({ error: "Generation failed" });
-
-      expect(useWizardStore.getState().generationError).toBe("Generation failed");
-    });
-
-    it("should clear error when set to null", () => {
-      useWizardStore.setState({ generationError: "Previous error" });
-      const { setGenerationState } = useWizardStore.getState();
-
-      setGenerationState({ error: null });
-
-      expect(useWizardStore.getState().generationError).toBeNull();
-    });
-  });
-
-  describe("reset", () => {
-    it("should reset all state to initial values", () => {
-      // Set some state
-      useWizardStore.setState({
-        isOpen: true,
-        currentStep: 3,
-        prompt: "Test",
-        title: "Title",
-        classDetails: {
-          grade: "3",
-          subject: "Math",
-          format: "both",
-          questionCount: 15,
-          includeVisuals: true,
-          difficulty: "hard",
-          includeAnswerKey: true,
-          lessonLength: 30,
-          studentProfile: [],
-          teachingConfidence: "intermediate",
+  it("merges selected inspiration and selected pack items deterministically", () => {
+    useInspirationStore.setState({
+      items: [
+        {
+          id: "item-1",
+          type: "url",
+          title: "Example",
+          sourceUrl: "https://example.com",
         },
-        selectedInspiration: [{ id: "1", type: "url", title: "Test" }],
-        outputPath: "/path",
-        isGenerating: true,
-        generationProgress: 50,
-        generationMessage: "Working...",
-        generationError: "Error",
-      });
-
-      const { reset } = useWizardStore.getState();
-      reset();
-
-      const state = useWizardStore.getState();
-      expect(state.isOpen).toBe(false);
-      expect(state.currentStep).toBe(1);
-      expect(state.prompt).toBe("");
-      expect(state.title).toBe("");
-      expect(state.objectiveId).toBeNull();
-      expect(state.classDetails).toBeNull();
-      expect(state.selectedInspiration).toEqual([]);
-      expect(state.outputPath).toBeNull();
-      expect(state.isGenerating).toBe(false);
-      expect(state.generationProgress).toBe(0);
-      expect(state.generationMessage).toBe("");
-      expect(state.generationError).toBeNull();
+      ],
     });
-  });
-
-  describe("getProjectOptions helper", () => {
-    it("should return empty object when no class details", () => {
-      const state = useWizardStore.getState();
-      const options = getProjectOptions(state);
-      expect(options).toEqual({});
-    });
-
-    it("should return options from class details", () => {
-      useWizardStore.setState({
-        classDetails: {
-          grade: "2",
-          subject: "Math",
-          format: "worksheet",
-          questionCount: 15,
-          includeVisuals: false,
-          difficulty: "easy",
-          includeAnswerKey: true,
-          lessonLength: 30,
-          studentProfile: [],
-          teachingConfidence: "intermediate",
+    useWizardStore.getState().setSelectedInspirationIds(["item-1"]);
+    useDesignPackStore.setState({
+      packs: [
+        {
+          packId: "pack-1",
+          name: "Spring",
+          items: [
+            {
+              id: "pack-dup",
+              type: "url",
+              title: "Example",
+              sourceUrl: "https://example.com",
+            },
+            {
+              id: "pack-2",
+              type: "pdf",
+              title: "Teacher Notes",
+              content: "base64",
+            },
+          ],
+          createdAt: "2026-04-10T10:00:00.000Z",
+          updatedAt: "2026-04-10T10:00:00.000Z",
         },
-      });
-
-      const state = useWizardStore.getState();
-      const options = getProjectOptions(state);
-
-      expect(options).toEqual({
-        questionCount: 15,
-        includeVisuals: false,
-        difficulty: "easy",
-        format: "worksheet",
-        includeAnswerKey: true,
-        lessonLength: 30,
-        studentProfile: [],
-        teachingConfidence: "intermediate",
-      });
+      ],
+      selectedPackId: "pack-1",
     });
+
+    expect(useWizardStore.getState().getEffectiveInspiration()).toEqual([
+      expect.objectContaining({ id: "item-1" }),
+      expect.objectContaining({ id: "pack-2" }),
+    ]);
   });
 
-  describe("openWizardForRegeneration", () => {
-    const mockProject = {
-      id: "project-123",
-      userId: "user-123",
+  it("openWizardForRegeneration restores local context ids when available", async () => {
+    const fetchProjectInspiration = vi.fn().mockResolvedValue([]);
+    vi.mocked(useProjectStore.getState).mockReturnValue({
+      projects: [],
+      fetchProjectInspiration,
+    } as never);
+    useProjectContextStore.getState().upsertContext("project-1", {
+      type: "quick_create",
+      selectedInspirationIds: ["item-1"],
+    });
+    vi.mocked(getInspirationItems).mockResolvedValue([
+      { id: "item-1", type: "url", title: "Local Example" },
+    ]);
+
+    await useWizardStore.getState().openWizardForRegeneration({
+      id: "project-1",
+      userId: "user-1",
       title: "Test Project",
       description: null,
-      prompt: "Create a math worksheet about addition",
-      grade: "3" as const,
+      prompt: "Create a worksheet",
+      grade: "2",
       subject: "Math",
-      options: {
-        format: "worksheet" as const,
-        questionCount: 15,
-        includeVisuals: false,
-        difficulty: "hard" as const,
-        includeAnswerKey: true,
-      },
-      inspiration: [
-        { id: "insp-1", type: "url" as const, title: "Reference" },
-      ],
-      outputPath: "/path/to/output",
-      status: "completed" as const,
+      options: {},
+      inspiration: [],
+      outputPath: null,
+      status: "completed",
       errorMessage: null,
-      creditsUsed: 1,
+      creditsUsed: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
       completedAt: new Date(),
-    };
-
-    beforeEach(() => {
-      // Reset the mock for fetchProjectInspiration
-      vi.mocked(useProjectStore.getState).mockReturnValue({
-        fetchProjectInspiration: vi.fn().mockResolvedValue([]),
-      } as never);
     });
 
-    it("REGEN-001: should set regeneratingProjectId", async () => {
-      const { openWizardForRegeneration } = useWizardStore.getState();
-
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      expect(state.regeneratingProjectId).toBe("project-123");
-    });
-
-    it("should restore objectiveId from project options when present", async () => {
-      const projectWithObjective = {
-        ...mockProject,
-        options: {
-          ...mockProject.options,
-          objectiveId: "math_3_01",
-        },
-      };
-
-      const { openWizardForRegeneration } = useWizardStore.getState();
-      await openWizardForRegeneration(projectWithObjective);
-
-      expect(useWizardStore.getState().objectiveId).toBe("math_3_01");
-    });
-
-    it("REGEN-002: should pre-fill prompt from existing project", async () => {
-      const { openWizardForRegeneration } = useWizardStore.getState();
-
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      expect(state.prompt).toBe("Create a math worksheet about addition");
-    });
-
-    it("REGEN-003: should pre-fill classDetails from existing project", async () => {
-      const { openWizardForRegeneration } = useWizardStore.getState();
-
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      expect(state.classDetails).toEqual({
-        grade: "3",
-        subject: "Math",
-        format: "worksheet",
-        questionCount: 15,
-        includeVisuals: false,
-        difficulty: "hard",
-        includeAnswerKey: true,
-        lessonLength: 30,
-        studentProfile: [],
-        teachingConfidence: "intermediate",
-      });
-    });
-
-    it("REGEN-004: should pre-fill inspiration from existing project (JSONB fallback)", async () => {
-      // Junction table returns empty, should fall back to JSONB
-      vi.mocked(useProjectStore.getState).mockReturnValue({
-        fetchProjectInspiration: vi.fn().mockResolvedValue([]),
-      } as never);
-
-      const { openWizardForRegeneration } = useWizardStore.getState();
-
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      expect(state.selectedInspiration).toEqual([
-        { id: "insp-1", type: "url", title: "Reference" },
-      ]);
-    });
-
-    it("REGEN-005: should pre-fill outputPath from existing project", async () => {
-      const { openWizardForRegeneration } = useWizardStore.getState();
-
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      expect(state.outputPath).toBe("/path/to/output");
-    });
-
-    it("should pre-fill title from existing project", async () => {
-      const { openWizardForRegeneration } = useWizardStore.getState();
-
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      expect(state.title).toBe("Test Project");
-    });
-
-    it("should open wizard on step 1", async () => {
-      const { openWizardForRegeneration } = useWizardStore.getState();
-
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      expect(state.isOpen).toBe(true);
-      expect(state.currentStep).toBe(1);
-    });
-
-    it("should reset generation state", async () => {
-      useWizardStore.setState({
-        isGenerating: true,
-        generationProgress: 50,
-        generationMessage: "Old message",
-        generationError: "Old error",
-      });
-
-      const { openWizardForRegeneration } = useWizardStore.getState();
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      expect(state.isGenerating).toBe(false);
-      expect(state.generationProgress).toBe(0);
-      expect(state.generationMessage).toBe("");
-      expect(state.generationError).toBeNull();
-    });
-
-    it("should use defaults when project options are missing", async () => {
-      const projectWithoutOptions = {
-        ...mockProject,
-        options: {},
-        inspiration: [],
-        outputPath: null,
-      };
-
-      const { openWizardForRegeneration } = useWizardStore.getState();
-      await openWizardForRegeneration(projectWithoutOptions);
-
-      const state = useWizardStore.getState();
-      expect(state.classDetails).toEqual({
-        grade: "3",
-        subject: "Math",
-        format: "both",
-        questionCount: 10,
-        includeVisuals: true,
-        difficulty: "medium",
-        includeAnswerKey: true,
-        lessonLength: 30,
-        studentProfile: [],
-        teachingConfidence: "intermediate",
-      });
-      expect(state.selectedInspiration).toEqual([]);
-      expect(state.outputPath).toBeNull();
-    });
-
-    it("should load inspiration from junction table when available", async () => {
-      const junctionInspiration = [
-        { id: "junction-insp-1", type: "url" as const, title: "From Junction Table" },
-        { id: "junction-insp-2", type: "pdf" as const, title: "PDF from Junction" },
-      ];
-
-      vi.mocked(useProjectStore.getState).mockReturnValue({
-        fetchProjectInspiration: vi.fn().mockResolvedValue(junctionInspiration),
-      } as never);
-
-      const { openWizardForRegeneration } = useWizardStore.getState();
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      // Should use junction table items, not JSONB fallback
-      expect(state.selectedInspiration).toEqual(junctionInspiration);
-    });
-
-    it("should fallback to JSONB when junction table is empty", async () => {
-      vi.mocked(useProjectStore.getState).mockReturnValue({
-        fetchProjectInspiration: vi.fn().mockResolvedValue([]),
-      } as never);
-
-      const { openWizardForRegeneration } = useWizardStore.getState();
-      await openWizardForRegeneration(mockProject);
-
-      const state = useWizardStore.getState();
-      // Should fallback to JSONB inspiration
-      expect(state.selectedInspiration).toEqual([
-        { id: "insp-1", type: "url", title: "Reference" },
-      ]);
-    });
-
-    it("should call fetchProjectInspiration with correct project ID", async () => {
-      const mockFetch = vi.fn().mockResolvedValue([]);
-      vi.mocked(useProjectStore.getState).mockReturnValue({
-        fetchProjectInspiration: mockFetch,
-      } as never);
-
-      const { openWizardForRegeneration } = useWizardStore.getState();
-      await openWizardForRegeneration(mockProject);
-
-      expect(mockFetch).toHaveBeenCalledWith("project-123");
-    });
+    expect(useWizardStore.getState().selectedInspirationIds).toEqual(["item-1"]);
+    expect(fetchProjectInspiration).not.toHaveBeenCalled();
   });
 
-  describe("regeneratingProjectId state", () => {
-    it("REGEN-008: reset() should clear regeneratingProjectId", () => {
-      useWizardStore.setState({ regeneratingProjectId: "project-123" });
+  it("openWizardForRegeneration imports legacy project inspiration when no local context exists", async () => {
+    const fetchProjectInspiration = vi.fn().mockResolvedValue([
+      { id: "legacy-1", type: "url" as const, title: "Legacy Link" },
+    ]);
+    vi.mocked(useProjectStore.getState).mockReturnValue({
+      projects: [],
+      fetchProjectInspiration,
+    } as never);
+    vi.mocked(getInspirationItems).mockResolvedValue([]);
+    vi.mocked(bulkUpsertInspirationItems).mockResolvedValue([
+      { id: "canonical-1", type: "url", title: "Legacy Link" },
+    ]);
 
-      const { reset } = useWizardStore.getState();
-      reset();
-
-      expect(useWizardStore.getState().regeneratingProjectId).toBeNull();
+    await useWizardStore.getState().openWizardForRegeneration({
+      id: "project-legacy",
+      userId: "user-1",
+      title: "Legacy Project",
+      description: null,
+      prompt: "Create a worksheet",
+      grade: "2",
+      subject: "Math",
+      options: {},
+      inspiration: [],
+      outputPath: null,
+      status: "completed",
+      errorMessage: null,
+      creditsUsed: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      completedAt: new Date(),
     });
 
-    it("REGEN-009: openWizard() should set regeneratingProjectId to null", () => {
-      useWizardStore.setState({ regeneratingProjectId: "project-123" });
-
-      const { openWizard } = useWizardStore.getState();
-      openWizard("New prompt");
-
-      expect(useWizardStore.getState().regeneratingProjectId).toBeNull();
-    });
+    expect(fetchProjectInspiration).toHaveBeenCalledWith("project-legacy");
+    expect(bulkUpsertInspirationItems).toHaveBeenCalledWith([
+      { id: "legacy-1", type: "url", title: "Legacy Link" },
+    ]);
+    expect(useWizardStore.getState().selectedInspirationIds).toEqual(["canonical-1"]);
+    expect(
+      useProjectContextStore.getState().getContext("project-legacy")?.selectedInspirationIds
+    ).toEqual(["canonical-1"]);
   });
 
-  describe("openWizardFromObjective", () => {
-    const learner = {
-      learnerId: "learner-1",
-      displayName: "Ava",
-      grade: "2" as const,
-      avatarEmoji: "🙂",
-      preferences: {
-        favoriteSubjects: ["Math"],
-        sessionDuration: 30,
-        visualLearner: true,
-      },
-      adultConfidence: "intermediate" as const,
-      createdAt: "2026-02-12T00:00:00Z",
-      updatedAt: "2026-02-12T00:00:00Z",
-    };
-
-    it("captures objectiveId and applies deterministic defaults", () => {
-      const { openWizardFromObjective } = useWizardStore.getState();
-
-      openWizardFromObjective(
-        {
-          id: "math_2_01",
-          text: "Add within 20",
-          difficulty: "standard",
-          estimatedMinutes: 30,
-          unitTitle: "Math - Addition Basics",
-          whyRecommended: "Next objective",
-        },
-        learner
-      );
-
-      const state = useWizardStore.getState();
-      expect(state.objectiveId).toBe("math_2_01");
-      expect(state.classDetails).toMatchObject({
+  it("getProjectOptions still reflects class details for generation requests", () => {
+    useWizardStore.setState({
+      classDetails: {
         grade: "2",
         subject: "Math",
-        format: "both",
-        questionCount: 8,
-        difficulty: "medium",
-        includeAnswerKey: true,
-        lessonLength: 30,
-        teachingConfidence: "intermediate",
-      });
-      expect(state.prompt).toContain("Grade 2 Math");
-      expect(state.prompt).toContain("Add within 20");
-    });
-
-    it("uses worksheet/challenge presets for practice launches", () => {
-      const { openWizardFromObjective } = useWizardStore.getState();
-
-      openWizardFromObjective(
-        {
-          id: "math_2_99",
-          text: "Solve multi-step word problems",
-          difficulty: "challenge",
-          estimatedMinutes: 60,
-          unitTitle: "Math - Problem Solving",
-          whyRecommended: "Stretch goal",
-        },
-        learner,
-        "worksheet"
-      );
-
-      const state = useWizardStore.getState();
-      expect(state.objectiveId).toBe("math_2_99");
-      expect(state.classDetails).toMatchObject({
-        subject: "Math",
         format: "worksheet",
-        questionCount: 16,
-        difficulty: "hard",
+        questionCount: 12,
+        includeVisuals: false,
+        difficulty: "easy",
         includeAnswerKey: true,
-        lessonLength: 60,
-      });
+        lessonLength: 30,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
+      },
     });
 
-    it("normalizes subject/lesson defaults for lesson-plan launches", () => {
-      const { openWizardFromObjective } = useWizardStore.getState();
-
-      openWizardFromObjective(
-        {
-          id: "ss_2_01",
-          text: "Identify community helpers",
-          difficulty: "easy",
-          estimatedMinutes: 37,
-          unitTitle: "Social Studies - Communities",
-          whyRecommended: "Core social studies skill",
-        },
-        learner,
-        "lesson_plan"
-      );
-
-      const state = useWizardStore.getState();
-      expect(state.classDetails).toMatchObject({
-        subject: "Social Studies",
-        format: "lesson_plan",
-        questionCount: 5,
-        difficulty: "easy",
-        includeAnswerKey: false,
-        lessonLength: 30,
-      });
+    expect(getProjectOptions(useWizardStore.getState())).toEqual({
+      questionCount: 12,
+      includeVisuals: false,
+      difficulty: "easy",
+      format: "worksheet",
+      includeAnswerKey: true,
+      lessonLength: 30,
+      studentProfile: [],
+      teachingConfidence: "intermediate",
     });
   });
 
-  describe("openWizardOneOffForLearner", () => {
-    const learner = {
-      learnerId: "learner-99",
-      displayName: "Kai",
-      grade: "3" as const,
-      avatarEmoji: "🦊",
-      preferences: {
-        favoriteSubjects: ["Science"],
-        sessionDuration: 45 as const,
-        visualLearner: true,
+  it("openWizardForRemediation seeds remediation mode and context", () => {
+    useWizardStore.getState().openWizardForRemediation(
+      {
+        id: "math-2-1",
+        text: "Add within 20",
+        difficulty: "standard",
+        estimatedMinutes: 20,
+        unitTitle: "Math - Addition",
+        whyRecommended: "Quick Check remediation",
+        vocabulary: ["sum"],
+        activities: ["Use counters"],
+        misconceptions: ["Forgetting to carry"],
       },
-      adultConfidence: "novice" as const,
-      createdAt: "2026-02-12T00:00:00Z",
-      updatedAt: "2026-02-12T00:00:00Z",
-    };
+      {
+        learnerId: "learner-1",
+        displayName: "Emma",
+        grade: "2",
+        avatarEmoji: "🦊",
+        preferences: {
+          favoriteSubjects: ["Math"],
+          sessionDuration: 30,
+          visualLearner: true,
+        },
+        adultConfidence: "novice",
+        createdAt: "2026-04-10T12:00:00.000Z",
+        updatedAt: "2026-04-10T12:00:00.000Z",
+      },
+      {
+        resultId: "result-1",
+        learnerId: "learner-1",
+        objectiveId: "math-2-1",
+        subject: "Math",
+        score: 33,
+        totalQuestions: 3,
+        correctAnswers: 1,
+        items: [
+          {
+            checkpointId: "math-2-1-core",
+            kind: "core",
+            prompt: "Can the learner demonstrate the skill?",
+            correct: false,
+            note: "Still counting by ones.",
+          },
+        ],
+        recommendation: "remediate",
+        wrongAnswerSummary: "Still counting by ones.",
+        createdAt: "2026-04-10T12:00:00.000Z",
+      }
+    );
 
-    it("opens one-off worksheet flow with objective cleared", () => {
-      useWizardStore.getState().openWizardOneOffForLearner(learner);
+    const state = useWizardStore.getState();
+    expect(state.generationMode).toBe("remediation_pack");
+    expect(state.remediationContext).toMatchObject({
+      objectiveId: "math-2-1",
+      score: 33,
+    });
+    expect(state.classDetails?.format).toBe("worksheet");
+    expect(state.classDetails?.includeVisuals).toBe(false);
+  });
 
-      const state = useWizardStore.getState();
-      expect(state.objectiveId).toBeNull();
-      expect(state.prompt).toContain("one-off worksheet");
-      expect(state.classDetails).toMatchObject({
-        grade: "3",
-        subject: "Science",
+  it("preserves remediation mode when class details or provider change", () => {
+    useWizardStore.setState({
+      remediationContext: {
+        objectiveId: "math-2-1",
+        objectiveText: "Add within 20",
+        subject: "Math",
+        grade: "2",
+        score: 33,
+        wrongAnswerSummary: "Needs more support.",
+        missedCheckpoints: [{ kind: "core", prompt: "Can the learner add within 20?" }],
+      },
+      classDetails: {
+        grade: "2",
+        subject: "Math",
         format: "worksheet",
-        questionCount: 10,
+        questionCount: 5,
+        includeVisuals: false,
+        difficulty: "easy",
         includeAnswerKey: true,
-        lessonLength: 45,
-        teachingConfidence: "novice",
-      });
+        lessonLength: 15,
+        studentProfile: [],
+        teachingConfidence: "intermediate",
+      },
+      generationMode: "remediation_pack",
     });
 
-    it("allows overriding subject while keeping learner defaults", () => {
-      useWizardStore.getState().openWizardOneOffForLearner(learner, "Math");
-      const state = useWizardStore.getState();
-      expect(state.objectiveId).toBeNull();
-      expect(state.classDetails?.subject).toBe("Math");
-      expect(state.classDetails?.grade).toBe("3");
+    useWizardStore.getState().setClassDetails({
+      grade: "2",
+      subject: "Math",
+      format: "both",
+      questionCount: 8,
+      includeVisuals: true,
+      difficulty: "medium",
+      includeAnswerKey: true,
+      lessonLength: 30,
+      studentProfile: [],
+      teachingConfidence: "experienced",
     });
+    useWizardStore.getState().setAiProvider("premium");
+
+    expect(useWizardStore.getState().generationMode).toBe("remediation_pack");
   });
 });

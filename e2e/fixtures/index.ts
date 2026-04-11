@@ -37,8 +37,6 @@ type FixtureOptions = {
   withLearnerProfile: boolean;
   /** Credit balance for the test user (default: 50) */
   creditBalance: number;
-  /** Suppress the first-run Local AI setup dialog (default: true) */
-  suppressOllamaSetup: boolean;
 };
 
 /**
@@ -138,10 +136,7 @@ async function setupProjectRoutes(page: Page) {
 /**
  * Generate the localStorage init script for authentication
  */
-function getAuthInitScript(
-  includeLearnerProfile: boolean,
-  suppressOllamaSetup: boolean
-): string {
+function getAuthInitScript(includeLearnerProfile: boolean): string {
   const authScript = `
     localStorage.setItem(
       "${SUPABASE_AUTH_KEY}",
@@ -159,12 +154,6 @@ function getAuthInitScript(
     );
   `;
 
-  const ollamaSetupScript = suppressOllamaSetup
-    ? `
-    localStorage.setItem("ta-ollama-setup-seen", "true");
-  `
-    : "";
-
   const learnerScript = includeLearnerProfile
     ? `
     localStorage.setItem(
@@ -175,7 +164,7 @@ function getAuthInitScript(
   `
     : "";
 
-  return authScript + ollamaSetupScript + learnerScript;
+  return authScript + learnerScript;
 }
 
 // ============================================
@@ -188,7 +177,6 @@ export const test = base.extend<Fixtures>({
     {
       withLearnerProfile: true,
       creditBalance: 50,
-      suppressOllamaSetup: true,
     },
     { option: true },
   ],
@@ -213,12 +201,7 @@ export const test = base.extend<Fixtures>({
     await setupAuthRoutes(page, fixtureOptions.creditBalance, true);
 
     // Set up localStorage via init script (runs before page load)
-    await page.addInitScript(
-      getAuthInitScript(
-        fixtureOptions.withLearnerProfile,
-        fixtureOptions.suppressOllamaSetup
-      )
-    );
+    await page.addInitScript(getAuthInitScript(fixtureOptions.withLearnerProfile));
 
     // Navigate and wait for app to load
     await page.goto("/");
@@ -250,12 +233,7 @@ export const test = base.extend<Fixtures>({
     await setupAuthRoutes(page, fixtureOptions.creditBalance, false);
 
     // Set up localStorage
-    await page.addInitScript(
-      getAuthInitScript(
-        fixtureOptions.withLearnerProfile,
-        fixtureOptions.suppressOllamaSetup
-      )
-    );
+    await page.addInitScript(getAuthInitScript(fixtureOptions.withLearnerProfile));
 
     // Navigate and wait
     await page.goto("/");

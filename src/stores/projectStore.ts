@@ -43,7 +43,6 @@ interface CreateProjectData {
   subject: string;
   options?: StoredProjectOptions;
   inspiration?: InspirationItem[];
-  inspirationIds?: string[]; // New: IDs of inspiration items to link
   outputPath?: string;
 }
 
@@ -415,24 +414,6 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
       if (error) throw error;
 
-      // Link inspiration items via junction table if IDs provided
-      if (data.inspirationIds && data.inspirationIds.length > 0) {
-        const junctionRecords = data.inspirationIds.map((inspirationId, index) => ({
-          project_id: (newProject as DbProject).id,
-          inspiration_id: inspirationId,
-          position: index,
-        }));
-
-        const { error: junctionError } = await supabase
-          .from("project_inspiration")
-          .insert(junctionRecords as never);
-
-        if (junctionError) {
-          console.error("Failed to link inspiration items:", junctionError);
-          // Don't throw - project was created successfully
-        }
-      }
-
       const project = mapDbProjectToProject(newProject as DbProject);
 
       useProjectContextStore.getState().markProjectUsed(project.id);
@@ -473,31 +454,6 @@ export const useProjectStore = create<ProjectState>((set) => ({
         .eq("id", id);
 
       if (error) throw error;
-
-      const { error: deleteInspirationError } = await supabase
-        .from("project_inspiration")
-        .delete()
-        .eq("project_id", id);
-
-      if (deleteInspirationError) {
-        console.error("Failed to clear project inspiration links:", deleteInspirationError);
-      }
-
-      if (data.inspirationIds && data.inspirationIds.length > 0) {
-        const junctionRecords = data.inspirationIds.map((inspirationId, index) => ({
-          project_id: id,
-          inspiration_id: inspirationId,
-          position: index,
-        }));
-
-        const { error: junctionError } = await supabase
-          .from("project_inspiration")
-          .insert(junctionRecords as never);
-
-        if (junctionError) {
-          console.error("Failed to link inspiration items:", junctionError);
-        }
-      }
 
       set((state) => ({
         projects: state.projects.map((project) =>

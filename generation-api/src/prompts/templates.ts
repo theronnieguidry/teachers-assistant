@@ -1,4 +1,9 @@
-import type { Grade, ProjectOptions, ParsedInspiration } from "../types.js";
+import type {
+  Grade,
+  ProjectOptions,
+  ParsedInspiration,
+  RemediationContext,
+} from "../types.js";
 
 interface PromptContext {
   prompt: string;
@@ -6,6 +11,10 @@ interface PromptContext {
   subject: string;
   options: ProjectOptions;
   inspiration: ParsedInspiration[];
+}
+
+interface RemediationPromptContext extends PromptContext {
+  remediationContext: RemediationContext;
 }
 
 /**
@@ -309,6 +318,102 @@ Wrap your response in a complete HTML document with:
 - Clear correspondence to worksheet question numbers
 - Distinct styling for answers vs explanations (e.g., answers in bold)
 - A header clearly indicating this is the ANSWER KEY
+
+Return ONLY valid HTML. Do NOT wrap output in markdown code blocks or backticks.
+`;
+}
+
+function formatMissedCheckpoints(remediationContext: RemediationContext): string {
+  return remediationContext.missedCheckpoints
+    .map((checkpoint, index) => {
+      const note = checkpoint.note ? ` Teacher note: ${checkpoint.note}` : "";
+      return `${index + 1}. [${checkpoint.kind}] ${checkpoint.prompt}${note}`;
+    })
+    .join("\n");
+}
+
+export function buildRemediationWorksheetPrompt(
+  ctx: RemediationPromptContext
+): string {
+  return `You are an expert elementary school teacher creating a focused remediation worksheet.
+
+${getCommonInstructions(ctx)}
+
+## Quick Check Context
+- Objective: ${ctx.remediationContext.objectiveText}
+- Score: ${ctx.remediationContext.score}%
+- Wrong answer summary: ${ctx.remediationContext.wrongAnswerSummary || "No extra notes provided."}
+
+## Missed Checkpoints
+${formatMissedCheckpoints(ctx.remediationContext)}
+
+## Remediation Worksheet Requirements
+- Create exactly 5 short, concrete practice items
+- Focus only on the missed checkpoints above
+- Keep the tone gentle and encouraging
+- Use age-appropriate language for Grade ${ctx.grade}
+- Include a clear worksheet header with Name and Date lines
+- Leave writing space after each item
+- Do not reteach the whole subject; stay tightly focused on the gaps
+
+## CRITICAL Print-Friendly Rules
+- Do NOT use interactive HTML elements
+- Do NOT use gradients, shadows, or colored backgrounds
+- Use only Arial, Helvetica, sans-serif
+- Keep all text black for clear printing
+
+Return ONLY valid HTML. Do NOT wrap output in markdown code blocks or backticks.
+`;
+}
+
+export function buildRemediationAnswerKeyPrompt(
+  ctx: RemediationPromptContext,
+  worksheetHtml: string
+): string {
+  return `You are an expert elementary school teacher creating an answer key for a remediation worksheet.
+
+## Worksheet
+\`\`\`html
+${worksheetHtml}
+\`\`\`
+
+## Quick Check Context
+- Objective: ${ctx.remediationContext.objectiveText}
+- Score: ${ctx.remediationContext.score}%
+- Focus areas:
+${formatMissedCheckpoints(ctx.remediationContext)}
+
+## Answer Key Requirements
+- Provide answers for all 5 worksheet items
+- Include a short grading hint for each item
+- Keep explanations concise and parent-friendly
+- Make it easy to see which missed checkpoint each answer supports
+
+Return ONLY valid HTML. Do NOT wrap output in markdown code blocks or backticks.
+`;
+}
+
+export function buildRemediationCoachingPrompt(
+  ctx: RemediationPromptContext
+): string {
+  return `You are an expert elementary school teacher writing a short teacher coaching guide.
+
+${getCommonInstructions(ctx)}
+
+## Quick Check Context
+- Objective: ${ctx.remediationContext.objectiveText}
+- Score: ${ctx.remediationContext.score}%
+- Wrong answer summary: ${ctx.remediationContext.wrongAnswerSummary || "No extra notes provided."}
+- Missed checkpoints:
+${formatMissedCheckpoints(ctx.remediationContext)}
+
+## Coaching Requirements
+- Return valid HTML
+- Keep the total response under 250 words
+- Include one encouragement strategy
+- Include one correction strategy tied to the missed checkpoints
+- Include a short "What to say next" section with exact teacher wording
+- Keep the tone calm, supportive, and parent-friendly
 
 Return ONLY valid HTML. Do NOT wrap output in markdown code blocks or backticks.
 `;

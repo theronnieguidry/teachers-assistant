@@ -24,7 +24,7 @@ export function PromptReviewStep() {
   const {
     prompt,
     classDetails,
-    selectedInspiration,
+    getEffectiveInspiration,
     polishedPrompt,
     setPolishedPrompt,
     setUsePolishedPrompt,
@@ -33,11 +33,9 @@ export function PromptReviewStep() {
   } = useWizardStore();
   const selectedPack = useDesignPackStore((state) => state.getSelectedPack());
   const { session } = useAuthStore();
+  const effectiveInspiration = getEffectiveInspiration();
 
-  const designPackTitles = selectedPack?.items.map((item) => item.title || item.itemId) || [];
-  const inspirationTitles = Array.from(
-    new Set([...selectedInspiration.map((i) => i.title || i.id), ...designPackTitles])
-  );
+  const inspirationTitles = Array.from(new Set(effectiveInspiration.map((item) => item.title || item.id)));
 
   const [isPolishing, setIsPolishing] = useState(false);
   const [polishError, setPolishError] = useState<string | null>(null);
@@ -175,13 +173,11 @@ export function PromptReviewStep() {
 
       {selectedPack && (
         <div className="p-3 bg-muted/40 rounded-lg border" data-testid="design-pack-context">
-          <p className="text-sm font-medium">
-            Design Pack Context: {selectedPack.name}
-          </p>
+          <p className="text-sm font-medium">Selected Pack: {selectedPack.name}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {selectedPack.items.length} item
-            {selectedPack.items.length !== 1 ? "s" : ""} will be merged with ad-hoc inspiration
-            for generation.
+            {selectedPack.items.length} pack item
+            {selectedPack.items.length !== 1 ? "s" : ""} plus {Math.max(effectiveInspiration.length - selectedPack.items.length, 0)} individually selected inspiration item
+            {effectiveInspiration.length - selectedPack.items.length === 1 ? "" : "s"} will be used for generation.
           </p>
         </div>
       )}

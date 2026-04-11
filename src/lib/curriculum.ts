@@ -7,6 +7,9 @@ import type {
   LearnerObjectiveRecommendation,
   SubjectProgress,
   Grade,
+  QuickCheckCheckpoint,
+  QuickCheckRecommendation,
+  QuickCheckResultItem,
 } from "@/types";
 
 // Import curriculum packs statically for bundling
@@ -252,6 +255,64 @@ export function calculateMasteryFromScore(score: number): MasteryState {
   if (score >= 80) return "mastered";
   if (score >= 50) return "in_progress";
   return "needs_review";
+}
+
+export function buildQuickCheckTemplate(
+  objective: CurriculumObjective,
+  subject: string
+): QuickCheckCheckpoint[] {
+  void subject;
+
+  const vocabularyPrompt = objective.vocabulary[0]
+    ? `Can the learner correctly use or recognize "${objective.vocabulary[0]}" while solving the problem?`
+    : objective.activities[0]
+    ? `Can the learner complete this kind of activity successfully: ${objective.activities[0]}?`
+    : "Can the learner explain the skill in their own words?";
+
+  const misconceptionPrompt = objective.misconceptions[0]
+    ? `Did the learner avoid this common mistake: ${objective.misconceptions[0]}?`
+    : "Can the learner explain how they know the answer is correct?";
+
+  return [
+    {
+      checkpointId: `${objective.id}-core`,
+      kind: "core",
+      prompt: `Can the learner demonstrate this skill: ${objective.text}?`,
+    },
+    {
+      checkpointId: `${objective.id}-vocabulary`,
+      kind: "vocabulary",
+      prompt: vocabularyPrompt,
+    },
+    {
+      checkpointId: `${objective.id}-misconception`,
+      kind: "misconception",
+      prompt: misconceptionPrompt,
+    },
+  ];
+}
+
+export function calculateQuickCheckRecommendation(
+  score: number
+): QuickCheckRecommendation {
+  if (score >= 80) return "advance";
+  if (score >= 50) return "practice";
+  return "remediate";
+}
+
+export function summarizeMissedCheckpoints(
+  items: QuickCheckResultItem[]
+): string {
+  const missed = items
+    .filter((item) => !item.correct)
+    .slice(0, 3)
+    .map((item) => {
+      const basePrompt = item.prompt.trim() || "A checkpoint was missed.";
+      const note = item.note?.trim();
+      return note ? `${basePrompt} Note: ${note}.` : basePrompt;
+    });
+
+  return missed.join(" ").trim();
 }
 
 /**

@@ -24,7 +24,7 @@ describe("Prompt Polisher", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
-    mockGetResolvedLocalModel.mockReturnValue("llama3.1:8b");
+    mockGetResolvedLocalModel.mockReturnValue("gemma3:4b");
     mockGetOllamaWarmupState.mockReturnValue({
       localModelReady: true,
       reachable: true,
@@ -170,7 +170,7 @@ describe("Prompt Polisher", () => {
     });
 
     it("should use backend-resolved local model when POLISH_MODEL is not set", async () => {
-      mockGetResolvedLocalModel.mockReturnValue("qwen2.5:7b");
+      mockGetResolvedLocalModel.mockReturnValue("phi4-mini");
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ response: "Polished prompt here with enough content." }),
@@ -181,7 +181,24 @@ describe("Prompt Polisher", () => {
       const callBody = JSON.parse(
         vi.mocked(fetch).mock.calls[0][1]?.body as string
       );
-      expect(callBody.model).toBe("qwen2.5:7b");
+      expect(callBody.model).toBe("phi4-mini");
+    });
+
+    it("should strip reasoning tags from the polished response", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response:
+            "<think>Outline grade-appropriate strategy first.</think> Create a second-grade addition worksheet with real-world examples and a mix of straightforward and slightly challenging problems.",
+        }),
+      } as Response);
+
+      const result = await polishPrompt(baseContext);
+
+      expect(result.polished).toBe(
+        "Create a second-grade addition worksheet with real-world examples and a mix of straightforward and slightly challenging problems."
+      );
+      expect(result.wasPolished).toBe(true);
     });
 
     it("should include inspiration titles in polishing prompt", async () => {
