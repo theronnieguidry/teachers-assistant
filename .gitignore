@@ -32,8 +32,16 @@ archive/
 
 # Test results
 e2e-results/
+e2e-report/
 test-results/
 playwright-report/
 
 # Coverage reports
 coverage/
+
+# Supabase local state
+supabase/.branches/
+supabase/.temp/
+
+# Claude Code local worktrees
+.claude/worktrees/
