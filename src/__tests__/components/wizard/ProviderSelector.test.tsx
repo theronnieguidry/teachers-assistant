@@ -86,4 +86,20 @@ describe("ProviderSelector", () => {
 
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("explains why Premium AI is disabled", () => {
+    render(
+      <ProviderSelector
+        {...defaultProps}
+        premiumDisabled
+        premiumDisabledReason="Premium requires a hosted HTTPS API endpoint."
+      />
+    );
+
+    const premiumCard = screen.getByLabelText("Select Premium AI as AI provider");
+    expect(premiumCard).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByText("Premium requires a hosted HTTPS API endpoint.")
+    ).toBeInTheDocument();
+  });
 });

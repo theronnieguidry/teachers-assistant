@@ -39,6 +39,7 @@ export function ProviderSelector({
   value,
   onChange,
   premiumDisabled = false,
+  premiumDisabledReason,
 }: ProviderSelectorProps) {
   const handleProviderSelect = (providerId: AiProvider) => {
     if (providerId === "premium" && premiumDisabled) {
@@ -66,8 +67,10 @@ export function ProviderSelector({
               )}
               onClick={() => handleProviderSelect(provider.id)}
               role="button"
+              aria-disabled={isPremiumUnavailable}
               aria-pressed={isSelected}
               aria-label={`Select ${provider.name} as AI provider`}
+              title={isPremiumUnavailable ? premiumDisabledReason : undefined}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -98,6 +101,11 @@ export function ProviderSelector({
                     <p className="text-xs text-muted-foreground">
                       Uses credits (typically 3-6 per worksheet)
                     </p>
+                    {isPremiumUnavailable && premiumDisabledReason && (
+                      <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+                        {premiumDisabledReason}
+                      </p>
+                    )}
                   </div>
                 )}
               </CardContent>
